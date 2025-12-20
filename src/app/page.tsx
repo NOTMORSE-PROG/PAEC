@@ -336,7 +336,7 @@ export default function LandingPage() {
                 <div className="bg-white/10 rounded-2xl p-6 backdrop-blur-sm mb-6">
                   <div className="text-sm text-primary-100 mb-2">ATC Clearance</div>
                   <p className="text-lg font-medium">
-                    "PAL456, climb and maintain flight level 350, turn right heading 090"
+                    &quot;PAL456, climb and maintain flight level 350, turn right heading 090&quot;
                   </p>
                 </div>
                 <div className="bg-white rounded-2xl p-6 text-gray-900">

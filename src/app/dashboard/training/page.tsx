@@ -136,7 +136,7 @@ export default function TrainingPage() {
           <div>
             <h2 className="text-lg font-semibold mb-1">Overall Training Progress</h2>
             <p className="text-primary-100 text-sm">
-              You've completed 130 of 195 total exercises across all modules.
+              You&apos;ve completed 130 of 195 total exercises across all modules.
             </p>
           </div>
           <div className="flex items-center gap-6">
@@ -200,7 +200,7 @@ export default function TrainingPage() {
 
               {/* Features */}
               <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">What you'll practice:</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">What you&apos;ll practice:</h4>
                 <div className="grid grid-cols-2 gap-2">
                   {module.features.map((feature, index) => (
                     <div key={index} className="flex items-center gap-2 text-sm text-gray-600">

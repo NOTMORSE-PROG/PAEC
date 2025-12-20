@@ -107,8 +107,8 @@ export default function RegisterPage() {
           {/* Testimonial */}
           <div className="mt-12 p-6 bg-white/10 backdrop-blur-sm rounded-2xl">
             <p className="text-white/90 italic mb-4">
-              "PAEC helped me improve my readback accuracy by 40%. The instant feedback
-              feature is invaluable for identifying my weak points."
+              &quot;PAEC helped me improve my readback accuracy by 40%. The instant feedback
+              feature is invaluable for identifying my weak points.&quot;
             </p>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full"></div>

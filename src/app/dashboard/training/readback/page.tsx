@@ -249,7 +249,7 @@ export default function ReadbackPage() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Pilot's Readback (Contains Errors)
+              Pilot&apos;s Readback (Contains Errors)
             </h3>
             <button
               onClick={() => speakPilot(exercise.pilotReadback)}
@@ -279,7 +279,7 @@ export default function ReadbackPage() {
         <div className="p-6">
           <h3 className="font-semibold text-gray-900 mb-4">Identify the Errors</h3>
           <p className="text-sm text-gray-600 mb-4">
-            Click on the elements that contain errors in the pilot's readback:
+            Click on the elements that contain errors in the pilot&apos;s readback:
           </p>
 
           <div className="space-y-3 mb-6">
@@ -297,7 +297,7 @@ export default function ReadbackPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-medium text-gray-900">{error.type}</span>
-                    <span className="text-gray-500 ml-2">— "{error.incorrect}"</span>
+                    <span className="text-gray-500 ml-2">— &quot;{error.incorrect}&quot;</span>
                   </div>
                   {selectedErrors.includes(error.incorrect) && (
                     <CheckCircle className="w-5 h-5 text-primary-600" />

@@ -59,7 +59,7 @@ export default function JumbledPage() {
   useEffect(() => {
     setWordBank([...exercise.jumbledWords])
     setArrangedWords([])
-  }, [currentExercise])
+  }, [currentExercise, exercise.jumbledWords])
 
   // Drag from word bank
   const handleBankDragStart = (e: React.DragEvent<HTMLDivElement>, word: string, index: number) => {
