@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { promises as fs } from 'fs'
+import path from 'path'
 import {
   adaptiveAnalyze,
   applyUserCorrection,
@@ -20,26 +22,24 @@ import {
  * POST   /api/adaptive-ml?action=reinforce - Reinforcement update
  * POST   /api/adaptive-ml?action=reset   - Reset model to defaults
  * POST   /api/adaptive-ml?action=config  - Update learning config
- *
- * NOTE: Uses in-memory state for Vercel serverless compatibility.
- * State persists per-instance but resets on cold starts.
- * For persistent storage, use the database endpoints.
  */
 
-// In-memory model state (serverless-compatible)
-let cachedModelState: AdaptiveModelState | null = null
+const MODEL_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'adaptiveModel.json')
 
 async function readModelState(): Promise<AdaptiveModelState> {
-  if (cachedModelState) {
-    return cachedModelState
+  try {
+    const data = await fs.readFile(MODEL_FILE_PATH, 'utf-8')
+    return JSON.parse(data)
+  } catch {
+    const defaultState = createDefaultModelState()
+    await writeModelState(defaultState)
+    return defaultState
   }
-  cachedModelState = createDefaultModelState()
-  return cachedModelState
 }
 
 async function writeModelState(state: AdaptiveModelState): Promise<void> {
   state.updatedAt = new Date().toISOString()
-  cachedModelState = state
+  await fs.writeFile(MODEL_FILE_PATH, JSON.stringify(state, null, 2), 'utf-8')
 }
 
 // GET - Get model state and statistics
