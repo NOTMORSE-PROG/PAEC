@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { promises as fs } from 'fs'
-import path from 'path'
+import {
+  DEPARTURE_APPROACH_CORPUS,
+  NON_STANDARD_PHRASES,
+  NUMBER_PRONUNCIATION_ERRORS,
+  PHILIPPINE_CALLSIGNS,
+  INTERNATIONAL_CALLSIGNS,
+  PHILIPPINE_WAYPOINTS,
+  ENHANCED_SIDS,
+  ENHANCED_STARS,
+} from '@/lib/atcData'
 
 /**
- * Training API - File-based storage
+ * Training API - In-memory storage (Vercel serverless compatible)
  *
  * Endpoints:
  * GET    /api/training           - Get all training data & stats
@@ -11,6 +19,8 @@ import path from 'path'
  * GET    /api/training?type=X    - Get examples by error type
  * POST   /api/training           - Add training example(s) or run training
  * DELETE /api/training           - Clear training corpus
+ *
+ * NOTE: Uses in-memory state + atcData for Vercel serverless compatibility.
  */
 
 interface ATCTrainingExample {
@@ -44,41 +54,58 @@ interface TrainingData {
   }
 }
 
-const DATA_FILE_PATH = path.join(process.cwd(), 'src', 'data', 'trainingCorpus.json')
+// In-memory cached data (serverless-compatible)
+let cachedTrainingData: TrainingData | null = null
 
 async function readTrainingData(): Promise<TrainingData> {
-  try {
-    const data = await fs.readFile(DATA_FILE_PATH, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    // Return default structure if file doesn't exist
-    return {
-      metadata: {
-        version: '1.0',
-        lastUpdated: new Date().toISOString().split('T')[0],
-        description: 'ATC Readback Training Corpus',
-      },
-      corpus: [],
-      phraseology: {
-        nonStandardPhrases: [],
-        numberPronunciation: [],
-      },
-      callsigns: {
-        philippine: [],
-        international: [],
-      },
-      waypoints: [],
-      procedures: {
-        sids: [],
-        stars: [],
-      },
-    }
+  if (cachedTrainingData) {
+    return cachedTrainingData
   }
+
+  // Initialize from atcData module
+  cachedTrainingData = {
+    metadata: {
+      version: '2.0',
+      lastUpdated: new Date().toISOString().split('T')[0],
+      description: 'ATC Readback Training Corpus',
+    },
+    corpus: DEPARTURE_APPROACH_CORPUS.map(ex => ({
+      atc: ex.atc,
+      pilot: ex.pilot,
+      isCorrect: ex.isCorrect,
+      phase: ex.phase,
+      errorType: ex.errorType || undefined,
+      explanation: ex.explanation,
+    })),
+    phraseology: {
+      nonStandardPhrases: NON_STANDARD_PHRASES.map(p => ({
+        incorrect: p.incorrect,
+        correct: p.correct,
+        severity: p.severity,
+      })),
+      numberPronunciation: NUMBER_PRONUNCIATION_ERRORS.map(p => ({
+        incorrect: p.incorrect,
+        correct: p.correct,
+        severity: p.severity,
+      })),
+    },
+    callsigns: {
+      philippine: [...PHILIPPINE_CALLSIGNS],
+      international: [...INTERNATIONAL_CALLSIGNS],
+    },
+    waypoints: [...PHILIPPINE_WAYPOINTS],
+    procedures: {
+      sids: [...ENHANCED_SIDS],
+      stars: [...ENHANCED_STARS],
+    },
+  }
+
+  return cachedTrainingData
 }
 
 async function writeTrainingData(data: TrainingData): Promise<void> {
   data.metadata.lastUpdated = new Date().toISOString().split('T')[0]
-  await fs.writeFile(DATA_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8')
+  cachedTrainingData = data
 }
 
 // Detect flight phase from ATC text content
