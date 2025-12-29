@@ -1043,6 +1043,135 @@ function isTransposed(a: string, b: string): boolean {
 }
 
 /**
+ * Calculate string similarity using Levenshtein distance
+ * Returns a score between 0 (completely different) and 1 (identical)
+ */
+function stringSimilarity(a: string, b: string): number {
+  if (a === b) return 1.0
+  if (a.length === 0 || b.length === 0) return 0.0
+
+  const maxLen = Math.max(a.length, b.length)
+  const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase())
+  return 1 - (distance / maxLen)
+}
+
+/**
+ * Levenshtein distance - minimum edits to transform a into b
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = []
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i]
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1]
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        )
+      }
+    }
+  }
+
+  return matrix[b.length][a.length]
+}
+
+/**
+ * Detect phonetic confusion between values
+ * Common in radio communication: "five/nine", "three/tree", etc.
+ */
+function isPhoneticConfusion(expected: string, actual: string): boolean {
+  const phoneticPairs: [string, string][] = [
+    ['five', 'nine'],
+    ['five', 'fife'],
+    ['three', 'tree'],
+    ['four', 'fower'],
+    ['nine', 'niner'],
+    ['zero', 'oh'],
+    ['one', 'won'],
+    ['two', 'to'],
+    ['two', 'too'],
+    ['for', 'four'],
+  ]
+
+  const expLower = expected.toLowerCase()
+  const actLower = actual.toLowerCase()
+
+  for (const [a, b] of phoneticPairs) {
+    if ((expLower.includes(a) && actLower.includes(b)) ||
+        (expLower.includes(b) && actLower.includes(a))) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Calculate semantic match score between instruction and readback
+ * Uses multiple factors: exact match, partial match, key elements
+ */
+export function calculateSemanticMatchScore(
+  instruction: string,
+  readback: string
+): { score: number; matchedElements: string[]; missingElements: string[] } {
+  const instLower = instruction.toLowerCase()
+  const readLower = readback.toLowerCase()
+
+  // Extract key elements from instruction
+  const keyElements: { pattern: RegExp; name: string; weight: number }[] = [
+    { pattern: /\b(climb|descend)\b/i, name: 'altitude_action', weight: 1.5 },
+    { pattern: /\b(left|right)\b/i, name: 'direction', weight: 1.8 },
+    { pattern: /\b(flight level|fl)\s*(\d{2,3})/i, name: 'flight_level', weight: 2.0 },
+    { pattern: /\b(\d{3,5})\s*(feet|ft)?\b/i, name: 'altitude_value', weight: 2.0 },
+    { pattern: /\bheading\s*(\d{3})/i, name: 'heading', weight: 1.8 },
+    { pattern: /\brunway\s*(\d{1,2}[LRC]?)/i, name: 'runway', weight: 2.5 },
+    { pattern: /\bsquawk\s*(\d{4})/i, name: 'squawk', weight: 1.5 },
+    { pattern: /\b(\d{3}[\.,]\d{1,3})/i, name: 'frequency', weight: 1.5 },
+    { pattern: /\b(cleared|takeoff|landing|approach)\b/i, name: 'clearance', weight: 2.0 },
+    { pattern: /\b(hold short|line up|go around)\b/i, name: 'critical_action', weight: 2.5 },
+  ]
+
+  const matchedElements: string[] = []
+  const missingElements: string[] = []
+  let totalWeight = 0
+  let matchedWeight = 0
+
+  for (const elem of keyElements) {
+    const instMatch = instLower.match(elem.pattern)
+    if (instMatch) {
+      totalWeight += elem.weight
+      const readMatch = readLower.match(elem.pattern)
+      if (readMatch) {
+        // Check if values match (not just pattern presence)
+        if (instMatch[1] === readMatch[1] ||
+            instMatch[0].replace(/\s+/g, '') === readMatch[0].replace(/\s+/g, '')) {
+          matchedElements.push(elem.name)
+          matchedWeight += elem.weight
+        } else {
+          // Partial match - element present but wrong value
+          missingElements.push(`${elem.name} (wrong value)`)
+          matchedWeight += elem.weight * 0.3  // Partial credit
+        }
+      } else {
+        missingElements.push(elem.name)
+      }
+    }
+  }
+
+  const score = totalWeight > 0 ? matchedWeight / totalWeight : 0.5
+  return { score, matchedElements, missingElements }
+}
+
+/**
  * Check for magnitude errors (e.g., 1500 vs 15000, 180 vs 18)
  * These indicate hearing/understanding errors with dropped/added zeros
  */

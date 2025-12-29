@@ -949,6 +949,65 @@ export const RUNWAY_INCURSION_PATTERNS = [
 ]
 
 // ============================================================================
+// CRITICAL EDGE CASES - These patterns often cause false positives/negatives
+// ============================================================================
+
+export const EDGE_CASE_PATTERNS = {
+  // Numbers that sound similar and are often confused
+  confusableNumbers: [
+    { pair: ['15', '50'], context: 'altitude/speed' },
+    { pair: ['16', '60'], context: 'altitude/speed' },
+    { pair: ['17', '70'], context: 'altitude/heading' },
+    { pair: ['18', '80'], context: 'heading' },
+    { pair: ['19', '90'], context: 'heading' },
+    { pair: ['13', '30'], context: 'heading/runway' },
+    { pair: ['14', '40'], context: 'altitude' },
+    { pair: ['5000', '15000'], context: 'altitude' },
+    { pair: ['6000', '16000'], context: 'altitude' },
+  ],
+
+  // Runway pairs that can be confused
+  confusableRunways: [
+    { pair: ['06', '24'], note: 'opposite ends of same runway' },
+    { pair: ['06L', '06R'], note: 'parallel runways' },
+    { pair: ['13', '31'], note: 'reciprocal' },
+    { pair: ['09', '27'], note: 'reciprocal' },
+  ],
+
+  // Valid abbreviations that should NOT be flagged
+  validAbbreviations: [
+    { full: 'flight level', abbrev: 'FL', context: 'altitude' },
+    { full: 'degrees', abbrev: '', context: 'heading - degrees not required' },
+    { full: 'knots', abbrev: 'kts', context: 'speed' },
+    { full: 'feet', abbrev: 'ft', context: 'altitude' },
+    { full: 'thousand', abbrev: 'K', context: 'altitude' },
+  ],
+
+  // Phrases that are equivalent and should NOT be flagged
+  equivalentPhrases: [
+    { phrases: ['climb and maintain', 'climbing', 'climb maintain'] },
+    { phrases: ['descend and maintain', 'descending', 'descend maintain'] },
+    { phrases: ['turn left', 'left turn', 'turning left'] },
+    { phrases: ['turn right', 'right turn', 'turning right'] },
+    { phrases: ['cleared for takeoff', 'cleared takeoff'] },
+    { phrases: ['cleared to land', 'cleared land'] },
+    { phrases: ['line up and wait', 'lineup and wait', 'line up wait'] },
+  ],
+}
+
+// ============================================================================
+// SIMILARITY THRESHOLD FOR FUZZY MATCHING
+// ============================================================================
+
+export const SIMILARITY_THRESHOLDS = {
+  // Below this = definitely wrong, above = possibly correct
+  numbers: 0.9,      // Numbers must be very close
+  waypoints: 0.85,   // Waypoint names can have slight variation
+  callsigns: 0.8,    // Callsigns can be abbreviated
+  phrases: 0.7,      // General phrases have more flexibility
+}
+
+// ============================================================================
 // VALUE RANGE VALIDATORS (for detecting unrealistic values)
 // ============================================================================
 
@@ -2070,6 +2129,285 @@ export let DEPARTURE_APPROACH_CORPUS: ATCTrainingExample[] = [
     errorType: null,
     explanation: 'Expedite instruction correctly read back',
   },
+
+  // ============================================================================
+  // EDGE CASES - CONFUSABLE NUMBERS
+  // These test the system's ability to detect similar-sounding number errors
+  // ============================================================================
+
+  // 15 vs 50 confusion
+  {
+    atc: "PAL123, climb and maintain one five thousand",
+    pilot: "Climb five zero thousand, PAL123",
+    isCorrect: false,
+    phase: 'climb',
+    errorType: 'wrong_value',
+    explanation: 'Confused 15000 with 50000 - similar sound in radio',
+  },
+  {
+    atc: "CEB456, reduce speed one five zero knots",
+    pilot: "Speed five zero knots, CEB456",
+    isCorrect: false,
+    phase: 'approach',
+    errorType: 'wrong_value',
+    explanation: 'Confused 150 with 50 - dropped leading digit',
+  },
+
+  // Flight level similar sounds
+  {
+    atc: "PAL789, descend flight level one three zero",
+    pilot: "Descend flight level three one zero, PAL789",
+    isCorrect: false,
+    phase: 'descent',
+    errorType: 'transposition',
+    explanation: 'FL130 vs FL310 - digit transposition with major altitude difference',
+  },
+  {
+    atc: "UAE321, climb flight level one eight zero",
+    pilot: "Climb flight level one zero eight, UAE321",
+    isCorrect: false,
+    phase: 'climb',
+    errorType: 'transposition',
+    explanation: 'FL180 vs FL108 - transposition creating invalid flight level',
+  },
+
+  // Heading similar sounds
+  {
+    atc: "SIA456, turn right heading one seven zero",
+    pilot: "Right heading seven one zero, SIA456",
+    isCorrect: false,
+    phase: 'cruise',
+    errorType: 'wrong_value',
+    explanation: 'Heading 170 vs 710 - 710 is invalid heading but pilot may have said "seven ten"',
+  },
+  {
+    atc: "PAL111, fly heading zero niner zero",
+    pilot: "Heading niner zero, PAL111",
+    isCorrect: false,
+    phase: 'departure',
+    errorType: 'wrong_value',
+    explanation: 'Missing leading zero - 090 vs 90 creates ambiguity',
+  },
+
+  // ============================================================================
+  // EDGE CASES - EQUIVALENT PHRASES (should be CORRECT)
+  // These test that valid abbreviations are NOT flagged as errors
+  // ============================================================================
+
+  {
+    atc: "PAL123, climb and maintain flight level three five zero",
+    pilot: "Climbing FL350, PAL123",
+    isCorrect: true,
+    phase: 'climb',
+    errorType: null,
+    explanation: '"Climbing FL350" is valid abbreviation of full instruction',
+  },
+  {
+    atc: "CEB456, descend and maintain eight thousand feet",
+    pilot: "Descend eight thousand, CEB456",
+    isCorrect: true,
+    phase: 'descent',
+    errorType: null,
+    explanation: 'Omitting "feet" is acceptable - altitude value is clear',
+  },
+  {
+    atc: "PAL789, turn right heading two seven zero degrees",
+    pilot: "Right two seven zero, PAL789",
+    isCorrect: true,
+    phase: 'cruise',
+    errorType: null,
+    explanation: 'Omitting "heading" and "degrees" acceptable when direction included',
+  },
+  {
+    atc: "UAE321, reduce speed to one eight zero knots",
+    pilot: "One eight zero kts, UAE321",
+    isCorrect: true,
+    phase: 'approach',
+    errorType: null,
+    explanation: '"kts" is acceptable abbreviation for "knots"',
+  },
+
+  // ============================================================================
+  // EDGE CASES - CALLSIGN VARIATIONS
+  // ============================================================================
+
+  {
+    atc: "Philippine Airlines one two three, climb and maintain flight level three five zero",
+    pilot: "Climb FL350, PAL123",
+    isCorrect: true,
+    phase: 'climb',
+    errorType: null,
+    explanation: 'Callsign abbreviation (PAL123) is standard and acceptable',
+  },
+  {
+    atc: "PAL123, contact Manila Approach one two one decimal three",
+    pilot: "Approach one two one three, one two three",
+    isCorrect: true,
+    phase: 'cruise',
+    errorType: null,
+    explanation: 'Using flight number only (one two three) for callsign is acceptable',
+  },
+
+  // ============================================================================
+  // EDGE CASES - PARTIAL READBACKS
+  // Testing boundary between acceptable partial and incomplete readback
+  // ============================================================================
+
+  {
+    atc: "PAL123, descend and maintain seven thousand, reduce speed one six zero",
+    pilot: "Seven thousand, one six zero, PAL123",
+    isCorrect: true,
+    phase: 'approach',
+    errorType: null,
+    explanation: 'Key values read back correctly even without action words',
+  },
+  {
+    atc: "CEB456, turn left heading two four zero, descend four thousand",
+    pilot: "Left two four zero, PAL456",
+    isCorrect: false,
+    phase: 'approach',
+    errorType: 'missing_element',
+    explanation: 'Altitude not read back - second critical element missing',
+  },
+
+  // ============================================================================
+  // EDGE CASES - RUNWAY DESIGNATOR CRITICAL
+  // ============================================================================
+
+  {
+    atc: "PAL123, runway zero six left, cleared for takeoff",
+    pilot: "Cleared takeoff zero six, PAL123",
+    isCorrect: false,
+    phase: 'takeoff',
+    errorType: 'missing_designator',
+    explanation: 'Missing "left" designator on parallel runway - CRITICAL',
+  },
+  {
+    atc: "CEB456, hold short of runway two four right",
+    pilot: "Hold short two four, CEB456",
+    isCorrect: false,
+    phase: 'ground',
+    errorType: 'missing_designator',
+    explanation: 'Missing "right" designator in hold short - runway incursion risk',
+  },
+  {
+    atc: "UAE789, cross runway one three center",
+    pilot: "Cross one three, UAE789",
+    isCorrect: false,
+    phase: 'ground',
+    errorType: 'missing_designator',
+    explanation: 'Missing "center" designator when crossing parallel runways',
+  },
+
+  // ============================================================================
+  // EDGE CASES - WORD ORDER VARIATIONS
+  // Testing if system correctly handles valid word order changes
+  // ============================================================================
+
+  {
+    atc: "PAL123, climb flight level three five zero and maintain",
+    pilot: "Climb and maintain flight level three five zero, PAL123",
+    isCorrect: true,
+    phase: 'climb',
+    errorType: null,
+    explanation: 'Pilot used standard word order - valid readback',
+  },
+  {
+    atc: "CEB456, runway two four line up and wait",
+    pilot: "Line up wait two four, CEB456",
+    isCorrect: true,
+    phase: 'ground',
+    errorType: null,
+    explanation: 'Runway position variation is acceptable',
+  },
+
+  // ============================================================================
+  // EDGE CASES - NEAR-MISS VALUES
+  // Values very close but critically different
+  // ============================================================================
+
+  {
+    atc: "PAL123, squawk two four six one",
+    pilot: "Squawk two four six two, PAL123",
+    isCorrect: false,
+    phase: 'departure',
+    errorType: 'wrong_value',
+    explanation: 'Single digit error in squawk - different aircraft identification',
+  },
+  {
+    atc: "CEB456, contact departure one one niner decimal one",
+    pilot: "Departure one one niner decimal two, CEB456",
+    isCorrect: false,
+    phase: 'departure',
+    errorType: 'wrong_value',
+    explanation: 'Frequency off by 0.1 MHz - may contact wrong facility',
+  },
+  {
+    atc: "PAL789, altimeter two niner niner three",
+    pilot: "Altimeter two niner niner two, PAL789",
+    isCorrect: false,
+    phase: 'approach',
+    errorType: 'wrong_value',
+    explanation: 'Altimeter off by 1 millibar - altitude error potential',
+  },
+
+  // ============================================================================
+  // ICAO PHONETIC CORRECT USAGE (should NOT be flagged)
+  // ============================================================================
+
+  {
+    atc: "PAL123, climb and maintain niner thousand",
+    pilot: "Climb niner thousand, PAL123",
+    isCorrect: true,
+    phase: 'climb',
+    errorType: null,
+    explanation: '"Niner" is correct ICAO pronunciation - not an error',
+  },
+  {
+    atc: "CEB456, turn left heading tree six zero",
+    pilot: "Left tree six zero, CEB456",
+    isCorrect: true,
+    phase: 'departure',
+    errorType: null,
+    explanation: '"Tree" is correct ICAO pronunciation for 3 - not an error',
+  },
+  {
+    atc: "PAL789, reduce speed to one fife zero knots",
+    pilot: "Speed one fife zero, PAL789",
+    isCorrect: true,
+    phase: 'approach',
+    errorType: null,
+    explanation: '"Fife" is correct ICAO pronunciation for 5 - not an error',
+  },
+  {
+    atc: "UAE321, squawk fower seven two one",
+    pilot: "Squawk fower seven two one, UAE321",
+    isCorrect: true,
+    phase: 'departure',
+    errorType: null,
+    explanation: '"Fower" is correct ICAO pronunciation for 4 - not an error',
+  },
+
+  // ============================================================================
+  // AMBIGUOUS INSTRUCTIONS - CLARIFICATION NEEDED
+  // ============================================================================
+
+  {
+    atc: "PAL123, maintain",
+    pilot: "Say again, PAL123",
+    isCorrect: true,
+    phase: 'cruise',
+    errorType: null,
+    explanation: 'Pilot correctly requested clarification for incomplete instruction',
+  },
+  {
+    atc: "CEB456, climb... uh... maintain flight level",
+    pilot: "Say again altitude, CEB456",
+    isCorrect: true,
+    phase: 'climb',
+    errorType: null,
+    explanation: 'Pilot correctly requested clarification when instruction was unclear',
+  },
 ]
 
 // ============================================================================
@@ -2218,4 +2556,159 @@ export function getIncorrectExamples(): ATCTrainingExample[] {
 
 export function getCorrectExamples(): ATCTrainingExample[] {
   return DEPARTURE_APPROACH_CORPUS.filter(e => e.isCorrect)
+}
+
+// ============================================================================
+// DATA QUALITY VALIDATION
+// ============================================================================
+
+/**
+ * Validate training corpus for common data quality issues
+ * Run this to identify potential problems in training data
+ */
+export function validateTrainingCorpus(): {
+  valid: boolean
+  issues: { index: number; issue: string; example: ATCTrainingExample }[]
+  stats: {
+    total: number
+    correct: number
+    incorrect: number
+    missingErrorType: number
+    duplicates: number
+  }
+} {
+  const issues: { index: number; issue: string; example: ATCTrainingExample }[] = []
+  const seen = new Map<string, number>()
+  let missingErrorType = 0
+  let duplicates = 0
+
+  DEPARTURE_APPROACH_CORPUS.forEach((example, index) => {
+    // Check: incorrect examples must have errorType
+    if (!example.isCorrect && !example.errorType) {
+      issues.push({
+        index,
+        issue: 'Incorrect example missing errorType',
+        example,
+      })
+      missingErrorType++
+    }
+
+    // Check: correct examples should not have errorType (or should be null)
+    if (example.isCorrect && example.errorType && example.errorType !== null) {
+      issues.push({
+        index,
+        issue: 'Correct example should not have errorType',
+        example,
+      })
+    }
+
+    // Check: empty or very short ATC/pilot strings
+    if (example.atc.trim().length < 10) {
+      issues.push({
+        index,
+        issue: 'ATC instruction too short',
+        example,
+      })
+    }
+    if (example.pilot.trim().length < 5) {
+      issues.push({
+        index,
+        issue: 'Pilot readback too short',
+        example,
+      })
+    }
+
+    // Check: phase is valid
+    const validPhases = ['ground', 'taxi', 'departure', 'climb', 'cruise', 'descent', 'approach', 'landing', 'go_around', 'takeoff']
+    if (!validPhases.includes(example.phase)) {
+      issues.push({
+        index,
+        issue: `Invalid phase: ${example.phase}`,
+        example,
+      })
+    }
+
+    // Check for duplicates
+    const key = `${example.atc.toLowerCase()}|${example.pilot.toLowerCase()}`
+    if (seen.has(key)) {
+      issues.push({
+        index,
+        issue: `Duplicate of index ${seen.get(key)}`,
+        example,
+      })
+      duplicates++
+    } else {
+      seen.set(key, index)
+    }
+
+    // Check: if contains "Roger" or "Wilco" alone, should be incorrect
+    const pilotTrimmed = example.pilot.trim().toLowerCase()
+    if (['roger', 'wilco', 'copy'].includes(pilotTrimmed.replace(/[,.\s]+.*/, '')) && example.isCorrect) {
+      // Only flag if it's a safety-critical instruction
+      const safetyCritical = /takeoff|landing|hold short|line up|runway/i.test(example.atc)
+      if (safetyCritical) {
+        issues.push({
+          index,
+          issue: 'Roger/Wilco for safety-critical instruction should be incorrect',
+          example,
+        })
+      }
+    }
+  })
+
+  const total = DEPARTURE_APPROACH_CORPUS.length
+  const correct = DEPARTURE_APPROACH_CORPUS.filter(e => e.isCorrect).length
+
+  return {
+    valid: issues.length === 0,
+    issues,
+    stats: {
+      total,
+      correct,
+      incorrect: total - correct,
+      missingErrorType,
+      duplicates,
+    },
+  }
+}
+
+/**
+ * Get training corpus statistics with detailed breakdown
+ */
+export function getDetailedCorpusStats() {
+  const stats = getCorpusStats()
+
+  // Error type distribution
+  const errorTypeDistribution = DEPARTURE_APPROACH_CORPUS
+    .filter(e => !e.isCorrect && e.errorType)
+    .reduce((acc, e) => {
+      const type = e.errorType as string
+      acc[type] = (acc[type] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+  // Calculate balance metrics
+  const correctRatio = stats.correct / stats.total
+  const isBalanced = correctRatio >= 0.4 && correctRatio <= 0.6
+
+  // Phase coverage
+  const phaseCoverage = Object.keys(stats.byPhase).length
+
+  return {
+    ...stats,
+    errorTypeDistribution,
+    balance: {
+      correctRatio: Math.round(correctRatio * 100),
+      isBalanced,
+      recommendation: correctRatio < 0.4
+        ? 'Add more correct examples'
+        : correctRatio > 0.6
+          ? 'Add more error examples'
+          : 'Good balance',
+    },
+    coverage: {
+      phases: phaseCoverage,
+      errorTypes: Object.keys(errorTypeDistribution).length,
+    },
+  }
 }
