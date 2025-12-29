@@ -1,0 +1,173 @@
+{
+  "version": "3.0.0-adaptive",
+  "createdAt": "2025-12-28T00:00:00.000Z",
+  "updatedAt": "2025-12-28T16:51:31.142Z",
+  "weights": {
+    "patternWeights": {
+      "altitude_climb": 1,
+      "altitude_descend": 1,
+      "altitude_maintain": 1,
+      "flight_level": 1.2,
+      "heading_turn_left": 1,
+      "heading_turn_right": 1,
+      "heading_fly": 0.9,
+      "runway_heading": 1.1,
+      "cleared_takeoff": 1.3,
+      "cleared_landing": 1.3,
+      "cleared_approach": 1.2,
+      "line_up_wait": 1.2,
+      "contact_frequency": 1,
+      "squawk_code": 1.1,
+      "direct_to": 0.9,
+      "hold_short": 1.2,
+      "taxi_to": 0.8,
+      "go_around": 1.5,
+      "expedite": 1.4,
+      "immediate": 1.5
+    },
+    "errorWeights": {
+      "wrong_value": 1.3112724,
+      "transposition": 1.4205451000000002,
+      "missing_element": 1.0609,
+      "incomplete_readback": 0.9834543000000001,
+      "wrong_direction": 1.3049069999999998,
+      "callsign_confusion": 1.4,
+      "parameter_confusion": 1.1669900000000002,
+      "hearback_error": 0.8,
+      "missing_callsign": 1.03
+    },
+    "phaseWeights": {
+      "ground": 0.8600000000000001,
+      "taxi": 0.9600000000000001,
+      "departure": 1.26,
+      "climb": 1.04,
+      "cruise": 0.6849999999999999,
+      "descent": 1.04,
+      "approach": 1.4250000000000003,
+      "landing": 1.46,
+      "go_around": 1.52,
+      "enroute": 1.06,
+      "emergency": 1.02,
+      "handoff": 1.02
+    },
+    "severityWeights": {
+      "critical": 1.5,
+      "high": 1.2,
+      "medium": 1,
+      "low": 0.7
+    },
+    "thresholds": {
+      "errorDetection": 0.6525,
+      "phaseConfidence": 0.7,
+      "readbackAccuracy": 0.8
+    }
+  },
+  "history": {
+    "totalInteractions": 13,
+    "correctPredictions": 3,
+    "incorrectPredictions": 1,
+    "userCorrections": [
+      {
+        "id": "corr_1766920254646_bvy0jgofq",
+        "timestamp": 1766920254646,
+        "original": {
+          "atc": "PAL456 turn right heading zero nine zero",
+          "pilot": "Left heading zero nine zero PAL456",
+          "predictedCorrect": true,
+          "predictedErrors": [],
+          "predictedPhase": "cruise"
+        },
+        "corrected": {
+          "isActuallyCorrect": false,
+          "actualErrors": [
+            "wrong_direction"
+          ],
+          "actualPhase": "approach",
+          "userFeedback": "Direction was wrong"
+        },
+        "applied": true
+      }
+    ],
+    "weightUpdates": [
+      {
+        "timestamp": 1766920254646,
+        "pattern": "error:wrong_direction",
+        "oldWeight": 1.2,
+        "newWeight": 1.2299999999999998,
+        "reason": "false_negative",
+        "learningRate": 0.05
+      },
+      {
+        "timestamp": 1766920254646,
+        "pattern": "phase:cruise",
+        "oldWeight": 0.7,
+        "newWeight": 0.6649999999999999,
+        "reason": "phase_correction",
+        "learningRate": 0.05
+      }
+    ],
+    "accuracyOverTime": [
+      {
+        "timestamp": 1766920242104,
+        "accuracy": 1
+      },
+      {
+        "timestamp": 1766920254646,
+        "accuracy": 0.5
+      },
+      {
+        "timestamp": 1766938962463,
+        "accuracy": 0.6666666666666666
+      },
+      {
+        "timestamp": 1766939064402,
+        "accuracy": 0.5
+      },
+      {
+        "timestamp": 1766939075171,
+        "accuracy": 0.4
+      },
+      {
+        "timestamp": 1766939083102,
+        "accuracy": 0.3333333333333333
+      },
+      {
+        "timestamp": 1766939090587,
+        "accuracy": 0.2857142857142857
+      },
+      {
+        "timestamp": 1766939099456,
+        "accuracy": 0.25
+      },
+      {
+        "timestamp": 1766939107747,
+        "accuracy": 0.2222222222222222
+      },
+      {
+        "timestamp": 1766939115944,
+        "accuracy": 0.2
+      },
+      {
+        "timestamp": 1766940607846,
+        "accuracy": 0.2727272727272727
+      },
+      {
+        "timestamp": 1766940681733,
+        "accuracy": 0.25
+      },
+      {
+        "timestamp": 1766940691142,
+        "accuracy": 0.23076923076923078
+      }
+    ],
+    "lastTrainingDate": "2025-12-28T13:25:11.298Z"
+  },
+  "config": {
+    "learningRate": 0.1,
+    "momentum": 0.3,
+    "minConfidence": 0.5,
+    "adaptiveRateEnabled": true,
+    "reinforcementEnabled": true,
+    "maxHistorySize": 1000
+  }
+}
