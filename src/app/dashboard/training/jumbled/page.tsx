@@ -57,9 +57,10 @@ export default function JumbledPage() {
   const exercise = exercises[currentExercise]
 
   useEffect(() => {
-    setWordBank([...exercise.jumbledWords])
+    setWordBank([...exercises[currentExercise].jumbledWords])
     setArrangedWords([])
-  }, [currentExercise, exercise.jumbledWords])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentExercise])
 
   // Drag from word bank
   const handleBankDragStart = (e: React.DragEvent<HTMLDivElement>, word: string, index: number) => {
