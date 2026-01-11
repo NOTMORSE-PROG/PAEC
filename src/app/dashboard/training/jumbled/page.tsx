@@ -261,7 +261,7 @@ export default function JumbledPage() {
                   onDragStart={(e) => handleBankDragStart(e, word, index)}
                   onDragEnd={handleDragEnd}
                   onClick={() => handleWordClick(word, index, 'bank')}
-                  className={`px-4 py-2.5 rounded-full border-2 font-medium transition-all select-none ${
+                  className={`px-4 py-2.5 rounded-full border-2 font-medium transition-all select-none flex items-center justify-center ${
                     isSubmitted
                       ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-default'
                       : draggedWord === word && dragSource === 'bank'
@@ -319,7 +319,7 @@ export default function JumbledPage() {
                   onDragStart={(e) => handleArrangedDragStart(e, word, index)}
                   onDragEnd={handleDragEnd}
                   onClick={() => handleWordClick(word, index, 'arranged')}
-                  className={`px-4 py-2.5 rounded-full border-2 font-medium transition-all select-none ${
+                  className={`px-4 py-2.5 rounded-full border-2 font-medium transition-all select-none flex items-center justify-center ${
                     isSubmitted
                       ? isWordCorrect(word, index)
                         ? 'bg-green-100 border-green-400 text-green-700'
