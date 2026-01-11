@@ -1563,9 +1563,39 @@ function inferSpeakerFromContent(text: string, index: number): 'ATC' | 'PILOT' |
     return 'PILOT'
   }
 
-  // PRIORITY 2: Strong Pilot indicators (acknowledging/responding)
+  // PRIORITY 2: Callsign at START is a strong ATC indicator (ATC addressing aircraft)
+  const callsignAtStart = /^[A-Z]{2,4}\s*\d{2,4}[,\s]/i.test(text) ||
+                          /^(PAL|CEB|APG|GAP|RPC|SRQ|UAL|AAL|DAL|SWA|JBU)\s*\d+[,\s]/i.test(text)
+  if (callsignAtStart) {
+    return 'ATC'
+  }
+
+  // PRIORITY 3: ATC-specific patterns (corrections, confirmations, commands)
+  // These patterns are ONLY used by ATC, never pilots
+  const atcOnlyPatterns = [
+    /\bnegative[—Loss–-]/i,                       // "negative—" ATC correction (with em-dash/en-dash)
+    /\bconfirm\b/i,                               // "confirm" is ATC asking for verification
+    /\bsay\s+again/i,                             // ATC requesting repeat
+    /\bread\s*back/i,                             // ATC requesting readback
+    /\bverify/i,                                  // ATC verifying
+    /\bcorrection/i,                              // ATC making correction
+    /\bdisregard/i,                               // ATC canceling
+    /\bstandby/i,                                 // ATC putting on hold
+    /\bradar\s+contact/i,
+    /\bidentified/i,
+    /\bcontact\s+\w+\s+(on|one)/i,                // Contact facility on frequency
+    /\bwhen\s+passing/i,                          // Conditional instruction
+    /\bafter\s+passing/i,                         // After condition
+  ]
+
+  if (atcOnlyPatterns.some(p => p.test(text))) {
+    return 'ATC'
+  }
+
+  // PRIORITY 4: Strong Pilot indicators (acknowledging/responding)
   const pilotPatterns = [
-    /\b(roger|wilco|affirm|negative|unable)\b/i,
+    /\b(roger|wilco)\b/i,                         // Pure acknowledgments
+    /\bunable\b/i,                                // Pilot declining
     /\b(requesting|request)\b/i,
     /\bwith\s+you\b/i,
     /\bready\s+(for|to)/i,
@@ -1577,15 +1607,8 @@ function inferSpeakerFromContent(text: string, index: number): 'ATC' | 'PILOT' |
     return 'PILOT'
   }
 
-  // PRIORITY 3: Callsign at START is a strong ATC indicator (ATC addressing aircraft)
-  const callsignAtStart = /^[A-Z]{2,4}\s*\d{2,4}[,\s]/i.test(text) ||
-                          /^(PAL|CEB|APG|GAP|RPC|SRQ|UAL|AAL|DAL|SWA|JBU)\s*\d+[,\s]/i.test(text)
-  if (callsignAtStart) {
-    return 'ATC'
-  }
-
-  // PRIORITY 4: ATC command patterns (only if no pilot indicators found)
-  const atcPatterns = [
+  // PRIORITY 5: ATC command patterns
+  const atcCommandPatterns = [
     /\b(climb|descend)\s+(and\s+)?(maintain|to)/i,
     /\bturn\s+(left|right)/i,
     /\b(maintain|reduce|increase)\s+(speed|FL|flight\s*level|\d)/i,
@@ -1598,11 +1621,9 @@ function inferSpeakerFromContent(text: string, index: number): 'ATC' | 'PILOT' |
     /\bexpect\s+(vectors|ils|rnav|runway|delay)/i,
     /\bvectors?\s+for/i,
     /\breport\s+(passing|established|ready)/i,
-    /\bidentified/i,
-    /\bradar\s+contact/i,
   ]
 
-  if (atcPatterns.some(p => p.test(text))) {
+  if (atcCommandPatterns.some(p => p.test(text))) {
     return 'ATC'
   }
 
