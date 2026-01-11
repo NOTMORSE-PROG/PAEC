@@ -68,6 +68,7 @@ export default function JumbledPage() {
     setDragSource('bank')
     setDraggedIndex(index)
     e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', word)
   }
 
   // Drag from arranged area
@@ -77,6 +78,7 @@ export default function JumbledPage() {
     setDragSource('arranged')
     setDraggedIndex(index)
     e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', word)
   }
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
