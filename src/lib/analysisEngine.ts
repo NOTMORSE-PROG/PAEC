@@ -165,6 +165,8 @@ export interface ParsedLine {
   text: string
   speaker: 'ATC' | 'PILOT' | 'UNKNOWN'
   rawText: string
+  /** Conversation group — lines separated by blank lines belong to different groups */
+  conversationGroup?: number
 }
 
 // ============================================================================
@@ -372,11 +374,17 @@ function buildExchangePairs(lines: ParsedLine[], context: ConversationContext): 
       const instructionType = detectInstructionType(line.text)
 
       if (instructionType !== 'information') { // Skip pure information (weather, traffic advisories)
-        // Look for pilot response within next 3 lines
+        // Look for pilot response within next 3 lines, but ONLY within the same conversation group
         let pilotResponse: ParsedLine | null = null
         let responseDelay = 0
+        const currentGroup = line.conversationGroup
 
         for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+          // Don't pair across conversation boundaries (blank-line separated blocks)
+          if (currentGroup !== undefined && lines[j].conversationGroup !== undefined &&
+              lines[j].conversationGroup !== currentGroup) {
+            break
+          }
           if (lines[j].speaker === 'PILOT') {
             pilotResponse = lines[j]
             responseDelay = j - i
@@ -1382,53 +1390,55 @@ function generateDynamicFeedback(pair: ExchangePair, flightPhase: FlightPhase): 
 export function parseLines(text: string): ParsedLine[] {
   const parsedLines: ParsedLine[] = []
 
-  // First, try to extract quoted dialogues (handles "quote1" "quote2" format)
-  const quotedSegments = extractQuotedSegments(text)
+  // PHASE 1: Try labeled-line parsing first (most transcript formats)
+  // This handles ANY format like "SomeLabel: dialogue" regardless of naming convention
+  // Pass RAW lines (including blanks) so we can detect conversation boundaries
+  const rawLines = text.split('\n')
+  const lines = rawLines.filter(l => l.trim())
+  const labeledResult = tryLabeledLineParsing(rawLines)
 
-  // Debug log (remove in production)
-  console.log('[Parser] Input text:', text.substring(0, 100))
-  console.log('[Parser] Extracted segments:', quotedSegments.length, quotedSegments)
-
-  if (quotedSegments.length >= 2) {
-    // Multiple quotes found - treat as separate exchanges
-    quotedSegments.forEach((segment, index) => {
-      const speaker = inferSpeakerFromContent(segment, index)
-      parsedLines.push({
-        lineNumber: index + 1,
-        text: cleanText(segment),
-        speaker,
-        rawText: segment,
-      })
-    })
+  if (labeledResult.length > 0) {
+    parsedLines.push(...labeledResult)
   } else {
-    // Fall back to line-by-line parsing
-    const lines = text.split('\n').filter(l => l.trim())
+    // PHASE 2: Try quoted-segment extraction (handles unlabeled "quote1" "quote2" format)
+    const quotedSegments = extractQuotedSegments(text)
 
-    lines.forEach((line, index) => {
-      // Check if line contains multiple quoted segments
-      const lineQuotes = extractQuotedSegments(line)
-      if (lineQuotes.length >= 2) {
-        lineQuotes.forEach((segment) => {
-          const speaker = inferSpeakerFromContent(segment, parsedLines.length)
-          parsedLines.push({
-            lineNumber: parsedLines.length + 1,
-            text: cleanText(segment),
-            speaker,
-            rawText: segment,
-          })
-        })
-      } else {
-        // Single line - use traditional parsing
-        const speaker = identifySpeaker(line)
-        const cleanedText = cleanSpeakerLabel(line)
+    if (quotedSegments.length >= 2) {
+      quotedSegments.forEach((segment, index) => {
+        const speaker = inferSpeakerFromContent(segment, index)
         parsedLines.push({
           lineNumber: index + 1,
-          text: cleanedText,
+          text: cleanText(segment),
           speaker,
-          rawText: line.trim(),
+          rawText: segment,
         })
-      }
-    })
+      })
+    } else {
+      // PHASE 3: Fall back to line-by-line content-based parsing
+      lines.forEach((line, index) => {
+        const lineQuotes = extractQuotedSegments(line)
+        if (lineQuotes.length >= 2) {
+          lineQuotes.forEach((segment) => {
+            const speaker = inferSpeakerFromContent(segment, parsedLines.length)
+            parsedLines.push({
+              lineNumber: parsedLines.length + 1,
+              text: cleanText(segment),
+              speaker,
+              rawText: segment,
+            })
+          })
+        } else {
+          const speaker = identifySpeaker(line)
+          const cleanedText = cleanSpeakerLabel(line)
+          parsedLines.push({
+            lineNumber: index + 1,
+            text: cleanedText,
+            speaker,
+            rawText: line.trim(),
+          })
+        }
+      })
+    }
   }
 
   // If speakers are all UNKNOWN, try to infer from content patterns
@@ -1437,9 +1447,157 @@ export function parseLines(text: string): ParsedLine[] {
     inferSpeakersFromContext(parsedLines)
   }
 
-  console.log('[Parser] Final parsed lines:', parsedLines.length, parsedLines.map(l => ({ speaker: l.speaker, text: l.text })))
-
   return parsedLines
+}
+
+// ============================================================================
+// GENERIC LABELED-LINE PARSER
+// ============================================================================
+// Handles ANY transcript format where lines look like:
+//   SomeLabel: "dialogue text"
+//   AnotherLabel: dialogue text
+//   APPDEP_PAEC09_C007_Phi_MNL: "Eva two-seven-one, descend eight thousand"
+//   Pilot_PAEC09_C007_Phi_MNL: "descend eight thousand, Eva two-seven-one"
+//   TWR_Session1: "runway 24, cleared to land"
+//   GND_CTRL: taxi via alpha
+// Works by detecting the "Label:" pattern, then classifying the label generically.
+
+function tryLabeledLineParsing(rawLines: string[]): ParsedLine[] {
+  // First pass: check if this text uses a labeled format at all
+  // A line is "labeled" if it matches: <non-quote-chars> : <something>
+  // We require at least 40% of non-empty lines to have labels to use this mode
+  // Also track blank lines as conversation boundaries
+  const labelPattern = /^([^"":]+):\s*(.*)$/
+  let labeledCount = 0
+  let nonEmptyCount = 0
+  const parsed: { label: string; dialogue: string; raw: string; isBlank: boolean }[] = []
+
+  for (const line of rawLines) {
+    const trimmed = line.trim()
+
+    // Preserve blank lines as conversation boundary markers
+    if (!trimmed) {
+      parsed.push({ label: '', dialogue: '', raw: '', isBlank: true })
+      continue
+    }
+
+    nonEmptyCount++
+
+    // Skip lines that are just <unclear/> or similar XML tags with no label
+    if (/^<[^>]+\/?>$/i.test(trimmed)) {
+      parsed.push({ label: '', dialogue: trimmed, raw: trimmed, isBlank: false })
+      continue
+    }
+
+    const match = trimmed.match(labelPattern)
+    if (match) {
+      labeledCount++
+      parsed.push({ label: match[1].trim(), dialogue: match[2].trim(), raw: trimmed, isBlank: false })
+    } else {
+      parsed.push({ label: '', dialogue: trimmed, raw: trimmed, isBlank: false })
+    }
+  }
+
+  // Need at least 40% labeled lines and at least 2 labeled lines to use this mode
+  if (labeledCount < 2 || nonEmptyCount === 0 || labeledCount / nonEmptyCount < 0.4) {
+    return []
+  }
+
+  // Second pass: classify each label, track conversation groups via blank lines
+  const result: ParsedLine[] = []
+  let lineNum = 0
+  let conversationGroup = 0
+  let lastWasBlank = false
+
+  for (const entry of parsed) {
+    lineNum++
+
+    // Blank lines increment conversation group (only on first blank in a sequence)
+    if (entry.isBlank) {
+      if (!lastWasBlank && result.length > 0) {
+        conversationGroup++
+      }
+      lastWasBlank = true
+      continue
+    }
+    lastWasBlank = false
+
+    const { label, dialogue, raw } = entry
+
+    // Skip <unclear/> lines entirely — they carry no analysable content
+    if (/^<\s*unclear\s*\/?\s*>$/i.test(dialogue) || /^<\s*unclear\s*\/?\s*>$/i.test(raw)) {
+      continue
+    }
+
+    // Skip empty dialogue
+    const cleanedDialogue = stripQuotes(dialogue)
+    if (!cleanedDialogue || cleanedDialogue.length < 2) continue
+
+    // Classify the label
+    const speaker = label ? classifyLabel(label) : inferSpeakerFromContent(cleanedDialogue, result.length)
+
+    result.push({
+      lineNumber: lineNum,
+      text: cleanedDialogue,
+      speaker,
+      rawText: raw,
+      conversationGroup,
+    })
+  }
+
+  return result
+}
+
+// Classify ANY label string as ATC or PILOT by scanning for keywords
+// This is intentionally generic — it doesn't care about the exact format,
+// just whether the label contains ATC-ish or Pilot-ish words anywhere.
+function classifyLabel(label: string): 'ATC' | 'PILOT' | 'UNKNOWN' {
+  const upper = label.toUpperCase()
+
+  // ATC keywords — if ANY of these appear anywhere in the label, it's ATC
+  const atcKeywords = [
+    'ATC', 'ATCO',
+    'APP', 'APPDEP', 'APPROACH', 'DEPARTURE', 'DEP',
+    'TWR', 'TOWER',
+    'GND', 'GROUND',
+    'CTR', 'CENTER', 'CENTRE',
+    'RADAR', 'CONTROL',
+    'RAMP', 'CLEARANCE', 'DELIVERY', 'CLR',
+    'ATIS',
+  ]
+
+  // Pilot keywords — if ANY of these appear anywhere in the label, it's PILOT
+  const pilotKeywords = [
+    'PILOT', 'PLT', 'CREW', 'FO', 'CAPT', 'CAPTAIN',
+    'FIRST_OFFICER', 'PF', 'PM', 'PNF',
+  ]
+
+  // Check ATC keywords (word boundary-ish: check as substring in underscore/space separated parts)
+  const labelParts = upper.split(/[\s_\-./]+/)
+  for (const part of labelParts) {
+    if (atcKeywords.includes(part)) return 'ATC'
+  }
+  for (const part of labelParts) {
+    if (pilotKeywords.includes(part)) return 'PILOT'
+  }
+
+  // Also check if the whole label starts with a known keyword (handles "Pilot_..." or "APPDEP_...")
+  for (const kw of atcKeywords) {
+    if (upper.startsWith(kw)) return 'ATC'
+  }
+  for (const kw of pilotKeywords) {
+    if (upper.startsWith(kw)) return 'PILOT'
+  }
+
+  return 'UNKNOWN'
+}
+
+// Strip surrounding quotes from dialogue text (any quote style)
+function stripQuotes(text: string): string {
+  return text
+    .replace(/^[\s"'""''`´«»\u201C\u201D\u2018\u2019]+/, '')
+    .replace(/[\s"'""''`´«»\u201C\u201D\u2018\u2019]+$/, '')
+    .trim()
 }
 
 // Extract all quoted segments from text
@@ -1467,8 +1625,10 @@ function extractQuotedSegments(text: string): string[] {
     // Skip if too short or doesn't have meaningful content
     if (cleaned.length <= 10) continue
 
-    // Skip speaker labels (ATC:, Pilot:, PLT:, etc.)
+    // Skip speaker labels — generic: anything that looks like a label with metadata separators
     if (/^(ATC|Pilot|PLT|ATCO|Tower|Ground|Approach|Departure|Center)[\s:]*$/i.test(cleaned)) continue
+    // Skip metadata labels (e.g. "APPDEP_PAEC09_C007_Phi_MNL:" or "Pilot_PAEC09_C007_Phi_MNL:")
+    if (/^[A-Za-z][A-Za-z\d_\-./]*[\s:]*$/i.test(cleaned) && /[_]/.test(cleaned)) continue
 
     // Skip "Expected:" text or purely parenthetical content
     if (/^\(Expected:/i.test(cleaned) || /^\([^)]*\)$/.test(cleaned)) continue
@@ -1643,18 +1803,33 @@ function inferSpeakersFromContext(lines: ParsedLine[]): void {
 
 // Clean text - remove brackets, extra quotes, speaker labels, normalize
 function cleanText(text: string): string {
-  return text
+  let cleaned = text
     .replace(/\[\[|\]\]/g, '') // Remove [[ and ]] markers
-    .replace(/^["'""\s]+|["'""\s]+$/g, '') // Remove surrounding quotes
-    .replace(/^(ATC|PILOT|PLT|TOWER|GROUND|APPROACH|DEPARTURE|CONTROL|RADAR|CENTER|P)[:\s]*/i, '') // Remove speaker labels
-    .replace(/^(MANILA|CEBU|CLARK|DAVAO)\s*(APP|DEP|TWR|GND|CTR|APPROACH|DEPARTURE|TOWER|GROUND)[:\s]*/i, '')
-    .replace(/^(PAL|CEB|AXN|APG|GAP|RPC|SRQ)\s*\d+[:\s]*/i, '') // Remove callsign labels
-    .replace(/^RP-?C?\d+[:\s]*/i, '')
-    .trim()
+
+  // GENERIC: Strip label prefix if present (anything before colon that classifies as speaker/metadata)
+  const labelMatch = cleaned.match(/^([^"":]{1,80}):\s*(.*)$/)
+  if (labelMatch) {
+    const label = labelMatch[1].trim()
+    const classified = classifyLabel(label)
+    const looksLikeMetadata = /[_]/.test(label) || /^[A-Z\d_\-\s.]+$/.test(label)
+    if (classified !== 'UNKNOWN' || looksLikeMetadata) {
+      cleaned = labelMatch[2]
+    }
+  }
+
+  return stripQuotes(cleaned)
 }
 
 function identifySpeaker(line: string): 'ATC' | 'PILOT' | 'UNKNOWN' {
-  // Explicit label patterns
+  // GENERIC: Try to extract a label before the first colon
+  const labelMatch = line.match(/^([^"":]+):\s*/)
+  if (labelMatch) {
+    const label = labelMatch[1].trim()
+    const classified = classifyLabel(label)
+    if (classified !== 'UNKNOWN') return classified
+  }
+
+  // Legacy explicit patterns (kept as fallback for formats without colon)
   const atcLabelPatterns = [
     /^ATC[:\s]/i,
     /^TOWER[:\s]/i,
@@ -1685,13 +1860,28 @@ function identifySpeaker(line: string): 'ATC' | 'PILOT' | 'UNKNOWN' {
 }
 
 function cleanSpeakerLabel(line: string): string {
+  // GENERIC: Strip everything before and including the first colon if it looks like a label
+  // A label is: non-quote chars before a colon, NOT part of the dialogue itself
+  const labelMatch = line.match(/^([^"":]{1,80}):\s*(.*)$/)
+  if (labelMatch) {
+    const label = labelMatch[1].trim()
+    // Only strip if the label classifies as a speaker (ATC/PILOT) or looks like a metadata label
+    // (contains underscores, all-caps segments, etc.)
+    const classified = classifyLabel(label)
+    const looksLikeMetadata = /[_]/.test(label) || /^[A-Z\d_\-\s.]+$/.test(label)
+    if (classified !== 'UNKNOWN' || looksLikeMetadata) {
+      return stripQuotes(labelMatch[2])
+    }
+  }
+
+  // Legacy cleanup
   return line
     .replace(/^(ATC|PILOT|TOWER|GROUND|APPROACH|DEPARTURE|CONTROL|RADAR|CENTER|P)[:\s]*/i, '')
     .replace(/^(MANILA|CEBU|CLARK|DAVAO)\s*(APP|DEP|TWR|GND|CTR|APPROACH|DEPARTURE|TOWER|GROUND)[:\s]*/i, '')
     .replace(/^(PAL|CEB|AXN|APG|GAP|RPC|SRQ)\s*\d+[:\s]*/i, '')
     .replace(/^RP-?C?\d+[:\s]*/i, '')
-    .replace(/\[\[|\]\]/g, '') // Remove [[ and ]] markers
-    .replace(/^["'""\s]+|["'""\s]+$/g, '') // Remove surrounding quotes
+    .replace(/\[\[|\]\]/g, '')
+    .replace(/^["'""\s]+|["'""\s]+$/g, '')
     .trim()
 }
 
@@ -2699,8 +2889,16 @@ function analyzeReadbacks(lines: ParsedLine[]): ReadbackAnalysis {
 
     totalInstructions++
 
-    // Find pilot response
-    const pilotResponse = lines.find((l, idx) => idx > i && l.speaker === 'PILOT')
+    // Find pilot response (only within same conversation group)
+    const currentGroup = line.conversationGroup
+    const pilotResponse = lines.find((l, idx) => {
+      if (idx <= i) return false
+      if (l.speaker !== 'PILOT') return false
+      // Don't cross conversation boundaries
+      if (currentGroup !== undefined && l.conversationGroup !== undefined &&
+          l.conversationGroup !== currentGroup) return false
+      return true
+    })
     if (!pilotResponse) {
       incompleteReadbacks++
       continue

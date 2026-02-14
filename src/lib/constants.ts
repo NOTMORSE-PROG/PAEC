@@ -31,7 +31,7 @@ export const ERROR_TYPES = {
   NUMBER_RELATED: 'number_related',
 } as const
 
-// ICAO Number Pronunciations
+// ICAO Number Pronunciations (Official Format)
 export const ICAO_NUMBERS: Record<string, string> = {
   '0': 'ZERO',
   '1': 'WUN',
@@ -43,6 +43,34 @@ export const ICAO_NUMBERS: Record<string, string> = {
   '7': 'SEV-EN',
   '8': 'AIT',
   '9': 'NIN-ER',
+}
+
+// Simple Number Words (Client Preference - lowercase, spoken form)
+export const NUMBER_WORDS: Record<string, string> = {
+  '0': 'zero',
+  '1': 'one',
+  '2': 'two',
+  '3': 'three',
+  '4': 'four',
+  '5': 'five',
+  '6': 'six',
+  '7': 'seven',
+  '8': 'eight',
+  '9': 'nine',
+}
+
+// Phonetic Number Pronunciations (Aviation Standard - how they actually say it)
+export const PHONETIC_NUMBERS: Record<string, string> = {
+  '0': 'zero',
+  '1': 'wun',
+  '2': 'too',
+  '3': 'tree',
+  '4': 'fower',
+  '5': 'fife',
+  '6': 'six',
+  '7': 'seven',
+  '8': 'ait',
+  '9': 'niner',
 }
 
 // NATO Phonetic Alphabet
