@@ -754,39 +754,36 @@ Pilot: Left heading 180, PAL456."
       {/* Analysis Results */}
       {analysisResult && (
         <div className="space-y-6">
-          {/* Results Header — dark hero banner */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-6 sm:p-8">
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2dyaWQpIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIi8+PC9zdmc+')] opacity-50"></div>
-            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center">
-                    <Activity className="w-5 h-5 text-indigo-300" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Analysis Results</h2>
-                    <p className="text-sm text-slate-400">{analysisResult.corpusType} Corpus</p>
-                  </div>
+          {/* Results Header */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Analysis Results</h2>
+                  <p className="text-sm text-gray-500">{analysisResult.corpusType} Corpus</p>
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={resetAnalysis} className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/10 hover:bg-white/20 rounded-lg backdrop-blur transition-colors">
+                <button onClick={resetAnalysis} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                   New Analysis
                 </button>
-                <button className="px-4 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition-colors flex items-center gap-2">
+                <button className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center gap-2">
                   <Download className="w-4 h-4" />
                   Export
                 </button>
               </div>
             </div>
 
-            {/* Score ring + key stats in the hero */}
-            <div className="relative mt-6 grid grid-cols-2 sm:grid-cols-5 gap-4">
+            {/* Score ring + key stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               {/* ICAO Compliance — big circle */}
-              <div className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center">
+              <div className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center py-2">
                 <div className="relative w-24 h-24">
                   <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" strokeWidth="8" />
                     <circle cx="50" cy="50" r="42" fill="none"
                       stroke={analysisResult.summary.overallCompliance >= 80 ? '#22c55e' : analysisResult.summary.overallCompliance >= 60 ? '#f59e0b' : '#ef4444'}
                       strokeWidth="8" strokeLinecap="round"
@@ -794,32 +791,39 @@ Pilot: Left heading 180, PAL456."
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-white">{analysisResult.summary.overallCompliance}%</span>
+                    <span className={`text-2xl font-bold ${
+                      analysisResult.summary.overallCompliance >= 80 ? 'text-green-600' :
+                      analysisResult.summary.overallCompliance >= 60 ? 'text-amber-600' : 'text-red-600'
+                    }`}>{analysisResult.summary.overallCompliance}%</span>
                   </div>
                 </div>
-                <span className="text-xs text-slate-400 mt-1">ICAO Score</span>
+                <span className="text-xs text-gray-500 mt-1 font-medium">ICAO Score</span>
               </div>
 
-              {/* Mini stat cards */}
-              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/10">
-                <div className="text-2xl font-bold text-white">{analysisResult.totalWords.toLocaleString()}</div>
-                <div className="text-xs text-slate-400">Words</div>
+              {/* Stat cards */}
+              <div className="rounded-xl bg-gray-50 p-4 border border-gray-100">
+                <div className="text-2xl font-bold text-gray-900">{analysisResult.totalWords.toLocaleString()}</div>
+                <div className="text-xs text-gray-500 font-medium">Words</div>
               </div>
-              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/10">
-                <div className="text-2xl font-bold text-white">{analysisResult.totalExchanges}</div>
-                <div className="text-xs text-slate-400">Exchanges</div>
+              <div className="rounded-xl bg-gray-50 p-4 border border-gray-100">
+                <div className="text-2xl font-bold text-gray-900">{analysisResult.totalExchanges}</div>
+                <div className="text-xs text-gray-500 font-medium">Exchanges</div>
               </div>
-              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/10">
-                <div className="text-2xl font-bold text-amber-400">{analysisResult.nonStandardFreq}</div>
-                <div className="text-xs text-slate-400">Non-std / 1k</div>
+              <div className="rounded-xl bg-amber-50 p-4 border border-amber-100">
+                <div className="text-2xl font-bold text-amber-700">{analysisResult.nonStandardFreq}</div>
+                <div className="text-xs text-amber-600 font-medium">Non-std / 1k</div>
               </div>
-              <div className="bg-white/5 backdrop-blur rounded-xl p-3 border border-white/10">
-                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold mb-1 ${
-                  analysisResult.riskLevel === 'low' ? 'bg-green-500/20 text-green-400' :
-                  analysisResult.riskLevel === 'medium' ? 'bg-amber-500/20 text-amber-400' :
-                  'bg-red-500/20 text-red-400'
+              <div className={`rounded-xl p-4 border ${
+                analysisResult.riskLevel === 'low' ? 'bg-green-50 border-green-100' :
+                analysisResult.riskLevel === 'medium' ? 'bg-amber-50 border-amber-100' :
+                'bg-red-50 border-red-100'
+              }`}>
+                <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
+                  analysisResult.riskLevel === 'low' ? 'bg-green-100 text-green-700' :
+                  analysisResult.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
+                  'bg-red-100 text-red-700'
                 }`}>{analysisResult.riskLevel.toUpperCase()}</span>
-                <div className="text-xs text-slate-400">Risk Level</div>
+                <div className="text-xs text-gray-500 font-medium mt-1.5">Risk Level</div>
               </div>
             </div>
           </div>
