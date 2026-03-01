@@ -41,3 +41,6 @@ next-env.d.ts
 
 # Temp files
 nul
+
+# PAEC corpus source files (DOCX/ZIP — not needed in repo, large binary files)
+APP-DEP/

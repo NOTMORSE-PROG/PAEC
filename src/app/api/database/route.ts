@@ -13,10 +13,28 @@ import {
   getRecentWeightUpdates,
   clearTrainingCorpus,
 } from '@/lib/database'
-import {
-  createDefaultModelState,
-  type AdaptiveModelState,
-} from '@/lib/adaptiveML'
+// Local type for model state used in sync/load operations
+interface ModelStateInput {
+  version?: string
+  updatedAt?: string
+  weights: {
+    patternWeights: Record<string, number>
+    errorWeights: Record<string, number>
+    phaseWeights: Record<string, number>
+    severityWeights: { critical: number; high: number; medium: number; low: number }
+    thresholds?: { errorDetection: number; phaseConfidence: number; readbackAccuracy: number }
+  }
+  config: Record<string, unknown>
+  history?: {
+    totalInteractions: number
+    correctPredictions: number
+    incorrectPredictions: number
+    userCorrections?: unknown[]
+    weightUpdates?: unknown[]
+    accuracyOverTime?: unknown[]
+    lastTrainingDate?: string
+  }
+}
 
 /**
  * Database API - PostgreSQL Operations
@@ -76,14 +94,33 @@ export async function POST(request: NextRequest) {
       // Insert default weights if empty
       const existingWeights = await loadModelWeights()
       if (Object.keys(existingWeights).length === 0) {
-        const defaultState = createDefaultModelState()
         await saveModelWeights({
-          pattern: defaultState.weights.patternWeights,
-          error: defaultState.weights.errorWeights,
-          phase: defaultState.weights.phaseWeights,
-          severity: defaultState.weights.severityWeights,
+          pattern: {
+            altitude_climb: 1.0, altitude_descend: 1.0, altitude_maintain: 1.0, flight_level: 1.2,
+            heading_turn_left: 1.0, heading_turn_right: 1.0, heading_fly: 0.9, runway_heading: 1.1,
+            cleared_takeoff: 1.3, cleared_landing: 1.3, cleared_approach: 1.2, line_up_wait: 1.2,
+            contact_frequency: 1.0, squawk_code: 1.1, direct_to: 0.9, hold_short: 1.2, taxi_to: 0.8,
+            go_around: 1.5, expedite: 1.4, immediate: 1.5,
+          },
+          error: {
+            wrong_value: 1.2, transposition: 1.3, missing_element: 1.0, incomplete_readback: 0.9,
+            parameter_confusion: 1.1, hearback_error: 0.8, extra_element: 0.5,
+            wrong_direction: 1.4, missing_callsign: 0.8, callsign_confusion: 1.4,
+            condition_omitted: 1.3, condition_violated: 1.5, constraint_missing: 1.3,
+            roger_substitution: 1.4, critical_confusion: 2.0, wrong_runway: 2.0,
+            missing_designator: 1.5, non_native_pronunciation: 0.6, non_native_grammar: 0.5,
+            non_native_word_order: 0.7, non_native_stress: 0.4,
+          },
+          phase: {
+            ground: 0.8, taxi: 0.9, departure: 1.2, climb: 1.0, cruise: 0.7,
+            descent: 1.0, approach: 1.3, landing: 1.4, go_around: 1.5,
+          },
+          severity: { critical: 1.5, high: 1.2, medium: 1.0, low: 0.7 },
         })
-        await saveConfig(defaultState.config as unknown as Record<string, unknown>)
+        await saveConfig({
+          learningRate: 0.1, momentum: 0.3, minConfidence: 0.5,
+          adaptiveRateEnabled: true, reinforcementEnabled: true, maxHistorySize: 1000,
+        })
       }
 
       return NextResponse.json({
@@ -102,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     // Action: sync - Sync current model state to database
     if (action === 'sync') {
-      const modelState = body.modelState as AdaptiveModelState
+      const modelState = body.modelState as ModelStateInput
 
       if (!modelState?.weights) {
         return NextResponse.json(
@@ -133,14 +170,14 @@ export async function POST(request: NextRequest) {
       const stats = await getModelStatsFromDB()
 
       // Reconstruct model state
-      const modelState: Partial<AdaptiveModelState> = {
+      const modelState: Partial<ModelStateInput> = {
         version: '3.0.0-adaptive-db',
         updatedAt: new Date().toISOString(),
         weights: {
           patternWeights: weights.pattern || {},
           errorWeights: weights.error || {},
           phaseWeights: weights.phase || {},
-          severityWeights: (weights.severity as AdaptiveModelState['weights']['severityWeights']) || {
+          severityWeights: (weights.severity as ModelStateInput['weights']['severityWeights']) || {
             critical: 1.5,
             high: 1.2,
             medium: 1.0,

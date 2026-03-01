@@ -32,12 +32,14 @@ import {
   BookOpen,
 } from 'lucide-react'
 import { extractTextFromPDF, validateATCDialogue } from '@/lib/pdfExtractor'
+import { extractTextFromDOCX } from '@/lib/docxExtractor'
+import { exportAnalysisToPDF, exportAnalysisToCSV } from '@/lib/reportExporter'
 import { analyzeDialogue, parseLines, type AnalysisOutput, type PhraseologyError, type ParsedLine } from '@/lib/analysisEngine'
-import { analyzeDepartureApproach, type DepartureApproachMLResult, type FlightPhase } from '@/lib/departureApproachML'
+import { analyzeDepartureApproach, type DepartureApproachMLResult, type FlightPhase } from '@/lib/departureApproachAnalyzer'
 import { analyzeWithPhaseContext } from '@/lib/semanticReadbackAnalyzer'
 
 type CorpusType = 'APP/DEP' | 'GND' | 'RAMP' | null
-type UploadMethod = 'text' | 'pdf' | null
+type UploadMethod = 'text' | 'pdf' | 'docx' | null
 
 interface ExtractedPDFData {
   text: string
@@ -66,9 +68,12 @@ export default function AnalysisPage() {
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [showDetailedErrors, setShowDetailedErrors] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [selectedErrorIndex, setSelectedErrorIndex] = useState<number | null>(null)
   const [showFullTranscript, setShowFullTranscript] = useState(false)
   const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set())
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [mlAnalysisResults, setMlAnalysisResults] = useState<{
     exchanges: DepartureApproachMLResult[]
     summary: {
@@ -82,6 +87,9 @@ export default function AnalysisPage() {
   } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Close export dropdown when clicking outside
+  const handleClickOutside = useCallback(() => setShowExportMenu(false), [])
 
   const corpusCategories = [
     {
@@ -114,13 +122,17 @@ export default function AnalysisPage() {
   ]
 
   const handleFileSelect = useCallback(async (file: File) => {
-    if (!file.type.includes('pdf')) {
-      setPdfError('Please upload a PDF file')
+    const isPDF  = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                   || file.name.toLowerCase().endsWith('.docx')
+
+    if (!isPDF && !isDOCX) {
+      setPdfError('Please upload a PDF or DOCX file')
       return
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setPdfError('File size must be less than 10MB')
+    if (file.size > 20 * 1024 * 1024) {
+      setPdfError('File size must be less than 20 MB')
       return
     }
 
@@ -129,10 +141,13 @@ export default function AnalysisPage() {
     setPdfData(null)
 
     try {
-      const result = await extractTextFromPDF(file)
+      // Route to the right extractor based on file type
+      const result = isPDF
+        ? await extractTextFromPDF(file)
+        : await extractTextFromDOCX(file)
 
       if (!result.success) {
-        setPdfError(result.errors.join(', ') || 'Failed to extract text from PDF')
+        setPdfError(result.errors.join(', ') || `Failed to extract text from ${isPDF ? 'PDF' : 'DOCX'}`)
         setIsExtracting(false)
         return
       }
@@ -146,8 +161,9 @@ export default function AnalysisPage() {
       })
 
       setUploadedText(result.text)
+      setUploadMethod(isPDF ? 'pdf' : 'docx')
     } catch (error) {
-      setPdfError(error instanceof Error ? error.message : 'Failed to process PDF')
+      setPdfError(error instanceof Error ? error.message : 'Failed to process file')
     } finally {
       setIsExtracting(false)
     }
@@ -177,85 +193,96 @@ export default function AnalysisPage() {
     if (!selectedCorpus || !uploadedText.trim()) return
 
     setIsAnalyzing(true)
+    setAnalysisError(null)
     setShowUploadModal(false)
 
     // Brief delay for UX
     await new Promise((resolve) => setTimeout(resolve, 500))
 
-    const result = analyzeDialogue({
-      text: uploadedText,
-      corpusType: selectedCorpus,
-    })
+    try {
+      const result = analyzeDialogue({
+        text: uploadedText,
+        corpusType: selectedCorpus,
+      })
 
-    // Enhanced ML analysis for APP/DEP corpus
-    if (selectedCorpus === 'APP/DEP') {
-      const parsedLines = parseLines(uploadedText)
-      const exchanges: DepartureApproachMLResult[] = []
-      const phaseBreakdown: Record<FlightPhase, number> = {} as Record<FlightPhase, number>
-      let totalCompleteness = 0
-      let criticalErrors = 0
-      let departureCount = 0
-      let approachCount = 0
+      // Enhanced analysis for APP/DEP corpus
+      if (selectedCorpus === 'APP/DEP') {
+        const parsedLines = parseLines(uploadedText)
+        const exchanges: DepartureApproachMLResult[] = []
+        const phaseBreakdown: Record<FlightPhase, number> = {} as Record<FlightPhase, number>
+        let totalCompleteness = 0
+        let criticalErrors = 0
+        let departureCount = 0
+        let approachCount = 0
 
-      // Pair ATC instructions with pilot readbacks
-      for (let i = 0; i < parsedLines.length - 1; i++) {
-        const current = parsedLines[i]
-        const next = parsedLines[i + 1]
+        // Pair ATC instructions with pilot readbacks
+        for (let i = 0; i < parsedLines.length - 1; i++) {
+          const current = parsedLines[i]
+          const next = parsedLines[i + 1]
 
-        // Look for ATC-Pilot pairs
-        if (current.speaker === 'ATC' && next.speaker === 'PILOT') {
-          const mlResult = analyzeDepartureApproach(
-            current.text,
-            next.text,
-            undefined, // callsign extracted automatically
-            exchanges.slice(-3).map(e => ({
-              type: e.errors[0]?.type || 'unknown',
-              severity: e.contextualSeverity,
-              timestamp: Date.now()
-            }))
-          )
+          // Look for ATC-Pilot pairs
+          if (current.speaker === 'ATC' && next.speaker === 'PILOT') {
+            const exchangeResult = analyzeDepartureApproach(
+              current.text,
+              next.text,
+              undefined, // callsign extracted automatically
+              exchanges.slice(-3).map(e => ({
+                type: e.errors[0]?.type || 'unknown',
+                severity: e.contextualSeverity,
+                timestamp: Date.now()
+              }))
+            )
 
-          exchanges.push(mlResult)
+            exchanges.push(exchangeResult)
 
-          // Track phase
-          phaseBreakdown[mlResult.phase] = (phaseBreakdown[mlResult.phase] || 0) + 1
+            // Track phase
+            phaseBreakdown[exchangeResult.phase] = (phaseBreakdown[exchangeResult.phase] || 0) + 1
 
-          // Track completeness
-          totalCompleteness += mlResult.multiPartAnalysis.readbackCompleteness
+            // Track completeness
+            totalCompleteness += exchangeResult.multiPartAnalysis.readbackCompleteness
 
-          // Track critical errors
-          if (mlResult.contextualSeverity === 'critical') {
-            criticalErrors++
+            // Track critical errors
+            if (exchangeResult.contextualSeverity === 'critical') {
+              criticalErrors++
+            }
+
+            // Track departure vs approach
+            if (['initial_departure', 'departure_climb', 'takeoff_roll', 'lineup', 'taxi'].includes(exchangeResult.phase)) {
+              departureCount++
+            } else if (['approach', 'final_approach', 'go_around', 'descent', 'arrival'].includes(exchangeResult.phase)) {
+              approachCount++
+            }
+
+            i++ // Skip the pilot readback since we've processed it
           }
-
-          // Track departure vs approach
-          if (['initial_departure', 'departure_climb', 'takeoff_roll', 'lineup', 'taxi'].includes(mlResult.phase)) {
-            departureCount++
-          } else if (['approach', 'final_approach', 'go_around', 'descent', 'arrival'].includes(mlResult.phase)) {
-            approachCount++
-          }
-
-          i++ // Skip the pilot readback since we've processed it
         }
+
+        setMlAnalysisResults({
+          exchanges,
+          summary: {
+            totalExchanges: exchanges.length,
+            departureCount,
+            approachCount,
+            averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100,
+            criticalErrors,
+            phaseBreakdown,
+          },
+        })
+      } else {
+        setMlAnalysisResults(null)
       }
 
-      setMlAnalysisResults({
-        exchanges,
-        summary: {
-          totalExchanges: exchanges.length,
-          departureCount,
-          approachCount,
-          averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100,
-          criticalErrors,
-          phaseBreakdown,
-        },
-      })
-    } else {
-      setMlAnalysisResults(null)
+      setAnalysisResult(result)
+    } catch (err) {
+      console.error('Analysis failed:', err)
+      setAnalysisError(
+        err instanceof Error
+          ? `Analysis failed: ${err.message}`
+          : 'An unexpected error occurred during analysis. Please check your input and try again.'
+      )
+    } finally {
+      setIsAnalyzing(false)
     }
-
-    setAnalysisResult(result)
-    setIsAnalyzing(false)
   }
 
   const getRiskColor = (level: string) => {
@@ -289,6 +316,7 @@ export default function AnalysisPage() {
     setUploadedText('')
     setPdfData(null)
     setPdfError(null)
+    setAnalysisError(null)
     setUploadMethod(null)
     setSelectedErrorIndex(null)
     setShowFullTranscript(false)
@@ -430,9 +458,9 @@ export default function AnalysisPage() {
               }`}
             >
               <FileUp className="w-10 h-10 text-primary-500 mx-auto mb-3" />
-              <h3 className="font-medium text-gray-900 mb-1">Upload PDF</h3>
+              <h3 className="font-medium text-gray-900 mb-1">Upload PDF or DOCX</h3>
               <p className="text-sm text-gray-500">
-                Upload a PDF document with ATC-Pilot dialogues
+                Upload a PDF or Word document with ATC-Pilot dialogues
               </p>
               <span className="inline-block mt-3 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
                 Recommended
@@ -540,7 +568,7 @@ export default function AnalysisPage() {
           <div className="bg-white rounded-2xl shadow-elevated max-w-2xl w-full max-h-[90vh] overflow-hidden animate-slide-up">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900">
-                {uploadMethod === 'pdf' ? 'Upload PDF Document' : 'Paste Dialogue Text'} - {selectedCorpus}
+                {uploadMethod === 'text' ? 'Paste Dialogue Text' : 'Upload PDF / DOCX'} — {selectedCorpus}
               </h3>
               <button
                 onClick={() => {
@@ -573,7 +601,7 @@ export default function AnalysisPage() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf"
+                      accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) handleFileSelect(file)
@@ -604,10 +632,10 @@ export default function AnalysisPage() {
                       <>
                         <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                         <p className="text-gray-600 mb-2">
-                          Drag and drop your PDF here, or click to browse
+                          Drag and drop a PDF or DOCX file here, or click to browse
                         </p>
                         <p className="text-sm text-gray-500">
-                          Supports PDF documents with ATC-Pilot communications
+                          Supports PDF and Word (.docx) documents — up to 20 MB
                         </p>
                       </>
                     )}
@@ -751,6 +779,23 @@ Pilot: Left heading 180, PAL456."
         </div>
       )}
 
+      {/* Analysis Error */}
+      {analysisError && !isAnalyzing && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium text-red-800">Analysis Error</p>
+            <p className="text-sm text-red-600 mt-1">{analysisError}</p>
+          </div>
+          <button
+            onClick={() => setAnalysisError(null)}
+            className="text-red-400 hover:text-red-600 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Analysis Results */}
       {analysisResult && (
         <div className="space-y-6">
@@ -766,14 +811,48 @@ Pilot: Left heading 180, PAL456."
                   <p className="text-sm text-gray-500">{analysisResult.corpusType} Corpus</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 relative">
                 <button onClick={resetAnalysis} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                   New Analysis
                 </button>
-                <button className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  Export
-                </button>
+                {/* Export dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(m => !m)}
+                    disabled={isExporting}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Export
+                    <ChevronDown className="w-3 h-3 ml-0.5" />
+                  </button>
+                  {showExportMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                      <button
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+                        onClick={async () => {
+                          setShowExportMenu(false)
+                          setIsExporting(true)
+                          try { await exportAnalysisToPDF(analysisResult) }
+                          finally { setIsExporting(false) }
+                        }}
+                      >
+                        <FileText className="w-4 h-4 text-red-500" />
+                        Export as PDF
+                      </button>
+                      <button
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors border-t border-gray-100"
+                        onClick={() => {
+                          setShowExportMenu(false)
+                          exportAnalysisToCSV(analysisResult)
+                        }}
+                      >
+                        <BarChart3 className="w-4 h-4 text-green-500" />
+                        Export as CSV
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1132,7 +1211,7 @@ Pilot: Left heading 180, PAL456."
                     <Zap className="w-4 h-4 text-indigo-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 text-sm">ML Exchange Analysis</h3>
+                    <h3 className="font-semibold text-gray-900 text-sm">Exchange Analysis</h3>
                     <p className="text-[11px] text-gray-500">{mlAnalysisResults.summary.totalExchanges} exchanges analyzed</p>
                   </div>
                 </div>

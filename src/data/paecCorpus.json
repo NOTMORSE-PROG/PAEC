@@ -1,0 +1,749 @@
+{
+  "metadata": {
+    "version": "3.0",
+    "lastUpdated": "2026-02-28",
+    "description": "PAEC Shared Master — phraseology rules, callsigns, waypoints, procedures. Corpus entries are in appDepCorpus.json / gndCorpus.json / rampCorpus.json"
+  },
+  "phraseology": {
+    "nonStandardPhrases": [
+      {
+        "incorrect": "with you",
+        "correct": "on your frequency",
+        "explanation": "Non-standard initial contact phrase. ICAO requires stating altitude/flight level on initial contact.",
+        "pattern": "\\bwith you\\b",
+        "flags": "i",
+        "standard": "on your frequency",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "incident": "Avianca 52 crash (1990) - miscommunication contributed to fuel exhaustion",
+        "icaoRef": "ICAO Doc 4444 §3.5.1.2"
+      },
+      {
+        "incorrect": "checking in",
+        "correct": "[callsign], [altitude/flight level]",
+        "explanation": "Non-standard initial contact. State callsign and altitude per ICAO Doc 4444.",
+        "pattern": "\\bchecking in\\b",
+        "flags": "i",
+        "standard": "[callsign], [altitude]",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 4444 §3.5.1.2"
+      },
+      {
+        "incorrect": "any traffic",
+        "correct": "traffic information",
+        "explanation": "Use proper traffic advisory format per ICAO Doc 4444.",
+        "pattern": "\\bany traffic\\b",
+        "flags": "i",
+        "standard": "traffic information",
+        "severity": "low",
+        "category": "instruction",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 4444 §4.7.4"
+      },
+      {
+        "incorrect": "go ahead",
+        "correct": "pass your message",
+        "explanation": "ICAO standard phraseology for requesting transmission is 'pass your message'.",
+        "pattern": "\\bgo ahead\\b",
+        "flags": "i",
+        "standard": "pass your message",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 9432 §5.3"
+      },
+      {
+        "incorrect": "no joy",
+        "correct": "negative contact",
+        "explanation": "Military slang not part of ICAO standard phraseology.",
+        "pattern": "\\bno joy\\b",
+        "flags": "i",
+        "standard": "negative contact",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity"
+      },
+      {
+        "incorrect": "have a good one",
+        "correct": "good day",
+        "explanation": "Informal farewell. Standard ICAO farewell is 'good day'.",
+        "pattern": "\\bhave a good one\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "see ya",
+        "correct": "good day",
+        "explanation": "Informal language not appropriate for aviation communications.",
+        "pattern": "\\bsee ya\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "back to you",
+        "correct": "good day",
+        "explanation": "Non-standard frequency change acknowledgment.",
+        "pattern": "\\bback to you\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "say again all after",
+        "correct": "say again",
+        "explanation": "Simplified request for repetition is standard per ICAO Doc 9432.",
+        "pattern": "\\bsay again all after\\b",
+        "flags": "i",
+        "standard": "say again",
+        "severity": "low",
+        "category": "clarification",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 9432 §5.6"
+      },
+      {
+        "incorrect": "take off (outside clearance context)",
+        "correct": "departure",
+        "explanation": "Word 'takeoff' only used for actual takeoff clearance to prevent confusion. Use 'departure' in all other contexts.",
+        "pattern": "\\btake off\\b",
+        "flags": "i",
+        "excludePattern": "\\bcleared\\b",
+        "standard": "departure",
+        "severity": "high",
+        "category": "instruction",
+        "safetyImpact": "safety",
+        "incident": "Tenerife disaster (1977) - 'takeoff' misunderstood as clearance",
+        "icaoRef": "ICAO Doc 4444 §4.3.6"
+      },
+      {
+        "incorrect": "to (in number sequences)",
+        "correct": "two",
+        "explanation": "'To' can be confused with 'two' in number sequences (e.g., 'one to three' should be 'one two three').",
+        "pattern": "\\b(one|three|four|five|six|seven|eight|nine|niner|zero)\\s+to\\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)\\b",
+        "flags": "i",
+        "standard": "use 'two' in number sequences",
+        "severity": "high",
+        "category": "number",
+        "safetyImpact": "safety",
+        "icaoRef": "ICAO Doc 9432 §5.2.1"
+      },
+      {
+        "incorrect": "for (in number sequences)",
+        "correct": "four",
+        "explanation": "'For' can be confused with 'four' in number sequences (e.g., 'two for six' should be 'two four six').",
+        "pattern": "\\b(one|two|three|five|six|seven|eight|nine|niner|zero)\\s+for\\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)\\b",
+        "flags": "i",
+        "standard": "use 'four' in number sequences",
+        "severity": "high",
+        "category": "number",
+        "safetyImpact": "safety",
+        "icaoRef": "ICAO Doc 9432 §5.2.1"
+      },
+      {
+        "incorrect": "okay",
+        "correct": "affirm",
+        "explanation": "'Okay' is not ICAO standard. Use 'affirm' or 'affirmative'.",
+        "pattern": "\\bokay\\b",
+        "flags": "i",
+        "standard": "affirm",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 9432 §5.4"
+      },
+      {
+        "incorrect": "yeah",
+        "correct": "affirm",
+        "explanation": "Informal acknowledgment not part of standard phraseology.",
+        "pattern": "\\byeah\\b",
+        "flags": "i",
+        "standard": "affirm",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity"
+      },
+      {
+        "incorrect": "uh huh",
+        "correct": "affirm",
+        "explanation": "Non-verbal acknowledgment not appropriate for radio.",
+        "pattern": "\\buh\\s*huh\\b",
+        "flags": "i",
+        "standard": "affirm",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity"
+      },
+      {
+        "incorrect": "copy that",
+        "correct": "roger",
+        "explanation": "'Copy that' is informal. Use 'roger' to indicate message received, or read back the instruction.",
+        "pattern": "\\bcopy that\\b",
+        "flags": "i",
+        "standard": "roger",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 9432 §5.4"
+      },
+      {
+        "incorrect": "standby one",
+        "correct": "standby",
+        "explanation": "'One' is unnecessary. 'Standby' alone is sufficient per ICAO Doc 9432.",
+        "pattern": "\\bstandby one\\b",
+        "flags": "i",
+        "standard": "standby",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency",
+        "icaoRef": "ICAO Doc 9432 §5.4"
+      },
+      {
+        "incorrect": "running heading",
+        "correct": "runway heading",
+        "explanation": "'Running heading' is not standard. 'Runway heading' means maintain the magnetic heading of the runway. Confusion can cause serious misunderstandings.",
+        "pattern": "\\brunning\\s+heading\\b",
+        "flags": "i",
+        "standard": "runway heading",
+        "severity": "high",
+        "category": "instruction",
+        "safetyImpact": "safety",
+        "icaoRef": "ICAO Doc 4444 §4.5.1"
+      },
+      {
+        "incorrect": "decent",
+        "correct": "descend",
+        "explanation": "'Decent' (adjective) is not an aviation instruction. The correct term is 'descend'.",
+        "pattern": "\\bdecent\\b",
+        "flags": "i",
+        "standard": "descend",
+        "severity": "high",
+        "category": "instruction",
+        "safetyImpact": "safety"
+      },
+      {
+        "incorrect": "good morning / good afternoon / good evening",
+        "correct": "(omit social pleasantries)",
+        "explanation": "Social greetings are non-standard in operational ATC phraseology. On initial contact, state callsign and altitude.",
+        "pattern": "\\bgood\\s+(morning|afternoon|evening)\\b",
+        "flags": "i",
+        "standard": "[callsign], [altitude/flight level]",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency",
+        "icaoRef": "ICAO Doc 9432 §5.1.1"
+      },
+      {
+        "incorrect": "direct contact",
+        "correct": "radar contact",
+        "explanation": "'Direct contact' is non-standard. Use 'radar contact' to confirm surveillance identification per ICAO Doc 4444.",
+        "pattern": "\\bdirect\\s+contact\\b",
+        "flags": "i",
+        "standard": "radar contact",
+        "severity": "medium",
+        "category": "instruction",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 4444 §8.6.1"
+      },
+      {
+        "incorrect": "reclimb",
+        "correct": "climb / resume climb",
+        "explanation": "'Reclimb' is not ICAO standard. Use 'climb' for a new clearance or 'resume climb' after a level-off restriction.",
+        "pattern": "\\breclimb\\b",
+        "flags": "i",
+        "standard": "climb",
+        "severity": "medium",
+        "category": "instruction",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 4444 §12.3.1"
+      },
+      {
+        "incorrect": "sir / ma'am",
+        "correct": "(omit — use callsign only)",
+        "explanation": "Honorifics 'sir' and 'ma'am' are not ICAO standard. They add unnecessary words not used in international operations.",
+        "pattern": "\\b(sir|ma[''']?am|maam)\\b",
+        "flags": "i",
+        "standard": "[callsign]",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "goodbye",
+        "correct": "good day",
+        "explanation": "'Goodbye' is informal. The ICAO standard farewell is 'good day'.",
+        "pattern": "\\bgoodbye\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency",
+        "icaoRef": "ICAO Doc 9432 §5.4"
+      },
+      {
+        "incorrect": "goodmorning / goodafternoon / goodevening / goodnight",
+        "correct": "(omit social pleasantries)",
+        "explanation": "Fused greeting words are non-standard. ICAO phraseology requires no social pleasantries on initial contact.",
+        "pattern": "\\bgood(morning|afternoon|evening|night)\\b",
+        "flags": "i",
+        "standard": "[callsign], [altitude/flight level]",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "thank you",
+        "correct": "good day",
+        "explanation": "'Thank you' is not part of ICAO standard phraseology. It adds unnecessary transmissions that can block other traffic.",
+        "pattern": "\\bthank\\s+you\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "bye / bye bye",
+        "correct": "good day",
+        "explanation": "Informal farewell. The ICAO standard farewell is 'good day'.",
+        "pattern": "\\bbye\\s*-?\\s*bye\\b|\\bbye\\b(?!\\s*-?\\s*bye)",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "so long",
+        "correct": "good day",
+        "explanation": "Informal farewell. The ICAO standard farewell is 'good day'.",
+        "pattern": "\\bso long\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "have a good day / have a good flight",
+        "correct": "good day",
+        "explanation": "Social pleasantries are not part of ICAO standard phraseology.",
+        "pattern": "\\bhave a good\\s+(day|flight)\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency"
+      },
+      {
+        "incorrect": "reach your speed",
+        "correct": "reduce/increase speed to [speed] knots",
+        "explanation": "'Reach your speed' is non-standard. Use 'reduce speed to [speed] knots' or 'increase speed to [speed] knots' per ICAO Doc 4444 §12.3.",
+        "pattern": "\\breach\\s+your\\s+speed\\b",
+        "flags": "i",
+        "standard": "reduce/increase speed to [speed] knots",
+        "severity": "medium",
+        "category": "instruction",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 4444 §12.3"
+      },
+      {
+        "incorrect": "maayong buntag",
+        "correct": "(omit — use English phraseology only)",
+        "explanation": "Non-English phrases are prohibited in ICAO standard phraseology. All ATC communications must be in English (ICAO Annex 10, Vol. II §5.2.1.3).",
+        "pattern": "\\bmaayong\\s+buntag\\b",
+        "flags": "i",
+        "standard": "[callsign], [altitude/flight level]",
+        "severity": "high",
+        "category": "instruction",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Annex 10 Vol. II §5.2.1.3"
+      },
+      {
+        "incorrect": "salamat",
+        "correct": "(omit — use English phraseology only)",
+        "explanation": "'Salamat' (Tagalog: 'thank you') is not ICAO phraseology. All aviation communications must be in English per ICAO Annex 10.",
+        "pattern": "\\bsalamat\\b",
+        "flags": "i",
+        "standard": "good day",
+        "severity": "high",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Annex 10 Vol. II §5.2.1.3"
+      },
+      {
+        "incorrect": "expedite passing",
+        "correct": "expedite",
+        "explanation": "'Expedite passing' is not ICAO standard. Use 'expedite' alone, or 'expedite climb/descent through [altitude]' per ICAO Doc 4444.",
+        "pattern": "\\bexpedite\\s+passing\\b",
+        "flags": "i",
+        "standard": "expedite",
+        "severity": "medium",
+        "category": "instruction",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 4444 §12.3.2"
+      },
+      {
+        "incorrect": "affirmative",
+        "correct": "affirm",
+        "explanation": "ICAO Doc 9432 specifies the shortened form 'AFFIRM' for positive confirmation. 'Affirmative' is the FAA/informal form and is not part of ICAO standard phraseology.",
+        "pattern": "\\baffirmative\\b",
+        "flags": "i",
+        "standard": "affirm",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 9432 §5.4"
+      },
+      {
+        "incorrect": "taxi into position and hold",
+        "correct": "line up and wait",
+        "explanation": "'Taxi into position and hold' is FAA phraseology (US). ICAO standard is 'LINE UP AND WAIT'. Using FAA phrasing in ICAO airspace can cause confusion for international crews.",
+        "pattern": "\\btaxi\\s+into\\s+position\\s+and\\s+hold\\b",
+        "flags": "i",
+        "standard": "line up and wait",
+        "severity": "medium",
+        "category": "instruction",
+        "safetyImpact": "safety",
+        "icaoRef": "ICAO Doc 4444 Amendment 7; Doc 9432 §8.5"
+      },
+      {
+        "incorrect": "po (Tagalog/Filipino honorific)",
+        "correct": "(omit — use English phraseology only)",
+        "explanation": "'Po' is a Tagalog/Filipino respect honorific with no place in ICAO standard phraseology. All communications must be in English, free from non-ICAO words.",
+        "pattern": "\\bpo\\b",
+        "flags": "i",
+        "standard": "(omit)",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency",
+        "icaoRef": "ICAO Annex 10 Vol. II §5.2.1.3"
+      },
+      {
+        "incorrect": "yes",
+        "correct": "affirm",
+        "explanation": "ICAO uses 'AFFIRM' (positive) and 'NEGATIVE' — never 'yes' or 'no', which may be misheard over radio noise.",
+        "pattern": "\\byes\\b(?!\\s*sir|\\s*ma)",
+        "flags": "i",
+        "standard": "affirm",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "icaoRef": "ICAO Doc 9432 §5.4"
+      },
+      {
+        "incorrect": "contacting (for frequency change acknowledgment)",
+        "correct": "[frequency] [callsign]",
+        "explanation": "ICAO Doc 4444: when acknowledging a frequency transfer, read back the frequency and callsign only. 'Contacting' is non-standard and adds an unnecessary word not used in international operations.",
+        "pattern": "\\bcontacting\\b",
+        "flags": "i",
+        "standard": "[frequency] [callsign]",
+        "severity": "low",
+        "category": "acknowledgment",
+        "safetyImpact": "efficiency",
+        "icaoRef": "ICAO Doc 4444 §3.5.1.2"
+      },
+      {
+        "pattern": "\\bopo\\b",
+        "correction": "affirm / [read back instruction]",
+        "severity": "high",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "explanation": "Tagalog formal 'yes' — not standard ICAO phraseology. Use 'affirm' or read back the instruction.",
+        "icaoRef": "ICAO Doc 9432 Ch. 5"
+      },
+      {
+        "pattern": "\\boo\\b",
+        "correction": "affirm / [read back instruction]",
+        "severity": "high",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "explanation": "Tagalog informal 'yes' — not standard. Use 'affirm' or read back the instruction.",
+        "icaoRef": "ICAO Doc 9432 Ch. 5"
+      },
+      {
+        "pattern": "\\bsandali\\b|\\bsandali\\s+lang\\b",
+        "correction": "standby",
+        "severity": "medium",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "explanation": "Tagalog 'sandali / sandali lang' (just a moment) — use 'standby' per ICAO Doc 9432.",
+        "icaoRef": "ICAO Doc 9432 Ch. 5"
+      },
+      {
+        "pattern": "\\bganoon\\b|\\bganun\\b",
+        "correction": "roger",
+        "severity": "medium",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "explanation": "Tagalog 'ganoon/ganun' (like that / I see) — not standard. Use 'roger' if acknowledging.",
+        "icaoRef": "ICAO Doc 9432 Ch. 5"
+      },
+      {
+        "pattern": "\\bnandoon\\b|\\bnandito\\b",
+        "correction": "[position report in standard format]",
+        "severity": "medium",
+        "category": "acknowledgment",
+        "safetyImpact": "clarity",
+        "explanation": "Tagalog position terms not standard on radio. Use standard position reporting phraseology.",
+        "icaoRef": "ICAO Doc 4444 Sec. 4.8"
+      }
+    ],
+    "numberPronunciation": [
+      {
+        "incorrect": "nine",
+        "correct": "niner",
+        "severity": "medium"
+      },
+      {
+        "incorrect": "three",
+        "correct": "tree",
+        "severity": "low"
+      },
+      {
+        "incorrect": "five",
+        "correct": "fife",
+        "severity": "low"
+      },
+      {
+        "incorrect": "thousand",
+        "correct": "tousand",
+        "severity": "low"
+      }
+    ],
+    "safetyCriticalPatterns": [
+      {
+        "pattern": "runways*d{1,2}[LRC]?",
+        "description": "Runway designation",
+        "severity": "critical"
+      },
+      {
+        "pattern": "holds*short",
+        "description": "Hold short instruction",
+        "severity": "critical"
+      },
+      {
+        "pattern": "lines*ups*(?:ands*)?wait",
+        "description": "Line up and wait",
+        "severity": "critical"
+      },
+      {
+        "pattern": "gos*around",
+        "description": "Go around instruction",
+        "severity": "critical"
+      },
+      {
+        "pattern": "cleareds*(?:tos*)?land",
+        "description": "Landing clearance",
+        "severity": "critical"
+      },
+      {
+        "pattern": "cleareds*(?:fors*)?takes*off",
+        "description": "Takeoff clearance",
+        "severity": "critical"
+      },
+      {
+        "pattern": "misseds*approach",
+        "description": "Missed approach",
+        "severity": "critical"
+      },
+      {
+        "pattern": "cancels*takes*off",
+        "description": "Takeoff cancellation",
+        "severity": "critical"
+      },
+      {
+        "pattern": "stops*(?:immediately)?",
+        "description": "Stop instruction",
+        "severity": "critical"
+      },
+      {
+        "pattern": "traffics*alert",
+        "description": "Traffic alert",
+        "severity": "critical"
+      },
+      {
+        "pattern": "terrains*ahead",
+        "description": "Terrain warning",
+        "severity": "critical"
+      },
+      {
+        "pattern": "pulls*up",
+        "description": "Pull up warning",
+        "severity": "critical"
+      },
+      {
+        "pattern": "breaks*(?:left|right)",
+        "description": "Emergency break",
+        "severity": "critical"
+      },
+      {
+        "pattern": "expedite",
+        "description": "Expedite instruction",
+        "severity": "high"
+      },
+      {
+        "pattern": "immediately",
+        "description": "Immediate action required",
+        "severity": "high"
+      }
+    ]
+  },
+  "callsigns": {
+    "philippine": [
+      "PAL",
+      "CEB",
+      "APG",
+      "AXC",
+      "RPC",
+      "SRQ",
+      "GAP",
+      "AIQ",
+      "RYA",
+      "SEA",
+      "PHILIPPINE",
+      "CEBU",
+      "AIRPHIL",
+      "COOLRED",
+      "SORIANO",
+      "BLUEJAY",
+      "SUNLIGHT",
+      "MEDEVAC",
+      "MAHARLIKA"
+    ],
+    "international": [
+      "UAE",
+      "SIA",
+      "CPA",
+      "KAL",
+      "JAL",
+      "ANA",
+      "EVA",
+      "CAL",
+      "MAS",
+      "THA",
+      "QTR",
+      "ETH",
+      "SWR",
+      "BAW",
+      "AFR",
+      "KLM",
+      "DLH",
+      "UAL",
+      "AAL",
+      "DAL",
+      "FDX",
+      "UPS",
+      "GTI",
+      "CLX",
+      "ABW",
+      "MXD",
+      "CSN",
+      "CES",
+      "HVN",
+      "VJC",
+      "CATHAY",
+      "EMIRATES",
+      "JETSTAR",
+      "AIRBLUE",
+      "SCOOT",
+      "NIPPON",
+      "GULF",
+      "QATARI",
+      "XIAMEN",
+      "DYNASTY"
+    ]
+  },
+  "waypoints": [
+    "BOREG",
+    "ELBIS",
+    "GUAVA",
+    "PANAS",
+    "RENAS",
+    "TAVER",
+    "AKLAN",
+    "LUBANG",
+    "NINOY",
+    "SUBIC",
+    "TALON",
+    "OSIAS",
+    "CAPIN",
+    "MAPLA",
+    "ERLAS",
+    "TAROS",
+    "MACTA",
+    "BANAT",
+    "MASBA",
+    "LINOG",
+    "UBINA",
+    "TOROD",
+    "POLOG",
+    "BOHOL",
+    "PANAY",
+    "SAMAR",
+    "LEYTE",
+    "BATAN",
+    "SANGA",
+    "DAVAO"
+  ],
+  "procedures": {
+    "sids": [
+      "BOREG1A",
+      "BOREG1B",
+      "BOREG1C",
+      "ELBIS1A",
+      "ELBIS1B",
+      "ELBIS2A",
+      "GUAVA1A",
+      "GUAVA2A",
+      "GUAVA3A",
+      "PANAS1A",
+      "PANAS1B",
+      "PANAS2A",
+      "RENAS1A",
+      "RENAS2A",
+      "RENAS3A",
+      "TAVER1A",
+      "TAVER1B",
+      "TAVER2A",
+      "LUBANG1",
+      "LUBANG2",
+      "LUBANG3",
+      "MACTA1",
+      "MACTA2",
+      "BANAT1",
+      "MASBA1"
+    ],
+    "stars": [
+      "AKLAN1A",
+      "AKLAN2A",
+      "AKLAN3A",
+      "LUBANG1A",
+      "LUBANG2A",
+      "LUBANG3A",
+      "NINOY1A",
+      "NINOY2A",
+      "NINOY1B",
+      "TAVER1A",
+      "TAVER2A",
+      "TAVER3A",
+      "OSIAS1A",
+      "OSIAS2A",
+      "SUBIC1A",
+      "SUBIC2A",
+      "LINOG1",
+      "UBINA1",
+      "TOROD1",
+      "POLOG1"
+    ]
+  }
+}

@@ -5,6 +5,11 @@
  * Based on ICAO Doc 9432, FAA Order 7110.65, and real ATC data
  */
 
+import rawCorpus     from '../data/paecCorpus.json'      // shared: phraseology, callsigns, waypoints
+import appDepCorpus  from '../data/appDepCorpus.json'    // APP/DEP training pairs
+import gndCorpus     from '../data/gndCorpus.json'       // GND training pairs
+import rampCorpus    from '../data/rampCorpus.json'      // RAMP training pairs (stub)
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -18,6 +23,7 @@ export interface PhraseCorrection {
   severity: 'critical' | 'high' | 'medium' | 'low'
   category: 'acknowledgment' | 'instruction' | 'clarification' | 'number' | 'emergency'
   safetyImpact: 'safety' | 'clarity' | 'efficiency'
+  exclude?: RegExp      // if set and matches the full line, this phrase is NOT flagged
   pattern?: RegExp
   incident?: string
   icaoDoc?: string
@@ -73,262 +79,120 @@ export interface ErrorPattern {
 }
 
 // ============================================================================
-// PHRASEOLOGY DATABASE - NON-STANDARD PHRASES
+// PHRASEOLOGY DATABASE - NON-STANDARD PHRASES (loaded dynamically from paecCorpus.json)
 // ============================================================================
+//
+// To add, edit, or remove a non-standard phrase:
+//   Edit src/data/paecCorpus.json → phraseology.nonStandardPhrases array.
+//   Each entry stores the regex as a plain string; it is compiled here at startup.
+//   No code changes needed.
+//
+// JSON entry schema:
+//   { incorrect, correct, explanation, pattern (regex string), flags,
+//     standard, severity, category, safetyImpact,
+//     excludePattern? (skip detection if this regex also matches the line),
+//     incident?, icaoRef? }
 
-export const NON_STANDARD_PHRASES: PhraseCorrection[] = [
-  // Common acknowledgment errors
-  {
-    incorrect: "with you",
-    correct: "on your frequency",
-    explanation: "Non-standard initial contact phrase. ICAO requires stating altitude/flight level on initial contact.",
-    nonStandard: /\bwith you\b/i,
-    standard: "on your frequency",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-    incident: "Avianca 52 crash (1990) - miscommunication contributed to fuel exhaustion",
-  },
-  {
-    incorrect: "checking in",
-    correct: "[callsign], [altitude/flight level]",
-    explanation: "Non-standard initial contact. State callsign and altitude.",
-    nonStandard: /\bchecking in\b/i,
-    standard: "[callsign], [altitude]",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "any traffic",
-    correct: "traffic information",
-    explanation: "Use proper traffic advisory format per ICAO Doc 4444",
-    nonStandard: /\bany traffic\b/i,
-    standard: "traffic information",
-    severity: 'low',
-    category: 'instruction',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "go ahead",
-    correct: "pass your message",
-    explanation: "ICAO standard phraseology for requesting transmission",
-    nonStandard: /\bgo ahead\b/i,
-    standard: "pass your message",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "no joy",
-    correct: "negative contact",
-    explanation: "Military slang not part of ICAO standard phraseology",
-    nonStandard: /\bno joy\b/i,
-    standard: "negative contact",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "have a good one",
-    correct: "good day",
-    explanation: "Professional phraseology required for frequency changes",
-    nonStandard: /\bhave a good one\b/i,
-    standard: "good day",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'efficiency',
-  },
-  {
-    incorrect: "see ya",
-    correct: "good day",
-    explanation: "Informal language not appropriate for aviation communications",
-    nonStandard: /\bsee ya\b/i,
-    standard: "good day",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'efficiency',
-  },
-  {
-    incorrect: "back to you",
-    correct: "good day",
-    explanation: "Non-standard frequency change acknowledgment",
-    nonStandard: /\bback to you\b/i,
-    standard: "good day",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'efficiency',
-  },
-  {
-    incorrect: "say again all after",
-    correct: "say again",
-    explanation: "Simplified request for repetition is standard",
-    nonStandard: /\bsay again all after\b/i,
-    standard: "say again",
-    severity: 'low',
-    category: 'clarification',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "take off",
-    correct: "departure",
-    explanation: "Word 'takeoff' only used for actual takeoff clearance to prevent confusion",
-    nonStandard: /\btake off\b(?!.*cleared)/i,
-    standard: "departure",
-    severity: 'high',
-    category: 'instruction',
-    safetyImpact: 'safety',
-    incident: "Tenerife disaster (1977) - 'takeoff' misunderstood as clearance",
-  },
-  // NOTE: "climb to" is VALID phraseology (e.g., "climb to one zero thousand")
-  // Only flag when "to" appears where a number should be in a sequence
-  {
-    incorrect: "to",
-    correct: "two",
-    explanation: "'To' can be confused with 'two' in number sequences.",
-    // Only match when "to" appears in middle of number sequence (e.g., "one to three" should be "one two three")
-    nonStandard: /\b(one|three|four|five|six|seven|eight|nine|niner|zero)\s+to\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)\b/i,
-    standard: "use 'two' in number sequences",
-    severity: 'high',
-    category: 'number',
-    safetyImpact: 'safety',
-  },
-  // NOTE: "cleared for" is VALID phraseology (e.g., "cleared for takeoff", "cleared for approach")
-  // Only flag when "for" appears where "four" should be in number sequences
-  {
-    incorrect: "for",
-    correct: "four",
-    explanation: "'For' can be confused with 'four' in number sequences.",
-    // Only match when "for" appears in middle of number sequence (e.g., "two for six" should be "two four six")
-    nonStandard: /\b(one|two|three|five|six|seven|eight|nine|niner|zero)\s+for\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)\b/i,
-    standard: "use 'four' in number sequences",
-    severity: 'high',
-    category: 'number',
-    safetyImpact: 'safety',
-  },
-  {
-    incorrect: "okay",
-    correct: "affirm",
-    explanation: "'Okay' is not ICAO standard. Use 'affirm' or 'affirmative'.",
-    nonStandard: /\bokay\b/i,
-    standard: "affirm",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "yeah",
-    correct: "affirm",
-    explanation: "Informal acknowledgment not part of standard phraseology",
-    nonStandard: /\byeah\b/i,
-    standard: "affirm",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "uh huh",
-    correct: "affirm",
-    explanation: "Non-verbal acknowledgment not appropriate for radio",
-    nonStandard: /\buh\s*huh\b/i,
-    standard: "affirm",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "copy that",
-    correct: "roger",
-    explanation: "'Copy' is not ICAO standard. Use 'roger' or read back the instruction.",
-    nonStandard: /\bcopy that\b/i,
-    standard: "roger",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'clarity',
-  },
-  {
-    incorrect: "standby one",
-    correct: "standby",
-    explanation: "'One' is unnecessary. 'Standby' is sufficient.",
-    nonStandard: /\bstandby one\b/i,
-    standard: "standby",
-    severity: 'low',
-    category: 'acknowledgment',
-    safetyImpact: 'efficiency',
-  },
-]
+interface RawPhraseEntry {
+  incorrect: string
+  correct: string
+  explanation?: string
+  pattern: string        // regex source — compiled with new RegExp(pattern, flags)
+  flags?: string         // default "i"
+  excludePattern?: string // if set and matches the line, the entry is NOT flagged
+  standard: string
+  severity: string
+  category: string
+  safetyImpact: string
+  incident?: string
+  icaoRef?: string
+}
 
-// ============================================================================
+export const NON_STANDARD_PHRASES: PhraseCorrection[] = (
+  (rawCorpus.phraseology as { nonStandardPhrases: RawPhraseEntry[] }).nonStandardPhrases
+).map((entry) => {
+  // Guard against invalid regex strings in JSON — a single bad pattern must not
+  // crash the entire module. Fall back to a never-matching regex for that entry.
+  let nonStandard: RegExp
+  let exclude: RegExp | undefined
+  try {
+    nonStandard = new RegExp(entry.pattern, entry.flags ?? 'i')
+    if (entry.excludePattern) exclude = new RegExp(entry.excludePattern, entry.flags ?? 'i')
+  } catch {
+    nonStandard = /(?!)/   // never matches; entry is silently skipped
+  }
+  return {
+    incorrect:    entry.incorrect,
+    correct:      entry.correct,
+    explanation:  entry.explanation ?? '',
+    nonStandard,
+    standard:     entry.standard,
+    severity:     (entry.severity    as PhraseCorrection['severity']),
+    category:     (entry.category    as PhraseCorrection['category']),
+    safetyImpact: (entry.safetyImpact as PhraseCorrection['safetyImpact']),
+    ...(exclude        ? { exclude }                  : {}),
+    ...(entry.incident ? { incident: entry.incident } : {}),
+    ...(entry.icaoRef  ? { icaoDoc:  entry.icaoRef  } : {}),
+  }
+})
+
 // PHRASEOLOGY DATABASE - NUMBER PRONUNCIATION
 // ============================================================================
 
 export const NUMBER_PRONUNCIATION_ERRORS: PhraseCorrection[] = [
   {
+    // "nine" → "niner": ICAO requires this to prevent confusion with German "nein" (no).
+    // Restricted to digit contexts only — does NOT fire when "nine" is a quantity
+    // modifier (e.g. "nine thousand") since those compound-number readings are correct.
     incorrect: "nine",
     correct: "niner",
     explanation: "ICAO requires 'niner' to prevent confusion with German 'nein' (no)",
-    nonStandard: /\bnine\b/i,
+    nonStandard: /\bnine\b(?!\s+(?:thousand|hundred))/i,
     standard: "niner",
     severity: 'medium',
     category: 'number',
     safetyImpact: 'safety',
-    pattern: /\bnine\b/i,
+    pattern: /\bnine\b(?!\s+(?:thousand|hundred))/i,
     issue: "Number 'nine' should be pronounced 'niner'",
     incident: "Multiple incidents where 'nine' confused with 'nein' in international operations",
     icaoDoc: "ICAO Doc 9432 Section 5.2.1.4",
   },
   {
+    // "three" → "tree": Valid ICAO guidance for isolated digit transmission
+    // (callsigns, headings, QNH, frequencies). NOT flagged when "three" is a compound
+    // number modifier like "three thousand" or "three hundred" — those are correct English.
     incorrect: "three",
     correct: "tree",
-    explanation: "ICAO phonetic: 'tree' is clearer over radio",
-    nonStandard: /\bthree\b/i,
+    explanation: "ICAO phonetic: 'tree' is clearer over radio for individual digit transmission",
+    nonStandard: /\bthree\b(?!\s+(?:thousand|hundred))/i,
     standard: "tree",
     severity: 'low',
     category: 'number',
     safetyImpact: 'clarity',
-    pattern: /\bthree\b/i,
+    pattern: /\bthree\b(?!\s+(?:thousand|hundred))/i,
     issue: "Number 'three' should be pronounced 'tree'",
     icaoDoc: "ICAO Doc 9432 Section 5.2.1.4",
   },
   {
+    // "five" → "fife": Valid ICAO guidance for isolated digit transmission.
+    // NOT flagged in compound quantity modifiers ("five thousand", "five hundred").
     incorrect: "five",
     correct: "fife",
-    explanation: "ICAO phonetic: 'fife' prevents confusion with 'four' or 'nine'",
-    nonStandard: /\bfive\b/i,
+    explanation: "ICAO phonetic: 'fife' prevents confusion with 'four' or 'nine' in digit-by-digit transmission",
+    nonStandard: /\bfive\b(?!\s+(?:thousand|hundred))/i,
     standard: "fife",
     severity: 'low',
     category: 'number',
     safetyImpact: 'clarity',
-    pattern: /\bfive\b/i,
+    pattern: /\bfive\b(?!\s+(?:thousand|hundred))/i,
     issue: "Number 'five' should be pronounced 'fife'",
     icaoDoc: "ICAO Doc 9432 Section 5.2.1.4",
   },
-  {
-    incorrect: "thousand",
-    correct: "tousand",
-    explanation: "ICAO phonetic pronunciation for clarity",
-    nonStandard: /\bthousand\b/i,
-    standard: "tousand",
-    severity: 'low',
-    category: 'number',
-    safetyImpact: 'clarity',
-    pattern: /\bthousand\b/i,
-    issue: "Consider ICAO pronunciation 'tousand'",
-    icaoDoc: "ICAO Doc 9432 Section 5.2.1.4",
-  },
-  {
-    incorrect: "decimal",
-    correct: "day-see-mal",
-    explanation: "ICAO phonetic pronunciation for decimal point",
-    nonStandard: /\bdecimal\b/i,
-    standard: "day-see-mal",
-    severity: 'low',
-    category: 'number',
-    safetyImpact: 'clarity',
-    pattern: /\bdecimal\b/i,
-    issue: "Consider ICAO pronunciation 'day-see-mal'",
-    icaoDoc: "ICAO Doc 9432 Section 5.2.1.4",
-  },
+  // NOTE: "thousand" and "decimal" entries removed.
+  // ICAO Doc 9432 Table 5-1 gives pronunciation guides (TOU-SAND, DAY-SEE-MAL) for
+  // the actual English words "thousand" and "decimal". In a written transcript, "thousand"
+  // and "decimal" ARE the correct ICAO standard words — recommending "tousand" or
+  // "day-see-mal" as replacements is factually wrong and misleads users.
 ]
 
 // ============================================================================
@@ -373,17 +237,17 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
     instructionType: 'heading',
     requiredElements: ['direction', 'value', 'callsign'],
     severity: 'mandatory',
-    instruction: /heading|turn/i,
+    instruction: /\bheading\b|\bturn\s+(?:left|right)\b/i,
     mustReadback: ['heading', 'direction'],
     description: 'Heading instructions must include direction and value',
   },
   {
     instructionType: 'speed',
     requiredElements: ['value', 'callsign'],
-    severity: 'high',
-    instruction: /speed|knots/i,
+    severity: 'mandatory',
+    instruction: /\breduce\s+speed\b|\bincrease\s+speed\b|\bmaintain\s+\d+\s*knots\b|\bspeed\s+\d+\b/i,
     mustReadback: ['speed'],
-    description: 'Speed instructions must be read back',
+    description: 'Speed instructions must be read back (ICAO Doc 4444 §12.3.2.1)',
   },
   {
     instructionType: 'squawk',
@@ -448,6 +312,22 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
     instruction: /go\s*around/i,
     mustReadback: ['go around'],
     description: 'Go around instruction is safety-critical',
+  },
+  {
+    instructionType: 'approach',
+    requiredElements: ['approach type', 'runway', 'callsign'],
+    severity: 'mandatory',
+    instruction: /cleared\s+(?:ils|rnav|vor|ndb|visual|instrument)\s+(?:runway\s+)?\d|cleared\s+\w+\s+approach/i,
+    mustReadback: ['approach type', 'runway'],
+    description: 'Approach clearance type and runway must be read back (ICAO Doc 4444 §12.3.4.1)',
+  },
+  {
+    instructionType: 'lineup',
+    requiredElements: ['line up and wait', 'runway', 'callsign'],
+    severity: 'mandatory',
+    instruction: /line\s*up\s*and\s*wait|luaw/i,
+    mustReadback: ['line up and wait', 'runway'],
+    description: 'Line up and wait is safety-critical — prevents runway incursion (ICAO Doc 4444 §8.5.2)',
   },
 ]
 
@@ -526,23 +406,23 @@ export const ENHANCED_STARS = [
 // SAFETY CRITICAL PATTERNS
 // ============================================================================
 
-export const SAFETY_CRITICAL_PATTERNS: { pattern: RegExp; description: string; severity: 'critical' | 'high' }[] = [
-  { pattern: /runway\s*\d{1,2}[LRC]?/i, description: 'Runway designation', severity: 'critical' },
-  { pattern: /hold\s*short/i, description: 'Hold short instruction', severity: 'critical' },
-  { pattern: /line\s*up\s*(and\s*)?wait/i, description: 'Line up and wait', severity: 'critical' },
-  { pattern: /go\s*around/i, description: 'Go around instruction', severity: 'critical' },
-  { pattern: /cleared\s*(to\s*)?land/i, description: 'Landing clearance', severity: 'critical' },
-  { pattern: /cleared\s*(for\s*)?take\s*off/i, description: 'Takeoff clearance', severity: 'critical' },
-  { pattern: /missed\s*approach/i, description: 'Missed approach', severity: 'critical' },
-  { pattern: /cancel\s*take\s*off/i, description: 'Takeoff cancellation', severity: 'critical' },
-  { pattern: /stop\s*(immediately)?/i, description: 'Stop instruction', severity: 'critical' },
-  { pattern: /traffic\s*alert/i, description: 'Traffic alert', severity: 'critical' },
-  { pattern: /terrain\s*ahead/i, description: 'Terrain warning', severity: 'critical' },
-  { pattern: /pull\s*up/i, description: 'Pull up warning', severity: 'critical' },
-  { pattern: /break\s*(left|right)/i, description: 'Emergency break', severity: 'critical' },
-  { pattern: /expedite/i, description: 'Expedite instruction', severity: 'high' },
-  { pattern: /immediately/i, description: 'Immediate action required', severity: 'high' },
-]
+// SAFETY_CRITICAL_PATTERNS — loaded dynamically from paecCorpus.json.
+// To add or change a safety-critical keyword, edit:
+//   src/data/paecCorpus.json → phraseology.safetyCriticalPatterns[]
+// No code changes needed.
+interface RawSafetyCriticalEntry {
+  pattern: string
+  description: string
+  severity: 'critical' | 'high'
+}
+
+export const SAFETY_CRITICAL_PATTERNS: { pattern: RegExp; description: string; severity: 'critical' | 'high' }[] = (
+  (rawCorpus.phraseology as { safetyCriticalPatterns: RawSafetyCriticalEntry[] }).safetyCriticalPatterns ?? []
+).map(e => ({
+  pattern:     new RegExp(e.pattern, 'i'),
+  description: e.description,
+  severity:    e.severity,
+}))
 
 // ============================================================================
 // FORMAT PATTERNS
@@ -1057,1358 +937,25 @@ export function validateSquawkCode(squawk: string): { valid: boolean; error?: st
 }
 
 // ============================================================================
-// COMPREHENSIVE TRAINING CORPUS
+// TRAINING CORPORA — each phase type has its own JSON file.
+//
+// To add training examples, edit the matching file:
+//   APP/DEP  →  src/data/appDepCorpus.json  → "corpus" array
+//   GND      →  src/data/gndCorpus.json     → "corpus" array
+//   RAMP     →  src/data/rampCorpus.json    → "corpus" array
+//
+// Shared rules (phraseology, callsigns, waypoints) live in paecCorpus.json.
+// No code changes needed here. Changes are picked up on next build/reload.
 // ============================================================================
 
-export let DEPARTURE_APPROACH_CORPUS: ATCTrainingExample[] = [
-  // ========================================
-  // DEPARTURE PHASE - CORRECT EXAMPLES
-  // ========================================
+export const DEPARTURE_APPROACH_CORPUS: ATCTrainingExample[] =
+  (appDepCorpus.corpus as unknown as ATCTrainingExample[])
 
-  // Climb instructions - correct
-  {
-    atc: "PAL123, climb and maintain flight level three five zero",
-    pilot: "Climb and maintain flight level three five zero, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, climb and maintain one zero thousand",
-    pilot: "Climbing one zero thousand, CEB456",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "UAE789, climb and maintain flight level two eight zero",
-    pilot: "Climb maintain flight level two eight zero, UAE789",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "SIA321, climb and maintain flight level three niner zero",
-    pilot: "Climb and maintain flight level three niner zero, SIA321",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "PAL555, climb and maintain eight thousand",
-    pilot: "Climbing to eight thousand, PAL555",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB777, after passing five thousand, climb and maintain one two thousand",
-    pilot: "After passing five thousand, climb one two thousand, CEB777",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "QTR444, climb and maintain flight level four one zero",
-    pilot: "Climb maintain flight level four one zero, QTR444",
-    isCorrect: true,
-    phase: 'departure',
-  },
+export const GND_CORPUS: ATCTrainingExample[] =
+  (gndCorpus.corpus as unknown as ATCTrainingExample[])
 
-  // Heading instructions - correct
-  {
-    atc: "PAL123, turn right heading two seven zero",
-    pilot: "Right heading two seven zero, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, turn left heading zero niner zero",
-    pilot: "Left heading zero niner zero, CEB456",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "UAE789, fly heading three six zero",
-    pilot: "Heading three six zero, UAE789",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "SIA321, turn right heading one eight zero",
-    pilot: "Turn right heading one eight zero, SIA321",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "PAL888, maintain runway heading",
-    pilot: "Maintaining runway heading, PAL888",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB999, turn left heading zero three zero",
-    pilot: "Left zero three zero, CEB999",
-    isCorrect: true,
-    phase: 'departure',
-  },
-
-  // Squawk instructions - correct
-  {
-    atc: "PAL123, squawk two four six one",
-    pilot: "Squawk two four six one, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, squawk five five two seven",
-    pilot: "Squawking five five two seven, CEB456",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "UAE789, squawk ident",
-    pilot: "Squawk ident, UAE789",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "SIA321, squawk one two zero zero",
-    pilot: "Squawk one two zero zero, SIA321",
-    isCorrect: true,
-    phase: 'departure',
-  },
-
-  // Frequency changes - correct
-  {
-    atc: "PAL123, contact Manila Control one two four decimal five",
-    pilot: "Contact Manila Control one two four decimal five, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, contact departure one one niner decimal one",
-    pilot: "Departure one one niner decimal one, CEB456",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "UAE789, contact Manila Approach one two one decimal three",
-    pilot: "Manila Approach one two one decimal three, UAE789",
-    isCorrect: true,
-    phase: 'departure',
-  },
-
-  // Combined instructions - correct
-  {
-    atc: "PAL123, climb and maintain flight level two four zero, turn right heading zero six zero",
-    pilot: "Climb flight level two four zero, right heading zero six zero, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, turn left heading three three zero, climb and maintain one five thousand",
-    pilot: "Left three three zero, climbing one five thousand, CEB456",
-    isCorrect: true,
-    phase: 'departure',
-  },
-
-  // ========================================
-  // DEPARTURE PHASE - INCORRECT EXAMPLES
-  // ========================================
-
-  // Incomplete readback - just "Roger"
-  {
-    atc: "PAL789, climb and maintain flight level three five zero",
-    pilot: "Roger, PAL789",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'incomplete_readback',
-    explanation: 'Altitude instructions require full readback, not just "Roger"',
-  },
-  {
-    atc: "CEB101, turn right heading two seven zero",
-    pilot: "Roger",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'incomplete_readback',
-    explanation: 'Heading instructions require full readback with direction and value',
-  },
-  {
-    atc: "UAE222, squawk five five two one",
-    pilot: "Copy, UAE222",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'incomplete_readback',
-    explanation: 'Squawk codes must be read back completely',
-  },
-  {
-    atc: "SIA333, contact departure one one niner decimal one",
-    pilot: "Wilco, SIA333",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'incomplete_readback',
-    explanation: 'Frequency changes must be read back with the frequency',
-  },
-
-  // Wrong value errors
-  {
-    atc: "PAL444, climb and maintain flight level three five zero",
-    pilot: "Climb flight level three four zero, PAL444",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_value',
-    explanation: 'Altitude mismatch: instructed FL350, readback FL340',
-  },
-  {
-    atc: "CEB555, turn left heading one eight zero",
-    pilot: "Left heading one niner zero, CEB555",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_value',
-    explanation: 'Heading mismatch: instructed 180, readback 190',
-  },
-  {
-    atc: "UAE666, squawk two four six one",
-    pilot: "Squawk two four one six, UAE666",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'transposition',
-    explanation: 'Squawk code transposition: 2461 vs 2416',
-  },
-  {
-    atc: "SIA777, contact departure one two one decimal three",
-    pilot: "Departure one two one decimal eight, SIA777",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_value',
-    explanation: 'Frequency mismatch: 121.3 vs 121.8',
-  },
-
-  // Wrong direction
-  {
-    atc: "PAL888, turn right heading two seven zero",
-    pilot: "Left heading two seven zero, PAL888",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_direction',
-    explanation: 'Turn direction error: instructed right, readback left',
-  },
-  {
-    atc: "CEB999, turn left heading zero niner zero",
-    pilot: "Right zero niner zero, CEB999",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_direction',
-    explanation: 'Turn direction error: instructed left, readback right',
-  },
-
-  // Missing callsign
-  {
-    atc: "PAL111, climb and maintain flight level two eight zero",
-    pilot: "Climb and maintain flight level two eight zero",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'missing_callsign',
-    explanation: 'Callsign missing from readback',
-  },
-
-  // Parameter confusion
-  {
-    atc: "CEB222, turn right heading three five zero",
-    pilot: "Climb flight level three five zero, CEB222",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'parameter_confusion',
-    explanation: 'Confused heading 350 with flight level 350',
-  },
-  {
-    atc: "UAE333, climb and maintain one two thousand",
-    pilot: "Right heading one two zero, UAE333",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'parameter_confusion',
-    explanation: 'Confused altitude 12000 with heading 120',
-  },
-
-  // ========================================
-  // APPROACH PHASE - CORRECT EXAMPLES
-  // ========================================
-
-  // Descent instructions - correct
-  {
-    atc: "PAL123, descend and maintain five thousand",
-    pilot: "Descend and maintain five thousand, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "CEB456, descend and maintain flight level one two zero",
-    pilot: "Descending flight level one two zero, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "UAE789, descend and maintain three thousand, altimeter two niner niner two",
-    pilot: "Descend three thousand, altimeter two niner niner two, UAE789",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "SIA321, descend and maintain two thousand five hundred",
-    pilot: "Descending two thousand five hundred, SIA321",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "PAL555, cross AKLAN at or above eight thousand",
-    pilot: "Cross AKLAN at or above eight thousand, PAL555",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // Approach clearances - correct
-  {
-    atc: "PAL123, cleared ILS runway zero six approach",
-    pilot: "Cleared ILS runway zero six approach, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "CEB456, cleared RNAV runway two four approach",
-    pilot: "Cleared RNAV runway two four approach, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "UAE789, cleared visual approach runway one three",
-    pilot: "Cleared visual approach runway one three, UAE789",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "SIA321, cleared ILS runway zero six, maintain one seven zero knots to the marker",
-    pilot: "Cleared ILS zero six, one seven zero knots to the marker, SIA321",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // Speed instructions - correct
-  {
-    atc: "PAL123, reduce speed to one eight zero knots",
-    pilot: "Speed one eight zero knots, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "CEB456, maintain two one zero knots",
-    pilot: "Maintain two one zero knots, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "UAE789, reduce to one six zero knots",
-    pilot: "Reducing one six zero knots, UAE789",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "SIA321, no speed restrictions",
-    pilot: "No speed restrictions, SIA321",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // Vectors - correct
-  {
-    atc: "PAL123, turn right heading zero niner zero, vectors for ILS runway zero six",
-    pilot: "Right zero niner zero, vectors ILS zero six, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "CEB456, turn left heading two four zero, vectors for final",
-    pilot: "Left two four zero, vectors for final, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // ========================================
-  // APPROACH PHASE - INCORRECT EXAMPLES
-  // ========================================
-
-  // Incomplete readback
-  {
-    atc: "PAL789, descend and maintain three thousand",
-    pilot: "Roger, PAL789",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'incomplete_readback',
-    explanation: 'Altitude instructions require full readback in approach phase',
-  },
-  {
-    atc: "CEB101, cleared ILS runway zero six approach",
-    pilot: "Roger, CEB101",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'incomplete_readback',
-    explanation: 'Approach clearances must be read back with approach type and runway',
-  },
-  {
-    atc: "UAE222, reduce speed to one six zero knots",
-    pilot: "Wilco, UAE222",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'incomplete_readback',
-    explanation: 'Speed instructions must be read back with the speed value',
-  },
-
-  // Wrong values
-  {
-    atc: "PAL444, descend and maintain four thousand",
-    pilot: "Descend and maintain five thousand, PAL444",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'wrong_value',
-    explanation: 'Altitude mismatch: instructed 4000, readback 5000',
-  },
-  {
-    atc: "CEB555, cleared ILS runway zero six approach",
-    pilot: "Cleared ILS runway two four approach, CEB555",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'wrong_value',
-    explanation: 'Wrong runway in approach clearance readback',
-  },
-  {
-    atc: "UAE666, reduce speed to one eight zero knots",
-    pilot: "Speed one six zero knots, UAE666",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'wrong_value',
-    explanation: 'Speed mismatch: instructed 180, readback 160',
-  },
-  {
-    atc: "SIA777, altimeter two niner niner two",
-    pilot: "Altimeter two niner two niner, SIA777",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'transposition',
-    explanation: 'Altimeter setting transposition: 2992 vs 2929',
-  },
-
-  // Missing elements
-  {
-    atc: "PAL888, descend and maintain three thousand, altimeter three zero one zero",
-    pilot: "Descend three thousand, PAL888",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'missing_element',
-    explanation: 'Missing altimeter setting in readback',
-  },
-  {
-    atc: "CEB999, cross LUBANG at or below one zero thousand, then descend and maintain six thousand",
-    pilot: "Descend six thousand, CEB999",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'missing_element',
-    explanation: 'Missing crossing restriction in readback',
-  },
-
-  // ========================================
-  // GROUND PHASE - CORRECT EXAMPLES
-  // ========================================
-
-  // Taxi instructions - correct
-  {
-    atc: "PAL123, taxi to runway zero six via alpha, bravo",
-    pilot: "Taxi runway zero six via alpha, bravo, PAL123",
-    isCorrect: true,
-    phase: 'ground',
-  },
-  {
-    atc: "CEB456, taxi to gate two five via charlie, delta",
-    pilot: "Taxi gate two five via charlie, delta, CEB456",
-    isCorrect: true,
-    phase: 'ground',
-  },
-  {
-    atc: "UAE789, hold short of runway zero six",
-    pilot: "Hold short runway zero six, UAE789",
-    isCorrect: true,
-    phase: 'ground',
-  },
-  {
-    atc: "SIA321, cross runway two four",
-    pilot: "Cross runway two four, SIA321",
-    isCorrect: true,
-    phase: 'ground',
-  },
-
-  // Line up and wait - correct
-  {
-    atc: "PAL123, runway zero six, line up and wait",
-    pilot: "Line up and wait runway zero six, PAL123",
-    isCorrect: true,
-    phase: 'ground',
-  },
-  {
-    atc: "CEB456, runway two four, line up and wait, traffic on short final",
-    pilot: "Line up and wait runway two four, traffic in sight, CEB456",
-    isCorrect: true,
-    phase: 'ground',
-  },
-
-  // Takeoff clearance - correct
-  {
-    atc: "PAL123, runway zero six, cleared for takeoff, wind zero four zero at one zero",
-    pilot: "Cleared for takeoff runway zero six, PAL123",
-    isCorrect: true,
-    phase: 'ground',
-  },
-  {
-    atc: "CEB456, runway two four, cleared for takeoff",
-    pilot: "Cleared for takeoff runway two four, CEB456",
-    isCorrect: true,
-    phase: 'ground',
-  },
-  {
-    atc: "UAE789, runway zero six right, cleared for takeoff",
-    pilot: "Cleared takeoff zero six right, UAE789",
-    isCorrect: true,
-    phase: 'ground',
-  },
-
-  // Landing clearance - correct
-  {
-    atc: "PAL123, runway zero six, cleared to land",
-    pilot: "Cleared to land runway zero six, PAL123",
-    isCorrect: true,
-    phase: 'ground',
-  },
-  {
-    atc: "CEB456, runway two four, cleared to land, wind two one zero at one five",
-    pilot: "Cleared to land runway two four, CEB456",
-    isCorrect: true,
-    phase: 'ground',
-  },
-
-  // ========================================
-  // GROUND PHASE - INCORRECT EXAMPLES
-  // ========================================
-
-  // Critical - confused line up with takeoff
-  {
-    atc: "PAL789, runway zero six, line up and wait",
-    pilot: "Cleared for takeoff runway zero six, PAL789",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'parameter_confusion',
-    explanation: 'CRITICAL: Confused line up and wait with takeoff clearance - potential runway incursion',
-  },
-
-  // Incomplete hold short
-  {
-    atc: "CEB101, hold short of runway zero six",
-    pilot: "Roger, CEB101",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'incomplete_readback',
-    explanation: 'CRITICAL: Hold short instructions must be read back completely',
-  },
-
-  // Wrong runway
-  {
-    atc: "UAE222, runway zero six, cleared for takeoff",
-    pilot: "Cleared for takeoff runway two four, UAE222",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'wrong_value',
-    explanation: 'CRITICAL: Wrong runway in takeoff clearance readback',
-  },
-  {
-    atc: "SIA333, runway two four, cleared to land",
-    pilot: "Cleared to land runway zero six, SIA333",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'wrong_value',
-    explanation: 'CRITICAL: Wrong runway in landing clearance readback',
-  },
-
-  // Missing runway
-  {
-    atc: "PAL444, runway zero six, cleared for takeoff",
-    pilot: "Cleared for takeoff, PAL444",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'missing_element',
-    explanation: 'Missing runway in takeoff clearance readback',
-  },
-
-  // ========================================
-  // GO-AROUND / MISSED APPROACH
-  // ========================================
-
-  // Correct
-  {
-    atc: "PAL123, go around, climb and maintain three thousand",
-    pilot: "Going around, climb three thousand, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "CEB456, go around, fly runway heading, climb and maintain four thousand",
-    pilot: "Going around, runway heading, climbing four thousand, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // Incorrect
-  {
-    atc: "UAE789, go around",
-    pilot: "Roger, UAE789",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'incomplete_readback',
-    explanation: 'CRITICAL: Go around instruction must be acknowledged with "going around"',
-  },
-
-  // ========================================
-  // EMERGENCY / SPECIAL SITUATIONS
-  // ========================================
-
-  {
-    atc: "PAL123, I have your emergency, cleared direct NINOY, descend and maintain three thousand",
-    pilot: "Direct NINOY, descending three thousand, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "CEB456, squawk seven seven zero zero",
-    pilot: "Squawking seven seven zero zero, CEB456",
-    isCorrect: true,
-    phase: 'departure',
-  },
-
-  // ========================================
-  // ADDITIONAL SCENARIOS
-  // ========================================
-
-  // Expedite
-  {
-    atc: "PAL123, expedite climb through flight level two four zero, traffic twelve o'clock, opposite direction",
-    pilot: "Expedite climb through flight level two four zero, traffic in sight, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, expedite descent, traffic twelve o'clock, same direction, one thousand feet below",
-    pilot: "Roger, expediting, CEB456",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'incomplete_readback',
-    explanation: 'Expedite with altitude should be read back',
-  },
-
-  // Direct routing
-  {
-    atc: "PAL123, proceed direct BOREG",
-    pilot: "Direct BOREG, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, when able, proceed direct LUBANG",
-    pilot: "When able, direct LUBANG, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // Holding
-  {
-    atc: "PAL123, hold at AKLAN as published, expect approach clearance at one five three zero",
-    pilot: "Hold at AKLAN as published, expect approach one five three zero, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // Complex multi-element instructions
-  {
-    atc: "CEB456, descend and maintain flight level one two zero, reduce speed to two eight zero knots, turn left heading two one zero",
-    pilot: "Descend flight level one two zero, speed two eight zero, left two one zero, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-  {
-    atc: "PAL789, turn right heading zero six zero, descend and maintain seven thousand, contact approach one two one decimal three",
-    pilot: "Right zero six zero, descending seven thousand, approach one two one three, PAL789",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // STAR/SID instructions
-  {
-    atc: "PAL123, cleared BOREG1A departure, runway zero six, climb and maintain five thousand, expect flight level three five zero ten minutes after departure",
-    pilot: "BOREG1A departure, runway zero six, climb five thousand, expect flight level three five zero ten minutes after departure, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, descend via the AKLAN1A arrival",
-    pilot: "Descend via AKLAN1A, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // Weather deviations
-  {
-    atc: "PAL123, deviation approved, proceed direct BOREG when able",
-    pilot: "Deviation approved, direct BOREG when able, PAL123",
-    isCorrect: true,
-    phase: 'departure',
-  },
-  {
-    atc: "CEB456, deviation left of course approved, advise when ready to proceed on course",
-    pilot: "Deviation left approved, will advise, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-  },
-
-  // More transposition errors
-  {
-    atc: "PAL123, climb and maintain flight level three one zero",
-    pilot: "Climb flight level one three zero, PAL123",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'transposition',
-    explanation: 'Flight level transposition: FL310 vs FL130',
-  },
-  {
-    atc: "CEB456, contact approach one two three decimal four",
-    pilot: "Approach one three two decimal four, CEB456",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'transposition',
-    explanation: 'Frequency transposition: 123.4 vs 132.4',
-  },
-  {
-    atc: "UAE789, turn right heading one seven zero",
-    pilot: "Right heading one zero seven, UAE789",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'transposition',
-    explanation: 'Heading transposition: 170 vs 107',
-  },
-
-  // ============================================================================
-  // CONDITIONAL CLEARANCES - WHEN/UNTIL/AFTER/ONCE
-  // Source: ICAO Doc 4444, FAA 7110.65, EUROCONTROL, IVAO, VATSIM
-  // ============================================================================
-
-  // CORRECT - Condition properly read back
-  {
-    atc: "PAL123, when passing flight level two five zero descend flight level one eight zero",
-    pilot: "When passing flight level two five zero descend flight level one eight zero, PAL123",
-    isCorrect: true,
-    phase: 'descent',
-    errorType: null,
-    explanation: 'Conditional phrase correctly read back',
-  },
-  {
-    atc: "CEB456, after LUBOG turn right heading zero niner zero",
-    pilot: "After LUBOG right heading zero niner zero, CEB456",
-    isCorrect: true,
-    phase: 'approach',
-    errorType: null,
-    explanation: 'After condition correctly read back',
-  },
-  {
-    atc: "PAL789, maintain three thousand until established on the localizer",
-    pilot: "Maintain three thousand until established, PAL789",
-    isCorrect: true,
-    phase: 'approach',
-    errorType: null,
-    explanation: 'Until condition correctly read back',
-  },
-
-  // ERROR - Condition omitted
-  {
-    atc: "PAL123, when passing flight level two five zero descend flight level one eight zero",
-    pilot: "Descend flight level one eight zero, PAL123",
-    isCorrect: false,
-    phase: 'descent',
-    errorType: 'condition_omitted',
-    explanation: 'Conditional phrase "when passing FL250" not read back - pilot may execute immediately',
-  },
-  {
-    atc: "CEB456, after passing TONDO climb flight level three two zero",
-    pilot: "Climb flight level three two zero, CEB456",
-    isCorrect: false,
-    phase: 'climb',
-    errorType: 'condition_omitted',
-    explanation: 'Condition "after passing TONDO" omitted - timing unclear to controller',
-  },
-  {
-    atc: "PAL789, maintain three thousand until established on the localizer",
-    pilot: "Maintain three thousand, PAL789",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'condition_omitted',
-    explanation: 'Until condition omitted - pilot may descend before being established',
-  },
-  {
-    atc: "UAE321, once airborne turn left direct BOREG",
-    pilot: "Left direct BOREG, UAE321",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'condition_omitted',
-    explanation: 'Condition "once airborne" not read back',
-  },
-
-  // ERROR - Condition violated (adding "now" to conditional instruction)
-  {
-    atc: "PAL123, when passing flight level two five zero descend flight level one eight zero",
-    pilot: "Descending flight level one eight zero now, PAL123",
-    isCorrect: false,
-    phase: 'descent',
-    errorType: 'condition_violated',
-    explanation: 'Pilot added "now" to conditional instruction - may cause premature execution',
-  },
-  {
-    atc: "CEB456, after LUBOG turn right heading zero niner zero",
-    pilot: "Right heading zero niner zero immediately, CEB456",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'condition_violated',
-    explanation: 'Pilot added "immediately" contradicting the conditional timing',
-  },
-  {
-    atc: "PAL789, once established on localizer descend to two thousand five hundred",
-    pilot: "Descending two thousand five hundred now, PAL789",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'condition_violated',
-    explanation: 'Pilot executing immediately instead of waiting for establishment',
-  },
-
-  // ============================================================================
-  // ALTITUDE CONSTRAINTS - AT OR ABOVE/BELOW
-  // ============================================================================
-
-  // CORRECT - Constraint properly read back
-  {
-    atc: "PAL123, cross LUBOG at or above eight thousand",
-    pilot: "Cross LUBOG at or above eight thousand, PAL123",
-    isCorrect: true,
-    phase: 'descent',
-    errorType: null,
-    explanation: 'Altitude constraint correctly read back',
-  },
-  {
-    atc: "CEB456, cross IPUMY at or below flight level one eight zero",
-    pilot: "Cross IPUMY at or below flight level one eight zero, CEB456",
-    isCorrect: true,
-    phase: 'descent',
-    errorType: null,
-    explanation: 'At or below constraint correctly read back',
-  },
-
-  // ERROR - Constraint missing
-  {
-    atc: "PAL123, cross LUBOG at or above eight thousand",
-    pilot: "Cross LUBOG eight thousand, PAL123",
-    isCorrect: false,
-    phase: 'descent',
-    errorType: 'constraint_missing',
-    explanation: 'Constraint "at or above" omitted - pilot may cross below required altitude',
-  },
-  {
-    atc: "CEB456, cross IPUMY at or below flight level one eight zero",
-    pilot: "Cross IPUMY flight level one eight zero, CEB456",
-    isCorrect: false,
-    phase: 'descent',
-    errorType: 'constraint_missing',
-    explanation: 'Constraint "at or below" omitted - critical restriction not acknowledged',
-  },
-  {
-    atc: "UAE789, descend five thousand cross TONDO at or above seven thousand",
-    pilot: "Descend five thousand cross TONDO seven thousand, UAE789",
-    isCorrect: false,
-    phase: 'descent',
-    errorType: 'constraint_missing',
-    explanation: 'Crossing constraint not read back - restriction may be violated',
-  },
-
-  // ============================================================================
-  // ROGER/WILCO SUBSTITUTION FOR SAFETY-CRITICAL ITEMS
-  // ============================================================================
-
-  // ERROR - Roger substitution on safety-critical items
-  {
-    atc: "PAL123, cleared for takeoff runway two four",
-    pilot: "Roger, PAL123",
-    isCorrect: false,
-    phase: 'takeoff',
-    errorType: 'roger_substitution',
-    explanation: 'Roger cannot substitute for takeoff clearance readback - full readback required',
-  },
-  {
-    atc: "CEB456, cleared to land runway zero six",
-    pilot: "Wilco, CEB456",
-    isCorrect: false,
-    phase: 'landing',
-    errorType: 'roger_substitution',
-    explanation: 'Wilco cannot substitute for landing clearance readback',
-  },
-  {
-    atc: "PAL789, line up and wait runway two four",
-    pilot: "Copy, PAL789",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'roger_substitution',
-    explanation: 'Line up and wait requires full readback for safety verification',
-  },
-  {
-    atc: "UAE321, hold short of runway two four",
-    pilot: "Roger, UAE321",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'roger_substitution',
-    explanation: 'Hold short instruction requires runway readback to prevent incursions',
-  },
-  {
-    atc: "SIA456, climb and maintain flight level three five zero",
-    pilot: "Wilco, SIA456",
-    isCorrect: false,
-    phase: 'climb',
-    errorType: 'roger_substitution',
-    explanation: 'Altitude assignments require full readback for verification',
-  },
-
-  // ============================================================================
-  // HOLDING PATTERN CLEARANCES
-  // ============================================================================
-
-  // CORRECT
-  {
-    atc: "PAL123, hold at LUBOG as published expect further clearance at one five three zero",
-    pilot: "Hold LUBOG as published expect further clearance one five three zero, PAL123",
-    isCorrect: true,
-    phase: 'cruise',
-    errorType: null,
-    explanation: 'Holding clearance correctly read back',
-  },
-  {
-    atc: "CEB456, hold south of TONDO left turns one minute legs maintain flight level one eight zero",
-    pilot: "Hold south TONDO left turns one minute legs flight level one eight zero, CEB456",
-    isCorrect: true,
-    phase: 'cruise',
-    errorType: null,
-    explanation: 'Complex holding clearance correctly read back',
-  },
-
-  // ERROR - Holding elements missing
-  {
-    atc: "PAL123, hold at LUBOG as published expect further clearance at one five three zero",
-    pilot: "Hold LUBOG, PAL123",
-    isCorrect: false,
-    phase: 'cruise',
-    errorType: 'missing_element',
-    explanation: 'Expected further clearance time not read back',
-  },
-  {
-    atc: "CEB456, hold south of TONDO left turns one minute legs",
-    pilot: "Hold TONDO two minute legs, CEB456",
-    isCorrect: false,
-    phase: 'cruise',
-    errorType: 'wrong_value',
-    explanation: 'Leg time mismatch: one minute vs two minutes',
-  },
-
-  // ============================================================================
-  // COMPLEX MULTI-PART INSTRUCTIONS
-  // ============================================================================
-
-  // CORRECT
-  {
-    atc: "PAL123, turn left heading two seven zero descend and maintain four thousand reduce speed one eight zero knots",
-    pilot: "Left two seven zero descend four thousand speed one eight zero, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-    errorType: null,
-    explanation: 'All three parts correctly read back',
-  },
-
-  // ERROR - Missing parts
-  {
-    atc: "PAL123, turn left heading two seven zero descend and maintain four thousand reduce speed one eight zero knots",
-    pilot: "Left two seven zero four thousand, PAL123",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'missing_element',
-    explanation: 'Speed instruction not read back',
-  },
-
-  // ============================================================================
-  // APPROACH CLEARANCES WITH RESTRICTIONS
-  // ============================================================================
-
-  // CORRECT
-  {
-    atc: "PAL123, cleared ILS approach runway two four maintain three thousand until established",
-    pilot: "Cleared ILS runway two four three thousand until established, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-    errorType: null,
-    explanation: 'Approach clearance with altitude restriction correctly read back',
-  },
-
-  // ERROR
-  {
-    atc: "PAL123, cleared ILS approach runway two four maintain three thousand until established",
-    pilot: "Cleared ILS runway two four, PAL123",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'condition_omitted',
-    explanation: 'Altitude and establishment condition not read back',
-  },
-
-  // ============================================================================
-  // FREQUENCY CHANGES WITH CONDITIONS
-  // ============================================================================
-
-  {
-    atc: "PAL123, when passing flight level two eight zero contact manila control one two eight decimal six",
-    pilot: "Contact manila control one two eight decimal six, PAL123",
-    isCorrect: false,
-    phase: 'climb',
-    errorType: 'condition_omitted',
-    explanation: 'Condition for frequency change not read back - may contact too early',
-  },
-  {
-    atc: "CEB456, upon reaching flight level three five zero contact cebu center one three two decimal one",
-    pilot: "Upon reaching flight level three five zero contact cebu center one three two decimal one, CEB456",
-    isCorrect: true,
-    phase: 'climb',
-    errorType: null,
-    explanation: 'Conditional frequency change correctly read back',
-  },
-
-  // ============================================================================
-  // GO-AROUND INSTRUCTIONS
-  // ============================================================================
-
-  {
-    atc: "PAL123, go around climb and maintain three thousand turn right heading zero niner zero",
-    pilot: "Going around climb three thousand right zero niner zero, PAL123",
-    isCorrect: true,
-    phase: 'go_around',
-    errorType: null,
-    explanation: 'Go-around with multiple elements correctly read back',
-  },
-  {
-    atc: "CEB456, go around fly runway heading climb four thousand",
-    pilot: "Roger going around, CEB456",
-    isCorrect: false,
-    phase: 'go_around',
-    errorType: 'roger_substitution',
-    explanation: 'Go-around altitude and heading not read back',
-  },
-
-  // ============================================================================
-  // EXPEDITE/IMMEDIATE INSTRUCTIONS (legitimate "now" usage)
-  // ============================================================================
-
-  {
-    atc: "PAL123, immediately turn left heading two seven zero traffic alert",
-    pilot: "Immediately left two seven zero, PAL123",
-    isCorrect: true,
-    phase: 'cruise',
-    errorType: null,
-    explanation: 'Immediate instruction correctly acknowledged',
-  },
-  {
-    atc: "CEB456, expedite climb flight level three niner zero traffic",
-    pilot: "Expedite climb flight level three niner zero, CEB456",
-    isCorrect: true,
-    phase: 'climb',
-    errorType: null,
-    explanation: 'Expedite instruction correctly read back',
-  },
-
-  // ============================================================================
-  // EDGE CASES - CONFUSABLE NUMBERS
-  // These test the system's ability to detect similar-sounding number errors
-  // ============================================================================
-
-  // 15 vs 50 confusion
-  {
-    atc: "PAL123, climb and maintain one five thousand",
-    pilot: "Climb five zero thousand, PAL123",
-    isCorrect: false,
-    phase: 'climb',
-    errorType: 'wrong_value',
-    explanation: 'Confused 15000 with 50000 - similar sound in radio',
-  },
-  {
-    atc: "CEB456, reduce speed one five zero knots",
-    pilot: "Speed five zero knots, CEB456",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'wrong_value',
-    explanation: 'Confused 150 with 50 - dropped leading digit',
-  },
-
-  // Flight level similar sounds
-  {
-    atc: "PAL789, descend flight level one three zero",
-    pilot: "Descend flight level three one zero, PAL789",
-    isCorrect: false,
-    phase: 'descent',
-    errorType: 'transposition',
-    explanation: 'FL130 vs FL310 - digit transposition with major altitude difference',
-  },
-  {
-    atc: "UAE321, climb flight level one eight zero",
-    pilot: "Climb flight level one zero eight, UAE321",
-    isCorrect: false,
-    phase: 'climb',
-    errorType: 'transposition',
-    explanation: 'FL180 vs FL108 - transposition creating invalid flight level',
-  },
-
-  // Heading similar sounds
-  {
-    atc: "SIA456, turn right heading one seven zero",
-    pilot: "Right heading seven one zero, SIA456",
-    isCorrect: false,
-    phase: 'cruise',
-    errorType: 'wrong_value',
-    explanation: 'Heading 170 vs 710 - 710 is invalid heading but pilot may have said "seven ten"',
-  },
-  {
-    atc: "PAL111, fly heading zero niner zero",
-    pilot: "Heading niner zero, PAL111",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_value',
-    explanation: 'Missing leading zero - 090 vs 90 creates ambiguity',
-  },
-
-  // ============================================================================
-  // EDGE CASES - EQUIVALENT PHRASES (should be CORRECT)
-  // These test that valid abbreviations are NOT flagged as errors
-  // ============================================================================
-
-  {
-    atc: "PAL123, climb and maintain flight level three five zero",
-    pilot: "Climbing FL350, PAL123",
-    isCorrect: true,
-    phase: 'climb',
-    errorType: null,
-    explanation: '"Climbing FL350" is valid abbreviation of full instruction',
-  },
-  {
-    atc: "CEB456, descend and maintain eight thousand feet",
-    pilot: "Descend eight thousand, CEB456",
-    isCorrect: true,
-    phase: 'descent',
-    errorType: null,
-    explanation: 'Omitting "feet" is acceptable - altitude value is clear',
-  },
-  {
-    atc: "PAL789, turn right heading two seven zero degrees",
-    pilot: "Right two seven zero, PAL789",
-    isCorrect: true,
-    phase: 'cruise',
-    errorType: null,
-    explanation: 'Omitting "heading" and "degrees" acceptable when direction included',
-  },
-  {
-    atc: "UAE321, reduce speed to one eight zero knots",
-    pilot: "One eight zero kts, UAE321",
-    isCorrect: true,
-    phase: 'approach',
-    errorType: null,
-    explanation: '"kts" is acceptable abbreviation for "knots"',
-  },
-
-  // ============================================================================
-  // EDGE CASES - CALLSIGN VARIATIONS
-  // ============================================================================
-
-  {
-    atc: "Philippine Airlines one two three, climb and maintain flight level three five zero",
-    pilot: "Climb FL350, PAL123",
-    isCorrect: true,
-    phase: 'climb',
-    errorType: null,
-    explanation: 'Callsign abbreviation (PAL123) is standard and acceptable',
-  },
-  {
-    atc: "PAL123, contact Manila Approach one two one decimal three",
-    pilot: "Approach one two one three, one two three",
-    isCorrect: true,
-    phase: 'cruise',
-    errorType: null,
-    explanation: 'Using flight number only (one two three) for callsign is acceptable',
-  },
-
-  // ============================================================================
-  // EDGE CASES - PARTIAL READBACKS
-  // Testing boundary between acceptable partial and incomplete readback
-  // ============================================================================
-
-  {
-    atc: "PAL123, descend and maintain seven thousand, reduce speed one six zero",
-    pilot: "Seven thousand, one six zero, PAL123",
-    isCorrect: true,
-    phase: 'approach',
-    errorType: null,
-    explanation: 'Key values read back correctly even without action words',
-  },
-  {
-    atc: "CEB456, turn left heading two four zero, descend four thousand",
-    pilot: "Left two four zero, PAL456",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'missing_element',
-    explanation: 'Altitude not read back - second critical element missing',
-  },
-
-  // ============================================================================
-  // EDGE CASES - RUNWAY DESIGNATOR CRITICAL
-  // ============================================================================
-
-  {
-    atc: "PAL123, runway zero six left, cleared for takeoff",
-    pilot: "Cleared takeoff zero six, PAL123",
-    isCorrect: false,
-    phase: 'takeoff',
-    errorType: 'missing_designator',
-    explanation: 'Missing "left" designator on parallel runway - CRITICAL',
-  },
-  {
-    atc: "CEB456, hold short of runway two four right",
-    pilot: "Hold short two four, CEB456",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'missing_designator',
-    explanation: 'Missing "right" designator in hold short - runway incursion risk',
-  },
-  {
-    atc: "UAE789, cross runway one three center",
-    pilot: "Cross one three, UAE789",
-    isCorrect: false,
-    phase: 'ground',
-    errorType: 'missing_designator',
-    explanation: 'Missing "center" designator when crossing parallel runways',
-  },
-
-  // ============================================================================
-  // EDGE CASES - WORD ORDER VARIATIONS
-  // Testing if system correctly handles valid word order changes
-  // ============================================================================
-
-  {
-    atc: "PAL123, climb flight level three five zero and maintain",
-    pilot: "Climb and maintain flight level three five zero, PAL123",
-    isCorrect: true,
-    phase: 'climb',
-    errorType: null,
-    explanation: 'Pilot used standard word order - valid readback',
-  },
-  {
-    atc: "CEB456, runway two four line up and wait",
-    pilot: "Line up wait two four, CEB456",
-    isCorrect: true,
-    phase: 'ground',
-    errorType: null,
-    explanation: 'Runway position variation is acceptable',
-  },
-
-  // ============================================================================
-  // EDGE CASES - NEAR-MISS VALUES
-  // Values very close but critically different
-  // ============================================================================
-
-  {
-    atc: "PAL123, squawk two four six one",
-    pilot: "Squawk two four six two, PAL123",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_value',
-    explanation: 'Single digit error in squawk - different aircraft identification',
-  },
-  {
-    atc: "CEB456, contact departure one one niner decimal one",
-    pilot: "Departure one one niner decimal two, CEB456",
-    isCorrect: false,
-    phase: 'departure',
-    errorType: 'wrong_value',
-    explanation: 'Frequency off by 0.1 MHz - may contact wrong facility',
-  },
-  {
-    atc: "PAL789, altimeter two niner niner three",
-    pilot: "Altimeter two niner niner two, PAL789",
-    isCorrect: false,
-    phase: 'approach',
-    errorType: 'wrong_value',
-    explanation: 'Altimeter off by 1 millibar - altitude error potential',
-  },
-
-  // ============================================================================
-  // ICAO PHONETIC CORRECT USAGE (should NOT be flagged)
-  // ============================================================================
-
-  {
-    atc: "PAL123, climb and maintain niner thousand",
-    pilot: "Climb niner thousand, PAL123",
-    isCorrect: true,
-    phase: 'climb',
-    errorType: null,
-    explanation: '"Niner" is correct ICAO pronunciation - not an error',
-  },
-  {
-    atc: "CEB456, turn left heading tree six zero",
-    pilot: "Left tree six zero, CEB456",
-    isCorrect: true,
-    phase: 'departure',
-    errorType: null,
-    explanation: '"Tree" is correct ICAO pronunciation for 3 - not an error',
-  },
-  {
-    atc: "PAL789, reduce speed to one fife zero knots",
-    pilot: "Speed one fife zero, PAL789",
-    isCorrect: true,
-    phase: 'approach',
-    errorType: null,
-    explanation: '"Fife" is correct ICAO pronunciation for 5 - not an error',
-  },
-  {
-    atc: "UAE321, squawk fower seven two one",
-    pilot: "Squawk fower seven two one, UAE321",
-    isCorrect: true,
-    phase: 'departure',
-    errorType: null,
-    explanation: '"Fower" is correct ICAO pronunciation for 4 - not an error',
-  },
-
-  // ============================================================================
-  // AMBIGUOUS INSTRUCTIONS - CLARIFICATION NEEDED
-  // ============================================================================
-
-  {
-    atc: "PAL123, maintain",
-    pilot: "Say again, PAL123",
-    isCorrect: true,
-    phase: 'cruise',
-    errorType: null,
-    explanation: 'Pilot correctly requested clarification for incomplete instruction',
-  },
-  {
-    atc: "CEB456, climb... uh... maintain flight level",
-    pilot: "Say again altitude, CEB456",
-    isCorrect: true,
-    phase: 'climb',
-    errorType: null,
-    explanation: 'Pilot correctly requested clarification when instruction was unclear',
-  },
-]
+export const RAMP_CORPUS: ATCTrainingExample[] =
+  (rampCorpus.corpus as unknown as ATCTrainingExample[])
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -2495,25 +1042,6 @@ export function detectErrorPattern(text: string): ErrorPattern | null {
   return null
 }
 
-// ============================================================================
-// TRAINING DATA MANAGEMENT
-// ============================================================================
-
-export function addTrainingExample(example: ATCTrainingExample): void {
-  DEPARTURE_APPROACH_CORPUS.push(example)
-}
-
-export function addTrainingExamples(examples: ATCTrainingExample[]): void {
-  DEPARTURE_APPROACH_CORPUS.push(...examples)
-}
-
-export function getTrainingCorpus(): ATCTrainingExample[] {
-  return [...DEPARTURE_APPROACH_CORPUS]
-}
-
-export function clearTrainingCorpus(): void {
-  DEPARTURE_APPROACH_CORPUS = []
-}
 
 export function getCorpusStats() {
   const total = DEPARTURE_APPROACH_CORPUS.length
@@ -2712,3 +1240,69 @@ export function getDetailedCorpusStats() {
     },
   }
 }
+
+// ============================================================================
+// DYNAMIC PATTERN BUILDERS
+// ============================================================================
+// Regex constants built from the data arrays above.
+// To support a new airline, facility, or ATC role, edit the relevant array —
+// every regex here regenerates automatically without touching other files.
+
+function _escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+const _allCallsignsAlt = ENHANCED_CALLSIGNS.map(_escapeRegex).join('|')
+const _facilityCityAlt = [
+  ...new Set(PHILIPPINE_FACILITIES.map(f => f.split(' ')[0].toUpperCase())),
+].map(_escapeRegex).join('|')
+const _ATC_SUFFIX_ALT = 'APP|DEP|TWR|GND|CTR|APPROACH|DEPARTURE|TOWER|GROUND|CONTROL'
+
+/** Callsign used as a line-label prefix: "PAL456:" / "CEB 789" */
+export const CALLSIGN_LABEL_RE = new RegExp(`^(${_allCallsignsAlt})\\s*\\d+[:\\s]`, 'i')
+
+// Spoken digit alternatives — includes ICAO phonetic digits AND tens (twenty/thirty/…/ninety)
+// so that informal spoken callsigns like "Philippine one eighty niner" (189) are matched.
+// Tens must appear BEFORE individual digits in the alternation so the regex engine prefers
+// the longer match ("eighty" over "eight").
+const _spokenDigitAlt =
+  '(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|' +
+  'zero|one|two|three|four|five|six|seven|eight|nine|niner)'
+
+/** Callsign followed by spoken-digit words: "PHILIPPINE four two eight", "COOLRED eight eight four",
+ *  "Philippine one eighty niner".  Complements CALLSIGN_IN_TEXT_RE which only matches numeric suffixes. */
+export const CALLSIGN_SPOKEN_RE = new RegExp(
+  `\\b(${_allCallsignsAlt})(?:\\s+${_spokenDigitAlt}){1,4}\\b`, 'i',
+)
+
+/** Callsign at end of a sentence — strongest pilot-readback indicator.
+ *  Matches both numeric form "Philippine 189." and spoken form "Philippine one eighty niner." */
+export const CALLSIGN_AT_END_RE = new RegExp(
+  `,\\s*(${_allCallsignsAlt})(?:\\s*\\d+|(?:\\s+${_spokenDigitAlt}){1,4})\\.?$`, 'i',
+)
+
+/** Callsign at start of a sentence — ATC-addressing indicator.
+ *  Matches both numeric form "PAL456, …" and spoken form "Philippine one eight niner, …" */
+export const CALLSIGN_AT_START_RE = new RegExp(
+  `^(${_allCallsignsAlt})(?:\\s*\\d+|(?:\\s+${_spokenDigitAlt}){1,4})[,\\s]`, 'i',
+)
+
+/** Callsign anywhere in text (single-match): "PAL456", "CEB 789".
+ *  For global extraction use: new RegExp(CALLSIGN_IN_TEXT_RE.source, 'gi') */
+export const CALLSIGN_IN_TEXT_RE = new RegExp(`\\b(${_allCallsignsAlt})\\s*\\d{2,4}\\b`, 'i')
+
+/** Philippine aircraft registration: "RP-C1234", "RPC1234" */
+export const PH_REGISTRATION_RE = /\b(?:RP-C|RPC)\d+\b/i
+
+/** Facility label prefix: "Manila Approach:", "CEBU APP:", "CLARK TWR" */
+export const FACILITY_LABEL_RE = new RegExp(
+  `^(${_facilityCityAlt})\\s*(${_ATC_SUFFIX_ALT})[:\\s]?`, 'i',
+)
+
+/** Generic ATC role labels (no facility name): "TOWER:", "RADAR:", etc. */
+export const ATC_ROLE_LABEL_RE =
+  /^(ATC|ATCO|TOWER|GROUND|APPROACH|DEPARTURE|CONTROL|RADAR|CENTER|CENTRE|RAMP|CLEARANCE|DELIVERY|CLR|ATIS)[:\s]/i
+
+/** Generic pilot role labels: "PILOT:", "CREW:", "FO:", "CAPT:", etc. */
+export const PILOT_ROLE_LABEL_RE =
+  /^(PILOT|PLT|CREW|FO|CAPT|CAPTAIN|PF|PM)[:\s]/i

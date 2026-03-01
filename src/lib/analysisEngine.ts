@@ -8,39 +8,31 @@
 import {
   NON_STANDARD_PHRASES,
   NUMBER_PRONUNCIATION_ERRORS,
-  APP_DEP_CLEARANCE_PATTERNS,
   READBACK_REQUIREMENTS,
-  PHILIPPINE_CALLSIGNS,
-  PHILIPPINE_FACILITIES,
   PHILIPPINE_WAYPOINTS,
   SAFETY_CRITICAL_PATTERNS,
-  ALTITUDE_FORMATS,
-  HEADING_FORMAT,
-  SQUAWK_CODES,
-  DEPARTURE_COMMANDS,
   ENHANCED_CALLSIGNS,
   ENHANCED_SIDS,
   ENHANCED_STARS,
   NON_NATIVE_ERROR_PATTERNS,
-  READBACK_VALIDATIONS,
   DEPARTURE_APPROACH_CORPUS,
   extractCommandsFromText,
-  validateReadback,
-  calculateEnhancedSeverity,
+  // Dynamic pattern builders — add new airlines/facilities to atcData.ts only
+  CALLSIGN_LABEL_RE,
+  CALLSIGN_AT_END_RE,
+  CALLSIGN_AT_START_RE,
+  CALLSIGN_IN_TEXT_RE,
+  CALLSIGN_SPOKEN_RE,
+  PH_REGISTRATION_RE,
+  FACILITY_LABEL_RE,
+  ATC_ROLE_LABEL_RE,
+  PILOT_ROLE_LABEL_RE,
   type PhraseCorrection,
-  type ReadbackRequirement,
-  type ATCTrainingExample,
 } from './atcData'
 
-// Semantic readback analyzer with ML-based understanding
+// Semantic readback analyzer
 import {
   analyzeReadback as semanticAnalyzeReadback,
-  detectInstructionType as semanticDetectInstructionType,
-  generateExpectedReadback,
-  normalizeToDigits,
-  extractNumericValue,
-  type SemanticAnalysisResult,
-  type ReadbackError,
 } from './semanticReadbackAnalyzer'
 
 // ============================================================================
@@ -331,7 +323,7 @@ function extractCallsigns(lines: ParsedLine[]): { callsigns: Set<string>; primar
   const callsignCounts = new Map<string, number>()
 
   const callsignPatterns = [
-    /\b(PAL|CEB|APG|GAP|RPC|SRQ)\s*\d{2,4}\b/gi,
+    new RegExp(CALLSIGN_IN_TEXT_RE.source, 'gi'), // built from ENHANCED_CALLSIGNS
     /\bRP-?C\d{3,5}\b/gi,
     /\b[A-Z]{3}\s*\d{2,4}\b/g, // Generic 3-letter + numbers
   ]
@@ -380,9 +372,17 @@ function buildExchangePairs(lines: ParsedLine[], context: ConversationContext): 
         const currentGroup = line.conversationGroup
 
         for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
-          // Don't pair across conversation boundaries (blank-line separated blocks)
-          if (currentGroup !== undefined && lines[j].conversationGroup !== undefined &&
-              lines[j].conversationGroup !== currentGroup) {
+          // Don't pair across conversation boundaries.
+          // Note: undefined === undefined (both unknown-group) → same group → don't break.
+          // Any mismatch (number vs undefined, or different numbers) → different group → break.
+          if (currentGroup !== lines[j].conversationGroup) {
+            break
+          }
+          // If another non-information ATC instruction appears before a pilot response,
+          // this ATC instruction has no readback — the next instruction "owns" the pilot reply.
+          // This prevents cross-aircraft false pairings (e.g. PHI655 altitude instruction
+          // incorrectly paired with PHI300's frequency readback).
+          if (lines[j].speaker === 'ATC' && detectInstructionType(lines[j].text) !== 'information') {
             break
           }
           if (lines[j].speaker === 'PILOT') {
@@ -422,14 +422,24 @@ function buildExchangePairs(lines: ParsedLine[], context: ConversationContext): 
 
 // Detect what type of instruction an ATC message contains
 function detectInstructionType(text: string): string {
+  // Normalize spoken numbers before pattern matching so "five thousand" → "5000",
+  // "two hundred and ten knots" → "210 knots", "heading zero six zero" → "heading 060"
+  const n = normalizeSpelledNumbers(text)
+
   const instructionPatterns: { type: string; pattern: RegExp }[] = [
     // Altitude instructions - critical
     { type: 'altitude', pattern: /(climb|descend)\s+(and\s+)?maintain/i },
-    { type: 'altitude', pattern: /(climb|descend)\s+(to\s+)?(flight\s+level|FL|\d)/i },
+    { type: 'altitude', pattern: /(climb|descend)\s+(to\s+|and\s+maintain\s+)?(flight\s+level|FL|\d)/i },
+    // Speed "maintain X knots" must come BEFORE altitude "maintain \d" to prevent
+    // "maintain 160 knots" from matching the altitude pattern first.
+    { type: 'speed', pattern: /maintain\s+\d+\s*knots/i },
+
     { type: 'altitude', pattern: /maintain\s+(flight\s+level|FL|\d)/i },
+    // "descend to five thousand" with no "maintain": detect via spoken OR numeric altitude word
+    { type: 'altitude', pattern: /(climb|descend)\s+.{0,30}(flight\s+level|\d{3,5})/i },
 
     // Heading instructions - critical
-    { type: 'heading', pattern: /turn\s+(left|right)\s+(heading\s+)?\d/i },
+    { type: 'heading', pattern: /turn\s+(left|right)/i },  // direction alone is enough
     { type: 'heading', pattern: /heading\s+\d/i },
     { type: 'heading', pattern: /fly\s+heading\s+\d/i },
 
@@ -445,13 +455,17 @@ function detectInstructionType(text: string): string {
 
     // Other critical instructions
     { type: 'squawk', pattern: /squawk\s+\d/i },
-    { type: 'frequency', pattern: /contact\s+\w+\s+(on\s+)?\d/i },
+    // Frequency: "contact Manila Tower on 118" — allow 1-2 word facility name
+    { type: 'frequency', pattern: /contact\s+\w+(?:\s+\w+)?\s+(on\s+)?\d/i },
     { type: 'frequency', pattern: /monitor\s+\w+/i },
-    { type: 'approach', pattern: /cleared\s+(ils|rnav|vor|visual|ndb)\s+approach/i },
+    // Approach clearance — runway number may appear between type and "approach"
+    { type: 'approach', pattern: /cleared\s+(ils|rnav|vor|visual|ndb)\s+(?:runway\s+\S+\s+)?approach/i },
+    { type: 'approach', pattern: /cleared\s+(?:for\s+)?(?:the\s+)?(ils|rnav|vor|visual|ndb)\s+approach/i },
     { type: 'takeoff', pattern: /cleared\s+(for\s+)?take\s*off/i },
     { type: 'landing', pattern: /cleared\s+to\s+land/i },
     { type: 'taxi', pattern: /taxi\s+(to|via)/i },
-    { type: 'hold', pattern: /hold\s+(short|position|at)/i },
+    // Holding — match any form: "hold over", "hold at", "hold short", "holding pattern"
+    { type: 'hold', pattern: /\bhold\b/i },
     { type: 'lineup', pattern: /line\s+up\s+and\s+wait/i },
     { type: 'direct', pattern: /proceed\s+direct|direct\s+(to\s+)?\w+/i },
 
@@ -460,7 +474,7 @@ function detectInstructionType(text: string): string {
   ]
 
   for (const { type, pattern } of instructionPatterns) {
-    if (pattern.test(text)) {
+    if (pattern.test(n)) {
       return type
     }
   }
@@ -468,35 +482,142 @@ function detectInstructionType(text: string): string {
   return 'other'
 }
 
-// Helper: Convert spelled-out numbers to digits for comparison
+// Helper: Convert spelled-out numbers to digits for comparison.
+// Handles both ICAO phonetic individual digits (for headings, QNH, callsigns)
+// AND natural-language compound numbers (for altitudes, speeds):
+//   "five thousand"          → "5000"
+//   "three thousand five hundred" → "3500"
+//   "two hundred and ten"    → "210"
+//   "two hundred fifty"      → "250"
+//   "one one eight"          → "118"   (phonetic digit-by-digit)
+//   "flight level two four zero" → "FL 240"
 function normalizeSpelledNumbers(text: string): string {
-  const numberWords: Record<string, string> = {
-    'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
-    'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
-    'niner': '9', 'tree': '3', 'fife': '5', 'fower': '4',
+  // Numeric values for all relevant spoken words
+  const WORD_TO_NUM: Record<string, number> = {
+    zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9,
+    niner:9, tree:3, fife:5, fower:4,
+    // ICAO Doc 9432 phonetic word variants (wun, too, ait, oh) — needed so compound
+    // numbers like "wun tousand" or "ait hundred" resolve correctly via this table.
+    wun:1, too:2, ait:8, oh:0,
+    ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15,
+    sixteen:16, seventeen:17, eighteen:18, nineteen:19,
+    twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90,
   }
 
-  let normalized = text.toLowerCase()
-  for (const [word, digit] of Object.entries(numberWords)) {
-    normalized = normalized.replace(new RegExp(`\\b${word}\\b`, 'gi'), digit)
+  // Parse a one-or-two-word number phrase (0-99), e.g. "five"→5, "twenty one"→21, "eighty"→80
+  function parseSubHundred(s: string): number {
+    const parts = s.trim().toLowerCase().split(/[\s-]+/).filter(Boolean)
+    const v0 = WORD_TO_NUM[parts[0]] ?? NaN
+    if (parts.length === 1) return isNaN(v0) ? 0 : v0
+    const v1 = WORD_TO_NUM[parts[1]] ?? 0
+    if (!isNaN(v0) && v0 >= 10 && v0 < 100 && v1 >= 0 && v1 < 10) return v0 + v1
+    return 0
   }
-  // Remove spaces between consecutive digits
-  normalized = normalized.replace(/(\d)\s+(\d)/g, '$1$2')
-  return normalized
+
+  let s = text.toLowerCase()
+
+  // Normalise common corpus typos/phonetic variants before any number conversion.
+  s = s.replace(/\btousand\b/gi, 'thousand')   // "eight tousand" → "eight thousand"
+  s = s.replace(/\bday[\-\s]?see[\-\s]?mal\b/gi, 'decimal')  // "day-see-mal" → "decimal"
+  s = s.replace(/\bdesimal\b/gi, 'decimal')
+
+  // ── Phase A: compound number forms (handled before phonetic digit replacement) ──
+  //
+  // A1: "X thousand [Y hundred [and Z]]"
+  //   "five thousand"            → 5000
+  //   "three thousand five hundred" → 3500
+  //   "twelve thousand"          → 12000
+  const ONES_TENS = '(?:zero|one|two|three|four|five|six|seven|eight|nine|niner|' +
+                    'ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|' +
+                    'twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)'
+  const SUB100   = `(?:(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\\s-]+)?${ONES_TENS}`
+
+  s = s.replace(
+    new RegExp(
+      `\\b(${SUB100})\\s+thousand` +
+      `(?:\\s+(?:and\\s+)?(${ONES_TENS})\\s+hundred(?:\\s+(?:and\\s+)?(${SUB100}))?)?` +
+      `(?:\\s+(?:and\\s+)?(${SUB100})(?!\\s+hundred))?\\b`,
+      'gi',
+    ),
+    (_m: string, th: string, hun?: string, afterHun?: string, noHun?: string) => {
+      const thV = parseSubHundred(th)
+      if (!thV || thV > 999) return _m
+      let total = thV * 1000
+      if (hun) {
+        const hV = parseSubHundred(hun)
+        if (hV > 0 && hV <= 9) {
+          total += hV * 100
+          if (afterHun) total += parseSubHundred(afterHun)
+        }
+      } else if (noHun) {
+        const nV = parseSubHundred(noHun)
+        if (nV > 0 && nV < 1000) total += nV
+      }
+      return String(total)
+    },
+  )
+
+  // A2: "X hundred [and Y]"
+  //   "two hundred"              → 200
+  //   "two hundred and ten"      → 210
+  //   "two hundred fifty"        → 250
+  s = s.replace(
+    new RegExp(
+      `\\b(zero|one|two|three|four|five|six|seven|eight|nine|niner)\\s+hundred` +
+      `(?:\\s+(?:and\\s+)?(${SUB100}))?\\b`,
+      'gi',
+    ),
+    (_m: string, hun: string, rest?: string) => {
+      const hV = WORD_TO_NUM[hun.toLowerCase()] ?? 0
+      if (!hV || hV > 9) return _m
+      let total = hV * 100
+      if (rest) {
+        const rV = parseSubHundred(rest)
+        if (rV > 0 && rV < 100) total += rV
+      }
+      return String(total)
+    },
+  )
+
+  // ── Phase B: individual ICAO phonetic digits (headings, QNH, callsigns, squawks) ──
+  const PHONETIC: Record<string, string> = {
+    zero:'0', one:'1', two:'2', three:'3', four:'4', five:'5',
+    six:'6', seven:'7', eight:'8', nine:'9', niner:'9', tree:'3', fife:'5', fower:'4',
+  }
+  for (const [word, digit] of Object.entries(PHONETIC)) {
+    s = s.replace(new RegExp(`\\b${word}\\b`, 'gi'), digit)
+  }
+
+  // Collapse spaces between consecutive digits produced by Phase B.
+  // Must loop: "1 8 0" → (pass 1) "18 0" → (pass 2) "180".
+  let prev: string
+  do {
+    prev = s
+    s = s.replace(/(\d)\s+(\d)/g, '$1$2')
+  } while (s !== prev)
+  return s
 }
 
 // Helper: Extract altitude value (handles both digits and spelled-out)
 function extractAltitude(text: string): string | null {
   const normalized = normalizeSpelledNumbers(text)
 
-  // Try to find flight level
+  // Flight level
   const flMatch = normalized.match(/flight\s*level\s*(\d{2,3})/i) ||
                   normalized.match(/FL\s*(\d{2,3})/i)
   if (flMatch) return flMatch[1]
 
-  // Try to find altitude in feet
-  const altMatch = normalized.match(/(\d{3,5})\s*(feet|ft)?/i)
-  if (altMatch) return altMatch[1]
+  // Altitude anchored to an instruction verb — prevents callsign digits like
+  // "1809" (from "Philippine one eighty niner") from being grabbed instead of
+  // the actual cleared altitude ("5000", "3000", etc.).
+  const verbMatch = normalized.match(
+    /(?:climb|descend|maintain|to|at)\s+(?:and\s+maintain\s+)?(\d{3,5})\b/i
+  )
+  if (verbMatch) return verbMatch[1]
+
+  // Altitude with explicit "feet" or "ft" unit — still safe (callsign has no unit)
+  const feetMatch = normalized.match(/(\d{3,5})\s*(?:feet|ft)\b/i)
+  if (feetMatch) return feetMatch[1]
 
   return null
 }
@@ -652,8 +773,16 @@ function evaluateReadbackQualityDetailed(
   // ==========================================================================
   const semanticResult = semanticAnalyzeReadback(atcLine.text, pilotLine.text)
 
-  // If semantic analysis found errors, use those results
-  if (!semanticResult.isCorrect && semanticResult.errors.length > 0) {
+  // If semantic says correct with no errors, trust it and return immediately.
+  // Do NOT run the fallback — it uses unanchored extractAltitude which can
+  // mistake callsign digits (e.g. "Philippine one eighty niner" → 1809) for
+  // an altitude value, producing false mismatches on correct exchanges.
+  if (semanticResult.isCorrect) {
+    return { quality: 'complete', mismatchDetails: [] }
+  }
+
+  // If semantic found errors, surface them and skip the fallback.
+  if (semanticResult.errors.length > 0) {
     for (const error of semanticResult.errors) {
       mismatchDetails.push({
         type: mapSemanticErrorType(error.type),
@@ -664,13 +793,12 @@ function evaluateReadbackQualityDetailed(
         actualPhrase: pilotLine.text
       })
     }
-
-    // Map semantic quality to our quality type
     return { quality: semanticResult.quality, mismatchDetails }
   }
 
   // ==========================================================================
-  // FALLBACK: Original logic for cases not caught by semantic analyzer
+  // FALLBACK: Only reached when semantic returned !isCorrect AND no errors
+  // (defensive path — should be rare in practice)
   // ==========================================================================
 
   // ==========================================================================
@@ -759,6 +887,35 @@ function evaluateReadbackQualityDetailed(
           actualPhrase: pilotText
         })
         return { quality: 'partial', mismatchDetails }
+      }
+
+      // Also check QNH when the altitude instruction bundles an altimeter setting
+      // (very common in ICAO: "descend to five thousand, QNH one zero one three")
+      const atcQnh = extractAltimeter(atcText)
+      if (atcQnh) {
+        const pilotQnh = extractAltimeter(pilotText)
+        if (!pilotQnh) {
+          mismatchDetails.push({
+            type: 'missing_element',
+            parameter: 'QNH',
+            atcValue: atcQnh,
+            pilotValue: null,
+            expectedPhrase: `QNH ${atcQnh}`,
+            actualPhrase: pilotText,
+          })
+          return { quality: 'partial', mismatchDetails }
+        }
+        if (pilotQnh !== atcQnh) {
+          mismatchDetails.push({
+            type: 'wrong_value',
+            parameter: 'QNH',
+            atcValue: atcQnh,
+            pilotValue: pilotQnh,
+            expectedPhrase: atcQnh,
+            actualPhrase: pilotQnh,
+          })
+          return { quality: 'incorrect', mismatchDetails }
+        }
       }
 
       return { quality: 'complete' }
@@ -1094,15 +1251,21 @@ function updateIssueAccumulator(
     ],
   }
 
-  // Calculate escalation level
-  const issueCount = updated.recentIssues.length
-  if (issueCount >= 4) {
+  // Calculate escalation level from SIGNIFICANT issues only.
+  // Low-severity issues (number pronunciation, minor phrasing) are common in
+  // real transcripts and should not trigger the 🔴 pattern warning.
+  // Only medium/high/critical errors drive the escalation counter.
+  const significantCount = updated.recentIssues.filter(
+    i => i.severity === 'medium' || i.severity === 'high' || i.severity === 'critical'
+  ).length
+
+  if (significantCount >= 4) {
     updated.escalationLevel = 3
     updated.patternDetected = 'Multiple consecutive errors detected - systematic issue'
-  } else if (issueCount >= 3) {
+  } else if (significantCount >= 3) {
     updated.escalationLevel = 2
     updated.patternDetected = 'Error pattern emerging - attention required'
-  } else if (issueCount >= 2) {
+  } else if (significantCount >= 2) {
     updated.escalationLevel = 1
     updated.patternDetected = null
   } else {
@@ -1117,8 +1280,32 @@ function updateIssueAccumulator(
 // MAIN ANALYSIS FUNCTION
 // ============================================================================
 
+/**
+ * Normalize raw input text before parsing.
+ * Applied to ALL input paths (paste, PDF extraction, DOCX extraction) so that
+ * the analysis engine receives consistent text regardless of input source.
+ * Does NOT collapse newlines — line structure must be preserved for parseLines().
+ * PDF extractor applies these same fixes per-line during its reconstruction step;
+ * DOCX extractor applies them in normaliseDocxText(). This ensures pasted text
+ * receives identical treatment.
+ */
+function normalizeInputText(raw: string): string {
+  return raw
+    .replace(/\r\n?/g, '\n')                    // CRLF / CR → LF (Windows paste)
+    .replace(/\u2018|\u2019/g, "'")             // smart single quotes → ASCII '
+    .replace(/\u201C|\u201D/g, '"')             // smart double quotes → ASCII "
+    .replace(/\u2013/g, '-')                    // en-dash → hyphen
+    .replace(/\u2014/g, '-')                    // em-dash → hyphen
+    .replace(/\u00A0/g, ' ')                    // non-breaking space → regular space
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')      // zero-width / BOM chars → removed
+    .replace(/\n{4,}/g, '\n\n\n')              // collapse 4+ blank lines to max 2
+}
+
 export function analyzeDialogue(input: AnalysisInput): AnalysisOutput {
-  const { text, corpusType } = input
+  const { corpusType } = input
+  // Normalize input regardless of source (paste / PDF / DOCX) so the parser
+  // always receives clean, consistent text.
+  const text = normalizeInputText(input.text)
 
   // Parse lines
   const parsedLines = parseLines(text)
@@ -1169,7 +1356,7 @@ export function analyzeDialogue(input: AnalysisInput): AnalysisOutput {
   const readbackAnalysis = analyzeReadbacks(parsedLines)
 
   // Safety metrics
-  const safetyMetrics = calculateSafetyMetrics(parsedLines, phraseologyErrors)
+  const safetyMetrics = calculateSafetyMetrics(parsedLines, phraseologyErrors, context.exchangePairs.length)
 
   // Calculate non-standard frequency
   const nonStandardCount = phraseologyErrors.filter(e =>
@@ -1189,7 +1376,8 @@ export function analyzeDialogue(input: AnalysisInput): AnalysisOutput {
     readbackAnalysis,
     safetyMetrics,
     corpusType,
-    totalWords
+    totalWords,
+    context.exchangePairs.length
   )
 
   // Detailed findings
@@ -1400,46 +1588,57 @@ export function parseLines(text: string): ParsedLine[] {
   if (labeledResult.length > 0) {
     parsedLines.push(...labeledResult)
   } else {
-    // PHASE 2: Try quoted-segment extraction (handles unlabeled "quote1" "quote2" format)
-    const quotedSegments = extractQuotedSegments(text)
-
-    if (quotedSegments.length >= 2) {
-      quotedSegments.forEach((segment, index) => {
-        const speaker = inferSpeakerFromContent(segment, index)
-        parsedLines.push({
-          lineNumber: index + 1,
-          text: cleanText(segment),
-          speaker,
-          rawText: segment,
-        })
-      })
+    // PHASE 1.5: Try normalising multi-line format (number / speaker / dialogue on separate
+    // lines) then re-attempt labeled parsing before falling back to content inference.
+    const normalizedLines = normalizeMultiLineFormat(rawLines)
+    const normalizedResult = tryLabeledLineParsing(normalizedLines)
+    if (normalizedResult.length > 0) {
+      parsedLines.push(...normalizedResult)
     } else {
-      // PHASE 3: Fall back to line-by-line content-based parsing
-      lines.forEach((line, index) => {
-        const lineQuotes = extractQuotedSegments(line)
-        if (lineQuotes.length >= 2) {
-          lineQuotes.forEach((segment) => {
-            const speaker = inferSpeakerFromContent(segment, parsedLines.length)
-            parsedLines.push({
-              lineNumber: parsedLines.length + 1,
-              text: cleanText(segment),
-              speaker,
-              rawText: segment,
-            })
-          })
-        } else {
-          const speaker = identifySpeaker(line)
-          const cleanedText = cleanSpeakerLabel(line)
+      // PHASE 2: Try quoted-segment extraction (handles unlabeled "quote1" "quote2" format)
+      const quotedSegments = extractQuotedSegments(text)
+
+      if (quotedSegments.length >= 2) {
+        quotedSegments.forEach((segment, index) => {
+          const speaker = inferSpeakerFromContent(segment, index)
           parsedLines.push({
             lineNumber: index + 1,
-            text: cleanedText,
+            text: cleanText(segment),
             speaker,
-            rawText: line.trim(),
+            rawText: segment,
+            conversationGroup: 0,
           })
-        }
-      })
-    }
-  }
+        })
+      } else {
+        // PHASE 3: Fall back to line-by-line content-based parsing
+        lines.forEach((line, index) => {
+          const lineQuotes = extractQuotedSegments(line)
+          if (lineQuotes.length >= 2) {
+            lineQuotes.forEach((segment) => {
+              const speaker = inferSpeakerFromContent(segment, parsedLines.length)
+              parsedLines.push({
+                lineNumber: parsedLines.length + 1,
+                text: cleanText(segment),
+                speaker,
+                rawText: segment,
+                conversationGroup: 0,
+              })
+            })
+          } else {
+            const speaker = identifySpeaker(line)
+            const cleanedText = cleanSpeakerLabel(line)
+            parsedLines.push({
+              lineNumber: index + 1,
+              text: cleanedText,
+              speaker,
+              rawText: line.trim(),
+              conversationGroup: 0,
+            })
+          }
+        })
+      }
+    } // end Phase 1.5 else
+  } // end Phase 1 else
 
   // If speakers are all UNKNOWN, try to infer from content patterns
   const unknownCount = parsedLines.filter(l => l.speaker === 'UNKNOWN').length
@@ -1462,7 +1661,94 @@ export function parseLines(text: string): ParsedLine[] {
 //   GND_CTRL: taxi via alpha
 // Works by detecting the "Label:" pattern, then classifying the label generically.
 
+// ── Inline-label expansion ────────────────────────────────────────────────────
+// DOCX paragraphs can contain multiple exchanges concatenated with speaker
+// labels acting as inline separators, e.g.:
+//   "APP-DEP_PAEC1_C001_Phi_MNL:textA.Pilot_PAEC1_C001_Phi_MNL:textB."
+// Split each such line on PAEC speaker-label boundaries so every exchange
+// gets its own line before the label-extraction pass runs.
+//
+// Pattern covers ALL variants found across the APP-DEP PAEC corpus:
+//   APP-DEP_PAEC{n}   App/Dep_Paec{n}   APPDEP_PAEC{n}
+//   Pilot_PAEC{n}     PILOT_PAEC{n}
+//   TWR_PAEC{n}       DEP_PAEC{n}       GND_PAEC{n}   RAMP_PAEC{n}
+// The `_PAEC\d` suffix ensures we only split on transcript labels, never
+// mid-sentence words like "DEP" in "DEP clearance" or "APPROACH frequency".
+// Negative lookbehind on the bare `DEP` alternative prevents double-splitting
+// "APP-DEP_PAEC1" at both position 0 (APP-DEP) and position 4 (DEP), which
+// was leaving orphaned "APP-" / "App/" / "APP/" fragments as UNKNOWN lines.
+const PAEC_INLINE_SPLIT_RE = /(?=(?:APP[-/]?DEP|APPDEP|(?<![A-Za-z/\-])DEP|TWR|GND|RAMP|PILOT)_PAEC\d)/i
+
+function expandInlineLabels(lines: string[]): string[] {
+  const out: string[] = []
+  for (const line of lines) {
+    const t = line.trim()
+    if (!t) { out.push(line); continue }
+    const parts = t.split(PAEC_INLINE_SPLIT_RE)
+    if (parts.length > 1) {
+      parts.forEach(p => { if (p.trim()) out.push(p.trim()) })
+    } else {
+      out.push(line)
+    }
+  }
+  return out
+}
+
+/**
+ * Pre-process transcripts where exchange number, speaker keyword, and dialogue
+ * appear on three separate lines (no colon on the label line), e.g.:
+ *   "18\nATC\nCathay niner zero one, turn left…"
+ *
+ * Converts to colon-label form that tryLabeledLineParsing can handle:
+ *   "ATC: Cathay niner zero one, turn left…"
+ *
+ * Standalone exchange-number lines (1–3 digits) are discarded.
+ * All other lines pass through unchanged.
+ */
+function normalizeMultiLineFormat(rawLines: string[]): string[] {
+  const ATC_STANDALONE    = /^(ATC|ATCO|APP|DEP|TWR|TOWER|GND|GROUND|APPROACH|DEPARTURE|RADAR|CONTROL|RAMP|CLEARANCE|DELIVERY|ATIS)$/i
+  const PILOT_STANDALONE  = /^(PILOT|PLT|CREW|FO|CAPT|CAPTAIN|PF|PM|PNF)$/i
+  const EXCHANGE_NUMBER   = /^\d{1,3}$/
+
+  const result: string[] = []
+  let pendingLabel: string | null = null
+
+  for (const line of rawLines) {
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      // Blank line: discard any unmatched pending label, preserve blank for boundary detection
+      pendingLabel = null
+      result.push(line)
+      continue
+    }
+
+    // Discard standalone exchange-sequence numbers
+    if (EXCHANGE_NUMBER.test(trimmed)) continue
+
+    // Standalone speaker keyword — hold it until the next dialogue line
+    if (ATC_STANDALONE.test(trimmed) || PILOT_STANDALONE.test(trimmed)) {
+      pendingLabel = trimmed
+      continue
+    }
+
+    // Dialogue line: attach any pending speaker label
+    if (pendingLabel !== null) {
+      result.push(`${pendingLabel}: ${trimmed}`)
+      pendingLabel = null
+    } else {
+      result.push(line)
+    }
+  }
+
+  return result
+}
+
 function tryLabeledLineParsing(rawLines: string[]): ParsedLine[] {
+  // Expand any lines that contain multiple inline PAEC speaker labels
+  // (common in DOCX files where multiple exchanges share one paragraph)
+  const expandedLines = expandInlineLabels(rawLines)
+
   // First pass: check if this text uses a labeled format at all
   // A line is "labeled" if it matches: <non-quote-chars> : <something>
   // We require at least 40% of non-empty lines to have labels to use this mode
@@ -1472,7 +1758,7 @@ function tryLabeledLineParsing(rawLines: string[]): ParsedLine[] {
   let nonEmptyCount = 0
   const parsed: { label: string; dialogue: string; raw: string; isBlank: boolean }[] = []
 
-  for (const line of rawLines) {
+  for (const line of expandedLines) {
     const trimmed = line.trim()
 
     // Preserve blank lines as conversation boundary markers
@@ -1494,7 +1780,25 @@ function tryLabeledLineParsing(rawLines: string[]): ParsedLine[] {
       labeledCount++
       parsed.push({ label: match[1].trim(), dialogue: match[2].trim(), raw: trimmed, isBlank: false })
     } else {
-      parsed.push({ label: '', dialogue: trimmed, raw: trimmed, isBlank: false })
+      // PAEC2 corpus format: label not followed by a colon, e.g.
+      //   "App/Dep_Paec2_C001_Phi_Mnl <Anon Type="Cebu"/> dialogue"
+      //   "APP/DEP_PAEC2_ C009_PHI_MNL All Stations, One More Arrival..."
+      // Detect by PAEC speaker prefix; split on the first '<' (anon tag) or
+      // on the end of the continuous non-space/non-angle label token.
+      const paecPfx = trimmed.match(
+        /^((?:APP[-/]?DEP|APPDEP|(?<![A-Za-z/\-])DEP|TWR|GND|RAMP|PILOT)_PAEC\d+[^\s<]*)\s*/i,
+      )
+      if (paecPfx) {
+        const labelPart = paecPfx[1]
+        const ltIdx = trimmed.indexOf('<')
+        const dialoguePart = ltIdx !== -1
+          ? trimmed.slice(ltIdx)
+          : trimmed.slice(paecPfx[0].length)
+        labeledCount++
+        parsed.push({ label: labelPart, dialogue: dialoguePart, raw: trimmed, isBlank: false })
+      } else {
+        parsed.push({ label: '', dialogue: trimmed, raw: trimmed, isBlank: false })
+      }
     }
   }
 
@@ -1503,35 +1807,95 @@ function tryLabeledLineParsing(rawLines: string[]): ParsedLine[] {
     return []
   }
 
-  // Second pass: classify each label, track conversation groups via blank lines
+  // Second pass: classify each label, track conversation groups.
+  //
+  // DYNAMIC conversation-boundary detection — groups change ONLY when the
+  // aircraft identity changes, never on blank lines.  Blank lines in PAEC
+  // corpus files are formatting/spacing between exchanges within the same
+  // conversation; treating them as boundaries creates false splits.
+  //
+  // Three-tier conversation boundary detection (no hardcoded values):
+  //   Tier 1 — PAEC label C-number (C001, C002 …) from speaker labels  ← most reliable
+  //   Tier 2 — Full callsign in dialogue text: "PAL 456" or "PAL456"
+  //   Tier 3 — Airline name from <Anon Type="…"/> tags via extractAnonType()
+  //   The first tier that fires wins; lower tiers are tried only when upper tiers have no data.
+  const CALLSIGN_RE = /\b([A-Z]{2,3})\s*(\d{2,4})\b/i   // matches "PAL 456" and "PAL456"
   const result: ParsedLine[] = []
   let lineNum = 0
   let conversationGroup = 0
-  let lastWasBlank = false
+  let lastCallsign: string | null = null
+  let lastLabelConvId: number | null = null
 
   for (const entry of parsed) {
     lineNum++
 
-    // Blank lines increment conversation group (only on first blank in a sequence)
-    if (entry.isBlank) {
-      if (!lastWasBlank && result.length > 0) {
-        conversationGroup++
-      }
-      lastWasBlank = true
-      continue
-    }
-    lastWasBlank = false
+    // Blank lines are formatting only — skip without changing conversation group
+    if (entry.isBlank) continue
 
     const { label, dialogue, raw } = entry
+
+    // Detect aircraft identity from content dynamically.
+    // extractAnonType handles every PAEC corpus variant (PAEC01–PAEC31).
+    // Falls back to Philippine-style explicit callsigns (PAL456, CEB1234).
+    const src = dialogue || raw
+    const anonId = extractAnonType(src)
+    const csMatch = !anonId ? src.match(CALLSIGN_RE) : null
+    // Normalise "PAL 456" and "PAL456" → "PAL456" (group 1 = alpha, group 2 = digits)
+    const detectedId = anonId
+      ? anonId
+      : csMatch
+        ? (csMatch[1] + csMatch[2]).toUpperCase()
+        : null
+
+    // ── TIER 1: PAEC label C-number — most reliable boundary signal ───────────
+    // Labels like "APP-DEP_PAEC1_C001_Phi_MNL" → C001 = conversation 1
+    const labelConvMatch = label ? label.match(/\bC(\d{1,4})\b/i) : null
+    const labelConvId = labelConvMatch ? parseInt(labelConvMatch[1], 10) : null
+
+    if (labelConvId !== null) {
+      // C-number changed → new conversation (no min-lines guard; labels are authoritative)
+      if (lastLabelConvId !== null && labelConvId !== lastLabelConvId) {
+        conversationGroup++
+      }
+      lastLabelConvId = labelConvId
+
+    // ── TIER 2 & 3: callsign / anon-tag from content ─────────────────────────
+    // Handles plain-text transcripts ("PAL 456", "CEB 777") and anon-tag files
+    } else if (detectedId) {
+      if (lastCallsign && detectedId !== lastCallsign) {
+        conversationGroup++
+      }
+      lastCallsign = detectedId
+    }
 
     // Skip <unclear/> lines entirely — they carry no analysable content
     if (/^<\s*unclear\s*\/?\s*>$/i.test(dialogue) || /^<\s*unclear\s*\/?\s*>$/i.test(raw)) {
       continue
     }
 
-    // Skip empty dialogue
-    const cleanedDialogue = stripQuotes(dialogue)
+    // Skip audio filenames and PAEC metadata lines embedded in the transcript
+    // e.g. "RPLL-App-Dep-124800-Feb-1-2025-0030Z.mp3", "PAEC-COO1-0000Z", "PAEC01_C001_0000Z"
+    if (/\.(mp3|wav|m4a|aac|ogg|pdf)$/i.test(raw) ||
+        /^(?:PAEC[-_]?[A-Z0-9]+(?:[-_][A-Z0-9]+)*Z|PAEC\d+)$/i.test(raw.trim())) {
+      continue
+    }
+
+    // Clean the dialogue: strip quotes then strip corpus annotation tags
+    // (e.g. <Anon Type="Philippine"/>) and normalise "/" separators
+    const cleanedDialogue = stripAnonTags(stripQuotes(dialogue))
     if (!cleanedDialogue || cleanedDialogue.length < 2) continue
+
+    // ── Continuation-line merging ─────────────────────────────────────────
+    // In labeled-line mode, any entry without a label is a physical line break
+    // within a single speaker turn (common in PDFs and word-wrapped transcripts).
+    // Merge it into the previous ParsedLine rather than creating a new entry,
+    // so downstream readback / callsign checks see the full turn text.
+    if (!label && result.length > 0) {
+      const prev = result[result.length - 1]
+      prev.text    = (prev.text + ' ' + cleanedDialogue).replace(/\s{2,}/g, ' ').trim()
+      prev.rawText = (prev.rawText + ' ' + raw).trim()
+      continue
+    }
 
     // Classify the label
     const speaker = label ? classifyLabel(label) : inferSpeakerFromContent(cleanedDialogue, result.length)
@@ -1598,6 +1962,103 @@ function stripQuotes(text: string): string {
     .replace(/^[\s"'""''`´«»\u201C\u201D\u2018\u2019]+/, '')
     .replace(/[\s"'""''`´«»\u201C\u201D\u2018\u2019]+$/, '')
     .trim()
+}
+
+/**
+ * Dynamically extract the aircraft-type value from any PAEC Anon token.
+ * Works regardless of bracket style, quoting, or spacing used across corpus
+ * versions (PAEC01–PAEC31+).  Returns null when no token is found.
+ *
+ * Supported formats (discovered from real corpus files):
+ *   <Anon Type = "Philippine"/>        PAEC02 — space-padded, quoted, self-close
+ *   <anon type="Coolred"/>             PAEC01 — lowercase, tightly-quoted, self-close
+ *   < Anon Type = "Qatar"/>            PAEC02 — space after <
+ *   <<Anon Type = "Cool Red"/>         PAEC02 — double <
+ *   <Anon Type= "Philippine"/>         no space before quote
+ *   <anon type="X">                    PAEC24/31 — open-close > (no slash before >)
+ *   anon type= Philippine /            PAEC18 — no angle brackets, unquoted
+ *   anon type= Cool Red /              PAEC18 — multi-word unquoted value
+ */
+function extractAnonType(raw: string): string | null {
+  // Normalise bracket noise then run a single universal pattern:
+  //   optional angle brackets + optional spaces  →  "anon type = <value>"
+  const normalised = raw.replace(/<<+/g, '<').replace(/<\s+/g, '<')
+  // The value sits between "=" and the next quote/slash/angle-bracket/newline
+  const m = normalised.match(/\banon\s+type\s*=\s*["']?\s*([A-Za-z][A-Za-z ]*?)["']?\s*[/<>]/i)
+  if (!m) return null
+  return m[1].trim().toUpperCase().replace(/\s+/g, '')
+}
+
+/**
+ * Strip all PAEC corpus annotation tags from dialogue text and normalise
+ * "/" utterance separators so phrase-matching works on clean aviation prose.
+ *
+ * Dynamic: uses a single normalise-then-match approach so any new tag variant
+ * in future corpus versions is handled without code changes.
+ */
+function stripAnonTags(text: string): string {
+  // Step 0 — strip orphaned anon-tag fragments that appear when the PDF engine
+  // splits "<anon" to one y-position and "type=..." to another, resulting in
+  // continuation lines that start with residual XML attribute text:
+  //   type="Philippine", > four three eight.   →  four three eight.
+  //   type="Cathay">niner one two.             →  niner one two.
+  //   Philippine", > four three eight.         →  four three eight.
+  //   > four three eight.                      →  four three eight.
+  let result = text
+  result = result.replace(/^type\s*=\s*["'][^"']*["']?[,]?\s*\/?>\s*/i, '')  // type="X", /> prefix
+  result = result.replace(/^["'][^"',]{0,40}["'][,]?\s*\/?>\s*/,       '')  // "X", /> or "X"> prefix
+  result = result.replace(/^[A-Za-z][A-Za-z\s]{0,30}",\s*\/?>\s*/,    '')  // Philippine", > prefix
+  result = result.replace(/^>\s+/,                                       '')  // bare leading >
+
+  // Step 1 — normalise bracket/spacing noise so one pattern covers all variants
+  result = result.replace(/<<+/g, '<').replace(/<\s+/g, '<')
+
+  // Step 2 — replace any "anon type = <value>" token (tagged or untagged) with
+  //           the airline name so the callsign slot stays semantically intact
+  //           e.g. "PHILIPPINE, climb and maintain flight level one five zero"
+  // Closing forms seen in corpus:
+  //   />   — XML self-close (PAEC01-PAEC20, most files)
+  //   >    — open-close without slash (PAEC24/31: <anon type="X">)
+  //   /    — slash only, no angle bracket (PAEC18 untagged: anon type= Philippine /)
+  // Pattern: (?:\/?>|\/) = (optional-/ then >) OR (/ alone)
+  // This is tried left-to-right so /> is consumed as a unit before / alone.
+  result = result.replace(
+    /<?anon\s+type\s*=\s*["']?\s*([A-Za-z][A-Za-z ]*?)["']?\s*(?:\/?>|\/)/gi,
+    (_m, val: string) => val.trim().toUpperCase().replace(/\s+/g, '') + ' ',
+  )
+
+  // Step 2.5 — strip malformed anon tags where the type= value contains
+  //            actual dialogue text (corpus annotation errors), e.g.:
+  //              <anon type=Roger.          (no proper closing, no quotes)
+  //              <anon type=Good evening.   (sentence in type field)
+  //              <anon type=Climb niner thousand.../>  (full instruction in type field)
+  //            These fall through Step 2 (non-letter chars break the value regex).
+  //            [^>\n]* consumes everything up to the next > or newline.
+  //            >? optionally consumes the closing > so /> pairs are fully removed.
+  result = result.replace(/<?anon\b[^>\n]*>?/gi, '')
+
+  // Step 2.7 — strip mid-line broken anon tag residue produced when the PDF
+  //            y-position grouper splits <anon type="Cebu"/> across two physical
+  //            lines.  The second fragment lands mid-sentence:
+  //              "One two five decimal seven, "Cebu", > one zero eight five."
+  //            Replace the fragment with the callsign so it remains readable:
+  //              "One two five decimal seven, CEBU one zero eight five."
+  result = result.replace(
+    /[""']([A-Za-z][A-Za-z ]{0,20})[""'][,]?\s*\/?>\s*/g,
+    (_m: string, name: string) => name.trim().toUpperCase().replace(/\s+/g, '') + ' ',
+  )
+
+  // Step 3 — strip any remaining XML / annotation tags
+  //           (<unclear/>, <no_reply/>, <vocal desc="...">, <event ...>, etc.)
+  result = result.replace(/<[^>]+>/g, '')
+
+  // Step 4 — normalise "/" utterance separators → ", "
+  result = result.replace(/\s*\/\s*/g, ', ')
+
+  // Step 5 — collapse artefacts from previous steps
+  result = result.replace(/,\s*,/g, ',').replace(/^[,\s]+|[,\s]+$/g, '').replace(/\s{2,}/g, ' ')
+
+  return result.trim()
 }
 
 // Extract all quoted segments from text
@@ -1718,14 +2179,14 @@ function inferSpeakerFromContent(text: string, index: number): 'ATC' | 'PILOT' |
   // PRIORITY 1: Callsign at END is the strongest pilot indicator
   // Pilots always end readbacks with their callsign, ATC starts with it
   const callsignAtEnd = /,\s*[A-Z]{2,4}\s*\d{2,4}\.?$/i.test(text) ||
-                        /,\s*(PAL|CEB|APG|GAP|RPC|SRQ|UAL|AAL|DAL|SWA|JBU)\s*\d+\.?$/i.test(text)
+                        CALLSIGN_AT_END_RE.test(text)
   if (callsignAtEnd) {
     return 'PILOT'
   }
 
   // PRIORITY 2: Callsign at START is a strong ATC indicator (ATC addressing aircraft)
   const callsignAtStart = /^[A-Z]{2,4}\s*\d{2,4}[,\s]/i.test(text) ||
-                          /^(PAL|CEB|APG|GAP|RPC|SRQ|UAL|AAL|DAL|SWA|JBU)\s*\d+[,\s]/i.test(text)
+                          CALLSIGN_AT_START_RE.test(text)
   if (callsignAtStart) {
     return 'ATC'
   }
@@ -1830,30 +2291,11 @@ function identifySpeaker(line: string): 'ATC' | 'PILOT' | 'UNKNOWN' {
   }
 
   // Legacy explicit patterns (kept as fallback for formats without colon)
-  const atcLabelPatterns = [
-    /^ATC[:\s]/i,
-    /^TOWER[:\s]/i,
-    /^GROUND[:\s]/i,
-    /^APPROACH[:\s]/i,
-    /^DEPARTURE[:\s]/i,
-    /^CONTROL[:\s]/i,
-    /^RADAR[:\s]/i,
-    /^CENTER[:\s]/i,
-    /^MANILA\s*(APP|DEP|TWR|GND|CTR|APPROACH|DEPARTURE|TOWER|GROUND)/i,
-    /^CEBU\s*(APP|DEP|TWR|GND)/i,
-    /^CLARK\s*(APP|DEP|TWR|GND)/i,
-    /^DAVAO\s*(APP|DEP|TWR|GND)/i,
-  ]
-
-  const pilotLabelPatterns = [
-    /^PILOT[:\s]/i,
-    /^P[:\s]/i,
-    /^(PAL|CEB|AXN|APG|GAP|RPC|SRQ)\s*\d+[:\s]/i,
-    /^RP-?C?\d+[:\s]/i,
-  ]
-
-  if (atcLabelPatterns.some(p => p.test(line))) return 'ATC'
-  if (pilotLabelPatterns.some(p => p.test(line))) return 'PILOT'
+  // Patterns are built dynamically from atcData constants — add new
+  // airlines/facilities there, not here.
+  if (ATC_ROLE_LABEL_RE.test(line) || FACILITY_LABEL_RE.test(line)) return 'ATC'
+  if (PILOT_ROLE_LABEL_RE.test(line) || /^P[:\s]/i.test(line) ||
+      CALLSIGN_LABEL_RE.test(line) || PH_REGISTRATION_RE.test(line)) return 'PILOT'
 
   // No explicit label - try to infer from content
   return inferSpeakerFromContent(line, 0)
@@ -1874,12 +2316,12 @@ function cleanSpeakerLabel(line: string): string {
     }
   }
 
-  // Legacy cleanup
+  // Legacy cleanup — all patterns built from atcData constants
   return line
     .replace(/^(ATC|PILOT|TOWER|GROUND|APPROACH|DEPARTURE|CONTROL|RADAR|CENTER|P)[:\s]*/i, '')
-    .replace(/^(MANILA|CEBU|CLARK|DAVAO)\s*(APP|DEP|TWR|GND|CTR|APPROACH|DEPARTURE|TOWER|GROUND)[:\s]*/i, '')
-    .replace(/^(PAL|CEB|AXN|APG|GAP|RPC|SRQ)\s*\d+[:\s]*/i, '')
-    .replace(/^RP-?C?\d+[:\s]*/i, '')
+    .replace(FACILITY_LABEL_RE, '')
+    .replace(CALLSIGN_LABEL_RE, '')
+    .replace(PH_REGISTRATION_RE, '')
     .replace(/\[\[|\]\]/g, '')
     .replace(/^["'""\s]+|["'""\s]+$/g, '')
     .trim()
@@ -1908,7 +2350,7 @@ function detectAllErrorsWithContext(
     lineErrors.push(...detectNumberErrors(line))
 
     // Check structural issues
-    lineErrors.push(...detectStructuralIssues(line, lines))
+    lineErrors.push(...detectStructuralIssues(line))
 
     // Check safety-critical patterns
     lineErrors.push(...detectSafetyCriticalIssues(line))
@@ -1928,8 +2370,15 @@ function detectAllErrorsWithContext(
         severity: adjustedError.severity,
       })
 
-      // Add escalation warning if pattern detected
-      if (issueAccumulator.escalationLevel >= 2 && issueAccumulator.patternDetected) {
+      // Add escalation warning only for medium/high severity errors.
+      // Low-severity flags (number pronunciation, minor phrasing) should never
+      // carry the 🔴 warning — that would mislead reviewers into thinking a
+      // mostly-correct dialogue has systematic safety issues.
+      if (
+        issueAccumulator.escalationLevel >= 2 &&
+        issueAccumulator.patternDetected &&
+        (adjustedError.severity === 'medium' || adjustedError.severity === 'high')
+      ) {
         adjustedError.whyItMatters = `${adjustedError.whyItMatters || ''}\n\n🔴 ${issueAccumulator.patternDetected}`
       }
 
@@ -2005,6 +2454,10 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
   for (const pair of context.exchangePairs) {
     // Skip if readback was complete
     if (pair.readbackQuality === 'complete') continue
+
+    // Skip very short ATC lines — these are PDF line-split fragments, not
+    // standalone instructions (e.g. "eight eight four.", "two.", "three.")
+    if (pair.atcLine.text.trim().split(/\s+/).length < 4) continue
 
     // Generate error based on exchange pair analysis
     const dynamicFeedback = generateDynamicFeedback(pair, context.flightPhase)
@@ -2084,7 +2537,10 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
         original: pair.pilotLine?.rawText || '',
         issue: `Incomplete readback for ${pair.instructionType}`,
         suggestion: `Complete readback: "${expectedReadback}"`,
-        severity: severityMap[pair.contextualSeverity],
+        // Partial readbacks are always clarity issues (pilot DID acknowledge, just incompletely).
+        // Cap at 'medium' regardless of contextual severity — prevents high-context partial readbacks
+        // from being penalized at the same rate as completely missing readbacks.
+        severity: severityMap[pair.contextualSeverity] === 'high' ? 'medium' : severityMap[pair.contextualSeverity],
         category: 'structure',
         safetyImpact: 'clarity',
         icaoReference: 'ICAO Doc 4444 Section 12.3.1.5',
@@ -2162,37 +2618,16 @@ function getRequiredElements(instructionType: string): string {
   return requirements[instructionType] || 'all instruction elements, callsign'
 }
 
-// Legacy function for backward compatibility
-function detectAllErrors(lines: ParsedLine[], corpusType: string): PhraseologyError[] {
-  const errors: PhraseologyError[] = []
-
-  for (const line of lines) {
-    // Check non-standard phrases
-    errors.push(...detectNonStandardPhrases(line))
-
-    // Check number errors
-    errors.push(...detectNumberErrors(line))
-
-    // Check structural issues
-    errors.push(...detectStructuralIssues(line, lines))
-
-    // Check safety-critical patterns
-    errors.push(...detectSafetyCriticalIssues(line))
-
-    // Corpus-specific checks
-    if (corpusType === 'APP/DEP') {
-      errors.push(...detectAppDepSpecificErrors(line))
-    }
-  }
-
-  return errors
-}
 
 function detectNonStandardPhrases(line: ParsedLine): PhraseologyError[] {
   const errors: PhraseologyError[] = []
 
   for (const phrase of NON_STANDARD_PHRASES) {
     const match = line.text.match(phrase.nonStandard)
+    // If the phrase has an excludePattern and it matches the same line, skip.
+    // This lets the JSON control context-specific suppression (e.g. "take off"
+    // should not be flagged when "cleared" appears anywhere on the same line).
+    if (match && phrase.exclude && phrase.exclude.test(line.text)) continue
     if (match) {
       const incorrectPhrase = match[0]
       const severity = phrase.severity === 'critical' ? 'high' : phrase.severity
@@ -2409,13 +2844,26 @@ function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
   return errors
 }
 
-function detectStructuralIssues(line: ParsedLine, allLines: ParsedLine[]): PhraseologyError[] {
+function detectStructuralIssues(line: ParsedLine): PhraseologyError[] {
   const errors: PhraseologyError[] = []
 
   // Check for missing callsign in pilot responses
   if (line.speaker === 'PILOT' && line.text.length > 15) {
-    const hasCallsign = PHILIPPINE_CALLSIGNS.some(cs => line.text.toUpperCase().includes(cs))
-    if (!hasCallsign && !/RP-?C?\d+/i.test(line.text)) {
+    // Extra check for callsigns that include phonetic alphabet letters mixed with
+    // spoken digits, e.g. "Cebu fife Juliet one two tree" (= CEB 5J123).
+    // CALLSIGN_SPOKEN_RE only handles spoken-digit suffixes, not letter designators.
+    const _phoneticToken = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|niner|tree|fife|fower|alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliet|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango|uniform|victor|whiskey|x[\-\s]?ray|yankee|zulu)\b/gi
+    const _airlineName = /\b(?:philippine|cebu|cathay|emirates|coolred|airphil|dynasty|jetstar|soriano|maharlika|medevac|sunlight|blue\s*jay|gulf\s*air|china|korean|singapore|japan|thai|malaysia|xiamen|qatari|scoot|allnippon|airblue)\b/i
+    const hasCallsignWithLetters =
+      _airlineName.test(line.text) &&
+      ((line.text.match(_phoneticToken) || []).length >= 2)
+
+    const hasCallsign =
+      CALLSIGN_IN_TEXT_RE.test(line.text) ||   // ICAO numeric: PAL456, CEB1113
+      CALLSIGN_SPOKEN_RE.test(line.text) ||    // spoken: PHILIPPINE four two eight
+      PH_REGISTRATION_RE.test(line.text) ||    // registration: RP-C1234
+      hasCallsignWithLetters                   // phonetic-letter: Cebu fife Juliet one two tree
+    if (!hasCallsign) {
       errors.push({
         line: line.lineNumber,
         original: line.rawText,
@@ -2428,162 +2876,17 @@ function detectStructuralIssues(line: ParsedLine, allLines: ParsedLine[]): Phras
     }
   }
 
-  // Check for incomplete readbacks
-  if (line.speaker === 'PILOT') {
-    const atcInstruction = findPrecedingATCInstruction(line.lineNumber, allLines)
-    if (atcInstruction) {
-      const readbackErrors = checkReadbackCompleteness(atcInstruction, line)
-      errors.push(...readbackErrors)
-    }
-  }
+  // NOTE: Incomplete readback detection has been removed from this function.
+  // It is handled correctly by generateExchangePairErrors() which uses the semantic
+  // analyzer. The old checkReadbackCompleteness() approach used findPrecedingATCInstruction()
+  // with text line numbers as array indices — causing every pilot line to be evaluated
+  // against the WRONG ATC instruction (off by the number of blank lines stripped from the
+  // array). This produced systematically false "Incomplete readback - missing: heading,
+  // turn direction" errors that drove the ICAO score to 13% and safety score to 0%.
 
   return errors
 }
 
-function findPrecedingATCInstruction(pilotLineNum: number, lines: ParsedLine[]): ParsedLine | null {
-  for (let i = pilotLineNum - 2; i >= 0; i--) {
-    if (lines[i]?.speaker === 'ATC') {
-      return lines[i]
-    }
-  }
-  return null
-}
-
-function checkReadbackCompleteness(atcLine: ParsedLine, pilotLine: ParsedLine): PhraseologyError[] {
-  const errors: PhraseologyError[] = []
-
-  // NOTE: "Roger" detection is now handled by generateExchangePairErrors()
-  // This function only checks for missing specific elements in otherwise valid readbacks
-
-  // Skip if pilot only used improper acknowledgment without actual readback content
-  // Simple check: if response is very short (≤4 words), it's likely just "Roger" or "Roger, callsign"
-  const hasImproperAck = /\b(roger|copied|copy|ok|okay|understood|got\s+it|wilco)\b/i.test(pilotLine.text)
-  const wordCount = pilotLine.text.trim().split(/\s+/).length
-  const isShortResponse = wordCount <= 4
-
-  if (hasImproperAck && isShortResponse) {
-    return errors // Exchange pair analysis will handle improper acknowledgments
-  }
-
-  for (const req of READBACK_REQUIREMENTS) {
-    if (req.instruction.test(atcLine.text)) {
-      const missingElements: string[] = []
-      const atcInstruction = atcLine.text
-
-      // Check altitude readback - now handles spelled-out numbers
-      if (req.mustReadback.includes('altitude/FL')) {
-        const atcHasAltitude = /\b(flight\s+level|FL\s*\d|\d{3,5}|one\s+zero\s+zero|two\s+zero\s+zero|three\s+zero\s+zero|one\s+one\s+zero|niner\s+zero|eight\s+zero|seven\s+zero|six\s+zero|five\s+zero|four\s+zero|altitude\s+\d)/i.test(atcInstruction)
-        if (atcHasAltitude) {
-          const pilotHasAltitude = /\b(flight\s+level|FL\s*\d|\d{3,5}|one\s+zero\s+zero|two\s+zero\s+zero|three\s+zero\s+zero|one\s+one\s+zero|niner\s+zero|eight\s+zero|seven\s+zero|six\s+zero|five\s+zero|four\s+zero|level|altitude)/i.test(pilotLine.text)
-          if (!pilotHasAltitude) {
-            missingElements.push('altitude/flight level')
-          }
-        }
-      }
-
-      // Check heading readback - handles spelled-out numbers
-      if (req.mustReadback.includes('heading')) {
-        const atcHasHeading = /\bheading\s+(\d{1,3}|zero|one|two|three|four|five|six|seven|eight|niner)/i.test(atcInstruction)
-        if (atcHasHeading) {
-          const pilotHasHeading = /\bheading\s+(\d{1,3}|zero|one|two|three|four|five|six|seven|eight|niner)/i.test(pilotLine.text)
-          if (!pilotHasHeading) {
-            missingElements.push('heading')
-          }
-        }
-      }
-
-      // Check turn direction
-      if (req.mustReadback.includes('direction')) {
-        const atcHasDirection = /\b(turn\s+)?(left|right)\b/i.test(atcInstruction)
-        if (atcHasDirection) {
-          const pilotHasDirection = /\b(left|right)\b/i.test(pilotLine.text)
-          if (!pilotHasDirection) {
-            missingElements.push('turn direction')
-          }
-        }
-      }
-
-      // Check runway readback
-      if (req.mustReadback.includes('runway')) {
-        const atcRunwayMatch = atcLine.text.match(/runway\s+(\d{1,2}[LRC]?)/i)
-        if (atcRunwayMatch && !pilotLine.text.match(/runway\s+\d{1,2}[LRC]?/i)) {
-          missingElements.push('runway')
-        }
-      }
-
-      // Check frequency readback
-      if (req.mustReadback.includes('frequency')) {
-        const atcFreqMatch = atcLine.text.match(/(\d{3}\.\d{1,3})/i)
-        if (atcFreqMatch && !pilotLine.text.match(/\d{3}\.\d{1,3}/i)) {
-          missingElements.push('frequency')
-        }
-      }
-
-      if (missingElements.length > 0) {
-        const expectedReadback = buildCorrectReadback(atcInstruction, pilotLine.text)
-        errors.push({
-          line: pilotLine.lineNumber,
-          original: pilotLine.rawText,
-          issue: `Incomplete readback - missing: ${missingElements.join(', ')}`,
-          suggestion: `${req.severity === 'mandatory' ? 'MANDATORY' : 'Recommended'}: Read back ${missingElements.join(', ')} to confirm instructions`,
-          severity: req.severity === 'mandatory' ? 'high' : 'medium',
-          category: 'structure',
-          safetyImpact: 'safety',
-          icaoReference: 'ICAO Doc 4444 Section 12.3.1.5 (Readback Requirements)',
-          explanation: `ATC instructions containing ${missingElements.join(', ')} MUST be read back to ensure the pilot understood correctly. "${req.description}"`,
-          whyItMatters: 'Incomplete readbacks prevent controllers from catching misunderstandings before they become dangerous situations.',
-          correctExample: expectedReadback,
-        })
-      }
-    }
-  }
-
-  return errors
-}
-
-// Build a correct readback example from ATC instruction
-function buildCorrectReadback(atcInstruction: string, pilotResponse: string): string {
-  const parts: string[] = []
-
-  // Extract climb/descend
-  const climbDescend = atcInstruction.match(/\b(climb|descend)\s+(and\s+)?maintain\b/i)
-  if (climbDescend) {
-    parts.push(climbDescend[0])
-  }
-
-  // Extract flight level/altitude
-  const flMatch = atcInstruction.match(/\bflight\s+level\s+(one|two|three|four|five|six|seven|eight|niner|zero|\d)+(\s+(one|two|three|four|five|six|seven|eight|niner|zero|\d)+)*/i)
-  const altMatch = atcInstruction.match(/\b\d{3,5}\s*(feet|ft)?\b/i)
-  if (flMatch) {
-    parts.push(flMatch[0])
-  } else if (altMatch) {
-    parts.push(altMatch[0])
-  }
-
-  // Extract turn direction and heading
-  const turnMatch = atcInstruction.match(/\bturn\s+(left|right)\b/i)
-  const headingMatch = atcInstruction.match(/\bheading\s+(one|two|three|four|five|six|seven|eight|niner|zero|\d)+(\s+(one|two|three|four|five|six|seven|eight|niner|zero|\d)+)*/i)
-  if (turnMatch) {
-    parts.push(turnMatch[0])
-  }
-  if (headingMatch) {
-    parts.push(headingMatch[0])
-  }
-
-  // Extract callsign from pilot response or ATC instruction
-  const callsignMatch = pilotResponse.match(/\b(PAL|CEB|AXN|APG)\s*\d+\b/i) || atcInstruction.match(/\b(PAL|CEB|AXN|APG)\s*\d+\b/i)
-  const callsign = callsignMatch ? callsignMatch[0] : '[CALLSIGN]'
-
-  if (parts.length === 0) {
-    return `"[Read back all instructions], ${callsign}"`
-  }
-
-  return `"${parts.join(', ')}, ${callsign}"`
-}
-
-function normalizeAltitude(alt: string): string {
-  return alt.replace(/\s+/g, '').toUpperCase()
-}
 
 function detectSafetyCriticalIssues(line: ParsedLine): PhraseologyError[] {
   const errors: PhraseologyError[] = []
@@ -2615,11 +2918,12 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
   // Extract commands using patterns
   const extractedCommands = extractCommandsFromText(line.text)
 
-  // Check for altitude transposition risks
-  if (extractedCommands.some(cmd => cmd.includes('climb') || cmd.includes('descend'))) {
+  // Check for altitude transposition risks — only when numbers are written as digits
+  // (PAEC corpus uses spelled-out numbers, so \d+ avoids false positives on spoken text)
+  if (line.speaker === 'ATC' &&
+      extractedCommands.some(cmd => cmd.includes('climb') || cmd.includes('descend'))) {
     const altMatch = line.text.match(/(\d)\s*(\d)\s*(thousand|hundred)/i)
     if (altMatch) {
-      // Flag potential transposition risk
       errors.push({
         line: line.lineNumber,
         original: line.rawText,
@@ -2633,66 +2937,69 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
     }
   }
 
-  // Check for proper descent/climb phraseology
-  if (/descend\s+to\b/i.test(line.text) && !/descend\s+(and\s+)?maintain/i.test(line.text)) {
-    errors.push({
-      line: line.lineNumber,
-      original: line.rawText,
-      issue: 'Incomplete descent instruction',
-      suggestion: 'Use "DESCEND AND MAINTAIN [altitude]" for standard phraseology',
-      severity: 'medium',
-      category: 'procedure',
-      safetyImpact: 'clarity',
-      icaoReference: 'ICAO Doc 4444 Section 12.3.1',
-      explanation: 'Based on ATCO2 corpus analysis: Standard phraseology requires explicit "AND MAINTAIN" to confirm target altitude.',
-    })
-  }
+  // "And maintain" check — only applies to ATC instructions, NOT pilot readbacks.
+  // Pilot readbacks do not need to mirror the exact ATC wording; confirming the
+  // altitude (e.g. "climbing flight level 250") is acceptable per ICAO.
+  if (line.speaker === 'ATC') {
+    if (/descend\s+to\b/i.test(line.text) && !/descend\s+(to\s+)?(and\s+)?maintain/i.test(line.text)) {
+      errors.push({
+        line: line.lineNumber,
+        original: line.rawText,
+        issue: 'Incomplete descent instruction',
+        suggestion: 'Use "DESCEND AND MAINTAIN [altitude]" for standard phraseology',
+        severity: 'low',
+        category: 'procedure',
+        safetyImpact: 'clarity',
+        icaoReference: 'ICAO Doc 4444 Section 12.3.1',
+        explanation: 'Standard phraseology requires explicit "AND MAINTAIN" to confirm target altitude.',
+      })
+    }
 
-  if (/climb\s+to\b/i.test(line.text) && !/climb\s+(and\s+)?maintain/i.test(line.text)) {
-    errors.push({
-      line: line.lineNumber,
-      original: line.rawText,
-      issue: 'Incomplete climb instruction',
-      suggestion: 'Use "CLIMB AND MAINTAIN [altitude]" for standard phraseology',
-      severity: 'medium',
-      category: 'procedure',
-      safetyImpact: 'clarity',
-      icaoReference: 'ICAO Doc 4444 Section 12.3.1',
-      explanation: 'ATCOSIM corpus pattern: European ATC consistently uses "CLIMB FLIGHT LEVEL [XXX]" format.',
-    })
-  }
-
-  // Check for missing "and maintain" in altitude instructions
-  if (/(descend|climb)\s+\d+/i.test(line.text) && !/maintain/i.test(line.text)) {
-    errors.push({
-      line: line.lineNumber,
-      original: line.rawText,
-      issue: 'Missing "MAINTAIN" in altitude instruction',
-      suggestion: 'Standard phraseology requires "AND MAINTAIN" after climb/descend',
-      severity: 'medium',
-      category: 'procedure',
-    })
+    // "climb to and maintain" IS valid ICAO phraseology — only flag when there's
+    // genuinely no "maintain" at all after the "climb to" fragment.
+    if (/climb\s+to\b/i.test(line.text) && !/climb\s+(to\s+)?(and\s+)?maintain/i.test(line.text)) {
+      errors.push({
+        line: line.lineNumber,
+        original: line.rawText,
+        issue: 'Incomplete climb instruction',
+        suggestion: 'Use "CLIMB AND MAINTAIN [altitude]" for standard phraseology',
+        severity: 'low',
+        category: 'procedure',
+        safetyImpact: 'clarity',
+        icaoReference: 'ICAO Doc 4444 Section 12.3.1',
+        explanation: 'Standard phraseology requires "CLIMB AND MAINTAIN" to confirm target altitude.',
+      })
+    }
   }
 
   // ============================================================================
   // ENHANCED SEPARATION INSTRUCTION DETECTION (From ATCOSIM)
   // ============================================================================
 
-  // Check for separation instructions (common in ATCOSIM dataset)
-  if (/for\s+separation/i.test(line.text)) {
-    // Verify complete separation instruction format
-    if (!/turn\s+(left|right).*for\s+separation/i.test(line.text) &&
-        !/for\s+separation\s+turn\s+(left|right)/i.test(line.text)) {
+  // Check for separation instructions — only on ATC lines.
+  // Valid forms per ICAO Doc 4444 Chapter 8:
+  //   "turn left/right [heading XXX] for separation"
+  //   "expedite climb/descent for separation"
+  //   "maintain [heading/altitude] for separation"
+  //   "climb/descend [level] for separation"
+  if (line.speaker === 'ATC' && /for\s+separation/i.test(line.text)) {
+    const hasValidSeparationForm =
+      /turn\s+(left|right)/i.test(line.text) ||           // turn with direction
+      /expedite\s+(climb|descent)/i.test(line.text) ||    // expedite climb/descent
+      /maintain\s+(heading|\d)/i.test(line.text) ||       // maintain heading/altitude
+      /\b(climb|descend|descending|climbing)\b/i.test(line.text) // altitude change
+
+    if (!hasValidSeparationForm) {
       errors.push({
         line: line.lineNumber,
         original: line.rawText,
         issue: 'Incomplete separation instruction format',
-        suggestion: 'Use "TURN LEFT/RIGHT HEADING [XXX] FOR SEPARATION"',
+        suggestion: 'Use "TURN LEFT/RIGHT HEADING [XXX] FOR SEPARATION" or "EXPEDITE CLIMB/DESCENT FOR SEPARATION"',
         severity: 'medium',
         category: 'procedure',
         safetyImpact: 'safety',
         icaoReference: 'ICAO Doc 4444 Chapter 8',
-        explanation: 'ATCOSIM analysis shows separation instructions require explicit direction and heading.',
+        explanation: 'Separation instructions must specify the action (turn direction, altitude change, or expedite) to be unambiguous.',
       })
     }
   }
@@ -2760,20 +3067,28 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
     }
   }
 
-  // Check for proper approach clearance format
-  if (/cleared\s+(ils|rnav|vor|visual|ndb)/i.test(line.text) && !/approach/i.test(line.text)) {
+  // Check for proper approach clearance format — ATC lines only.
+  // Pilot readbacks don't need to say "approach" a second time if the type was given.
+  if (line.speaker === 'ATC' &&
+      /cleared\s+(ils|rnav|vor|visual|ndb)/i.test(line.text) &&
+      !/approach/i.test(line.text)) {
     errors.push({
       line: line.lineNumber,
       original: line.rawText,
       issue: 'Incomplete approach clearance',
-      suggestion: 'Include "APPROACH" after the approach type (e.g., "CLEARED ILS APPROACH")',
-      severity: 'low',
+      suggestion: 'Include "APPROACH" after the approach type (e.g., "CLEARED ILS APPROACH RUNWAY XX")',
+      severity: 'medium',
       category: 'procedure',
+      safetyImpact: 'clarity',
+      icaoReference: 'ICAO Doc 4444 §8.9.3',
+      explanation: 'ICAO standard clearance format: "CLEARED [type] APPROACH RUNWAY [designator]".',
     })
   }
 
-  // Check for vectoring phraseology
-  if (/vector/i.test(line.text) && !/vectoring\s+(for|to)/i.test(line.text)) {
+  // Check for vectoring phraseology — ATC lines only.
+  if (line.speaker === 'ATC' &&
+      /vector/i.test(line.text) &&
+      !/vectoring\s+(for|to)/i.test(line.text)) {
     errors.push({
       line: line.lineNumber,
       original: line.rawText,
@@ -2781,20 +3096,24 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
       suggestion: 'Use "VECTORING FOR [approach type] APPROACH" or "VECTORING TO [waypoint]"',
       severity: 'low',
       category: 'procedure',
+      safetyImpact: 'clarity',
+      icaoReference: 'ICAO Doc 4444 §8.9.1',
     })
   }
 
-  // Check Philippine waypoint usage
-  const waypointMentioned = PHILIPPINE_WAYPOINTS.some(wp =>
-    new RegExp(`\\b${wp}\\b`, 'i').test(line.text)
-  )
+  // ── Philippine waypoint check (informational — no error pushed) ──────────
+  PHILIPPINE_WAYPOINTS.some(wp => new RegExp(`\\b${wp}\\b`, 'i').test(line.text))
 
   // ============================================================================
   // ENHANCED HEADING INSTRUCTION DETECTION
   // ============================================================================
 
-  // Check for direction in turn instructions
-  if (/turn\s+heading/i.test(line.text) && !/turn\s+(left|right)\s+heading/i.test(line.text)) {
+  // "Turn heading" without left/right direction is safety-critical — a pilot
+  // cannot safely execute a turn without knowing which way to turn.
+  // Gate to ATC lines: pilot readbacks may omit "turn" and just say the direction.
+  if (line.speaker === 'ATC' &&
+      /turn\s+heading/i.test(line.text) &&
+      !/turn\s+(left|right)\s+heading/i.test(line.text)) {
     errors.push({
       line: line.lineNumber,
       original: line.rawText,
@@ -2803,8 +3122,8 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
       severity: 'medium',
       category: 'procedure',
       safetyImpact: 'clarity',
-      icaoReference: 'ICAO Doc 4444 Section 12.3.2',
-      explanation: 'ATCOSIM patterns show all heading instructions include explicit LEFT/RIGHT direction.',
+      icaoReference: 'ICAO Doc 4444 §12.3.2',
+      explanation: 'Without left/right, the turn direction is ambiguous. Standard phraseology requires "TURN LEFT/RIGHT HEADING".',
     })
   }
 
@@ -2904,82 +3223,21 @@ function analyzeReadbacks(lines: ParsedLine[]): ReadbackAnalysis {
       continue
     }
 
-    // =========================================================================
-    // ENHANCED VALIDATION
-    // =========================================================================
-
-    // Extract command type from ATC instruction
-    const extractedCmds = extractCommandsFromText(line.text)
-    let isComplete = true
-    const missing: string[] = []
-
-    // Use enhanced validation if we detected a command type
-    if (extractedCmds.length > 0) {
-      for (const cmd of extractedCmds) {
-        // Determine instruction type from command string
-        let instructionType = 'unknown'
-        if (cmd.includes('climb') || cmd.includes('descend')) instructionType = 'altitude'
-        else if (cmd.includes('heading')) instructionType = 'heading'
-        else if (cmd.includes('squawk')) instructionType = 'squawk'
-        else if (cmd.includes('contact')) instructionType = 'frequency'
-
-        // Use the validateReadback function
-        const validation = validateReadback(line.text, pilotResponse.text, instructionType)
-
-        if (!validation.isValid) {
-          isComplete = false
-          missing.push(...validation.errors)
-
-          // Calculate enhanced severity based on context
-          const context = { phase: 'departure' }
-          const enhancedSeverity = calculateEnhancedSeverity(context, instructionType)
-
-          // Use enhanced severity to add context to missing elements
-          if (enhancedSeverity === 'critical' || enhancedSeverity === 'high') {
-            missing.push(`[${enhancedSeverity.toUpperCase()}] Readback validation failed`)
-          }
-
-          // Check against READBACK_REQUIREMENTS for more specific feedback
-          const validationRule = READBACK_REQUIREMENTS.find(v => v.instructionType === instructionType)
-          if (validationRule) {
-            // Check if required elements are present
-            for (const element of validationRule.requiredElements) {
-              if (!pilotResponse.text.toLowerCase().includes(element.toLowerCase())) {
-                missing.push(`Missing: ${element}`)
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Fall back to original validation if no commands extracted
-    if (extractedCmds.length === 0) {
-      for (const req of READBACK_REQUIREMENTS) {
-        if (req.instruction.test(line.text)) {
-          for (const element of req.mustReadback) {
-            if (!hasElement(pilotResponse.text, element, line.text)) {
-              isComplete = false
-              missing.push(element)
-            }
-          }
-        }
-      }
-    }
-
-    if (missing.length > 0) {
-      missingElements.push({
-        line: pilotResponse.lineNumber,
-        instruction: line.text.substring(0, 50),
-        missing: Array.from(new Set(missing)), // Remove duplicates
-        severity: isComplete ? 'recommended' : 'mandatory',
-      })
-    }
-
-    if (isComplete) {
+    // Use the semantic-analyzer-backed evaluateReadbackQuality for accurate scoring.
+    // This is the same function used by buildExchangePairs — both now produce consistent
+    // results. The old validateReadback/hasElement pipeline has been removed because it
+    // did not call the semantic analyzer and produced systematically wrong scores.
+    const quality = evaluateReadbackQuality(line, pilotResponse, 'auto')
+    if (quality === 'complete') {
       completeReadbacks++
     } else {
       incompleteReadbacks++
+      missingElements.push({
+        line: pilotResponse.lineNumber,
+        instruction: line.text.substring(0, 50),
+        missing: [quality === 'partial' ? 'Incomplete readback' : 'Missing readback'],
+        severity: 'recommended',
+      })
     }
   }
 
@@ -2996,70 +3254,12 @@ function analyzeReadbacks(lines: ParsedLine[]): ReadbackAnalysis {
   }
 }
 
-function hasElement(text: string, element: string, atcInstruction: string): boolean {
-  // Normalize spelled-out numbers for better matching
-  const normalizedText = normalizeSpelledNumbers(text)
-  const spelledNumberPattern = /\b(one|two|three|four|five|six|seven|eight|nine|niner|zero)\b/i
-
-  switch (element) {
-    case 'altitude/FL':
-      // Check for digits, FL, flight level, or spelled-out numbers in altitude context
-      return /\d{3,5}|FL\s*\d{2,3}|flight\s*level/i.test(text) ||
-             /flight\s*level/i.test(text) ||
-             (/\b(climb|descend|maintain|altitude|level)\b/i.test(text) && spelledNumberPattern.test(text))
-    case 'heading':
-      // Check for "heading" followed by digits OR spelled numbers
-      return /heading\s+\d{1,3}/i.test(text) ||
-             /heading\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)/i.test(text) ||
-             (/heading/i.test(normalizedText) && /\d{1,3}/.test(normalizedText))
-    case 'direction':
-      return /(left|right)/i.test(text)
-    case 'runway':
-      return /runway\s+\d{1,2}/i.test(text) ||
-             /runway\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)/i.test(text)
-    case 'callsign':
-      return PHILIPPINE_CALLSIGNS.some(cs => text.toUpperCase().includes(cs)) ||
-             /RP-?C?\d+/i.test(text) ||
-             /\b(PAL|CEB|APG|GAP|RPC|SRQ)\s*\d{2,4}\b/i.test(text)
-    case 'frequency':
-      return /\d{3}[.\s]\d{1,3}/i.test(text) ||
-             /\d{3}/.test(normalizedText)
-    case 'squawk code':
-      return /squawk\s+\d{4}/i.test(text) ||
-             /\d{4}/.test(normalizedText) ||
-             (/squawk/i.test(text) && spelledNumberPattern.test(text))
-    case 'approach type':
-      return /(ils|rnav|vor|visual|ndb)/i.test(text)
-    case 'cleared for takeoff':
-      return /cleared\s+(for\s+)?take\s*off/i.test(text)
-    case 'cleared to land':
-      return /cleared\s+(to\s+)?land/i.test(text)
-    case 'hold short':
-      return /hold\s*short/i.test(text)
-    case 'line up and wait':
-      return /line\s*up\s*(and\s+)?wait/i.test(text)
-    case 'cross':
-      return /cross/i.test(text)
-    case 'facility':
-      return PHILIPPINE_FACILITIES.some(f => text.toLowerCase().includes(f.toLowerCase())) ||
-             /\w+\s+(approach|tower|ground|departure)/i.test(text)
-    case 'altimeter setting':
-      return /\d{4}/i.test(text) ||
-             /altimeter/i.test(text) ||
-             spelledNumberPattern.test(text)
-    case 'speed':
-      return /\d+\s*knots?/i.test(text) ||
-             (spelledNumberPattern.test(text) && /knots?/i.test(text))
-    default:
-      return true
-  }
-}
 
 // ============================================================================
 // SAFETY METRICS
 // ============================================================================
 
-function calculateSafetyMetrics(lines: ParsedLine[], errors: PhraseologyError[]): SafetyMetrics {
+function calculateSafetyMetrics(lines: ParsedLine[], errors: PhraseologyError[], exchangeCount: number): SafetyMetrics {
   const safetyCriticalPhrases: SafetyCriticalDetection[] = []
 
   for (const line of lines) {
@@ -3076,14 +3276,20 @@ function calculateSafetyMetrics(lines: ParsedLine[], errors: PhraseologyError[])
   }
 
   const criticalIssues = errors.filter(e => e.severity === 'high' && e.safetyImpact === 'safety').length
-  const highSeverityIssues = errors.filter(e => e.severity === 'high').length
+  // Non-critical highs only — criticalIssues already counted separately above to avoid double-penalizing
+  const highSeverityIssues = errors.filter(e => e.severity === 'high' && e.safetyImpact !== 'safety').length
   const mediumSeverityIssues = errors.filter(e => e.severity === 'medium').length
   const lowSeverityIssues = errors.filter(e => e.severity === 'low').length
 
-  // Calculate safety score (0-100)
-  const totalErrors = errors.length
-  const weightedScore = (criticalIssues * 20) + (highSeverityIssues * 10) + (mediumSeverityIssues * 5) + (lowSeverityIssues * 2)
-  const overallSafetyScore = Math.max(0, 100 - weightedScore)
+  // Calculate safety score (0-100) — density-based to prevent long transcripts from flooring at 0.
+  // Low errors don't affect safety; only critical/high/medium errors are weighted.
+  const n = Math.max(exchangeCount, 1)
+  const safetyFactor = Math.min(1.0,
+    (criticalIssues  / n) * 2.0 +
+    (highSeverityIssues / n) * 1.2 +
+    (mediumSeverityIssues / n) * 0.3
+  )
+  const overallSafetyScore = Math.round(Math.max(0, (1 - safetyFactor) * 100))
 
   return {
     criticalIssues,
@@ -3144,7 +3350,10 @@ function calculateRiskLevel(
     return 'medium'
   }
 
-  if (errors.length > 10 || readbackAnalysis.completenessScore < 75) {
+  // Exclude low-severity errors (e.g. number-pronunciation) from this threshold —
+  // 102 pronunciation flags shouldn't elevate risk when there are no real errors.
+  const significantErrors = errors.filter(e => e.severity !== 'low')
+  if (significantErrors.length > 10 || readbackAnalysis.completenessScore < 75) {
     return 'medium'
   }
 
@@ -3199,12 +3408,12 @@ function categorizeLanguageErrors(errors: PhraseologyError[]): ErrorDetail[] {
   }))
 }
 
-function categorizeNumberErrors(errors: PhraseologyError[], text: string): ErrorDetail[] {
+function categorizeNumberErrors(errors: PhraseologyError[], _text: string): ErrorDetail[] {
   const categories: Record<string, number> = {
     'Altitude mismatch': 0,
     'Heading errors': 0,
     'Speed discrepancy': 0,
-    'Callsign variation': 0,
+    'Pronunciation notes': 0,
     'Squawk errors': 0,
   }
 
@@ -3219,7 +3428,7 @@ function categorizeNumberErrors(errors: PhraseologyError[], text: string): Error
       } else if (error.issue.toLowerCase().includes('squawk')) {
         categories['Squawk errors']++
       } else if (error.issue.toLowerCase().includes('pronunciation')) {
-        categories['Callsign variation']++
+        categories['Pronunciation notes']++
       }
     }
   }
@@ -3242,7 +3451,8 @@ function generateComprehensiveSummary(
   readbackAnalysis: ReadbackAnalysis,
   safetyMetrics: SafetyMetrics,
   corpusType: string,
-  totalWords: number
+  totalWords: number,
+  exchangeCount: number
 ): AnalysisSummary {
   const keyFindings: string[] = []
   const recommendations: string[] = []
@@ -3302,18 +3512,20 @@ function generateComprehensiveSummary(
     recommendations.push('Review APP/DEP procedures: climb/descend phraseology, approach clearances, vectoring')
   }
 
-  // Calculate compliance score
-  const errorPenalty =
-    (safetyMetrics.criticalIssues * 15) +
-    (safetyMetrics.highSeverityIssues * 8) +
-    (safetyMetrics.mediumSeverityIssues * 3) +
-    (safetyMetrics.lowSeverityIssues * 1)
-
-  const readbackPenalty = readbackAnalysis.totalInstructions > 0
-    ? Math.max(0, (100 - readbackAnalysis.completenessScore) / 2)
-    : 0
-
-  const overallCompliance = Math.max(0, Math.round(100 - errorPenalty - readbackPenalty))
+  // Calculate compliance score — density-based formula to normalize for transcript length.
+  // Absolute error counts are divided by exchange count before weighting, so a 30-exchange
+  // transcript with 100 number-pronunciation flags doesn't score worse than a 3-exchange one.
+  const ec = Math.max(exchangeCount, 1)
+  const complianceFactor = Math.min(1.0,
+    (safetyMetrics.criticalIssues  / ec) * 1.5 +
+    (safetyMetrics.highSeverityIssues / ec) * 1.0 +
+    (safetyMetrics.mediumSeverityIssues / ec) * 0.4 +
+    (safetyMetrics.lowSeverityIssues / ec) * 0.1
+  )
+  const readbackComponent = readbackAnalysis.completenessScore / 100
+  const overallCompliance = Math.round(
+    Math.max(0, (1 - complianceFactor) * 70 + readbackComponent * 30)
+  )
 
   // Default findings if none detected
   if (keyFindings.length === 0) {

@@ -1,0 +1,3879 @@
+{
+  "metadata": {
+    "version": "3.0",
+    "lastUpdated": "2026-02-28",
+    "description": "PAEC GND corpus — Ground control training pairs. Phases: ground, taxi."
+  },
+  "corpus": [
+    {
+      "atc": "PAL123, taxi to runway zero six via alpha, bravo",
+      "pilot": "Taxi runway zero six via alpha, bravo, PAL123",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "UAE789, hold short of runway zero six",
+      "pilot": "Hold short runway zero six, UAE789",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "SIA321, cross runway two four",
+      "pilot": "Cross runway two four, SIA321",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL123, runway zero six, line up and wait",
+      "pilot": "Line up and wait runway zero six, PAL123",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL123, runway zero six, cleared for takeoff, wind zero four zero at one zero",
+      "pilot": "Cleared for takeoff runway zero six, PAL123",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB456, runway two four, cleared for takeoff",
+      "pilot": "Cleared for takeoff runway two four, CEB456",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL123, runway zero six, cleared to land",
+      "pilot": "Cleared to land runway zero six, PAL123",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB456, runway two four, cleared to land, wind two one zero at one five",
+      "pilot": "Cleared to land runway two four, CEB456",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL789, runway zero six, line up and wait",
+      "pilot": "Cleared for takeoff runway zero six, PAL789",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "parameter_confusion",
+      "explanation": "CRITICAL: Confused line up and wait with takeoff clearance"
+    },
+    {
+      "atc": "CEB101, hold short of runway zero six",
+      "pilot": "Roger, CEB101",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "incomplete_readback",
+      "explanation": "CRITICAL: Hold short instructions must be read back completely"
+    },
+    {
+      "atc": "UAE222, runway zero six, cleared for takeoff",
+      "pilot": "Cleared for takeoff runway two four, UAE222",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "wrong_value",
+      "explanation": "CRITICAL: Wrong runway in takeoff clearance readback"
+    },
+    {
+      "atc": "SIA333, runway two four, cleared to land",
+      "pilot": "Cleared to land runway zero six, SIA333",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "wrong_value",
+      "explanation": "CRITICAL: Wrong runway in landing clearance readback"
+    },
+    {
+      "atc": "PAL444, runway zero six, cleared for takeoff",
+      "pilot": "Cleared for takeoff, PAL444",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "missing_element",
+      "explanation": "Missing runway in takeoff clearance readback"
+    },
+    {
+      "atc": "the ils for runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four one runway three one clear to land wind one seven zero degrees three kno",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up and wait runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "three four two six joining right hand downwind runway two five grass",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero seven one line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "baltu two bravo runway three one copied six six two three wizz air five nine one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we will taxi to sector blue when ready hotel charlie november",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "shamrock six four four runway three one clear to land wind zero six zero degrees and five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france three nine three victor line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa five seven three establish ils approach runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "donavia three zero five runway three one clear to land wind three three zero degrees and three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger when vacated runway con",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel six eight two taxi zulu bravo delta lima holding point ru",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "turkish three whiskey quebec taxi via echo and echo seven hold short of runway one six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "klm one three five one ruzyne tower good moorning runway three one clear to land wind one seven zero degrees three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa six three alfa approaching holding point runway three one and ready for departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "al five two two taxi straight ahead via bravo delta holding point runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we hold runway one three zero six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "touch and go runway two five hotel echo xray",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello britair nine zero two delta ruzyne tower roger line up runway three one line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "qality nine one romeo request taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero six one line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four delta romeo line up runway one three and wai",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "six mike alfa taxi via blueline hotel lima holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa five three seven runway one three clear to land wind zero six zero degrees",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa six romeo xray runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "cleared to oscar lima bravo alfa via one hotel departure squawk one four three three startup approve",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel delta lima via bravo then taxi your discretion blue sector if it is full green four is available",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "austrian seven zero six papa line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel whiskey alfa taxi to holding point bravo runway one four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "to land runway three one twin star eight eight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa one kilo k runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello easy five four nine eight ruzyne tower line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "zulu mike sierra four taxi right via delta contact ground one two one nine good bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "p and runway two two holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel six eight two ruzyne delivery startup approve",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa three mike zulu radar contact descend flight level one three zero expect vectoring for left curcuit runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to land runway three one speed bird four alfa charlie",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "finn air seven one six whiskey line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air portugal nine two six at kilo cross runway two eight then contact the apron one two one decimal seven five five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa six three bravo line up runway one three csa six three bravo line up",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we will report ready runway two two intersection romeo hold short three one bee line seven zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "pushback approved sky travel one one nine two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "change so continue present heading now vectoring for ils approach correction vectoring for vor dme approach runway three one lef",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "and runway one three clear to land wind zero three zero eight knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa eight lima l line up runway three one be ready for immediate departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear takeoff runway three one good day to you easy two five echo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero one zero roger line up runway three one and wait",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sion november seven one six alfa sierra alpine jet ready for taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger shamrock six four four continue approach for runway three one and contact tower one one eight decimal one bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa eight two nine on ils o runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one two zero one runway three one clear to land wind two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "el al five two two startup approved time four five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "prague ruzyne tower oscar kilo delta sierra juliett hello establish ils runway three one runway in sight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to land runway three one sky travel one two zero one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "beline six bravo november runway one three clear to land wind three five zero degrees seven knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa seven three one ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "stablished localizer ils runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "prague malev eight two one runway two two ready",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clearance to via baltu",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss air force five two one tower grutzi and runway three four and taxi left via lima holding point runway one zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "startup",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france one seven eight two runway three one clear to land wind one nine zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "praha tower good morning quality eight nine sierra request clearance to brno",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "emirates one four zero line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero three five clear of traffic turn left heading zero nine zero vectoring for left hand curcuit runway three one four five miles to go",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower csa six one eight good afternoon approaching holding point runway two four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "emirates one three nine taxi via foxtrot cross runway one two golf juliett stand one four alfa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four echo line up runway three one and wait number two for departure number one atr intersection romeo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three el al five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "red to land runway three one csa four yankee alfa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "the ils for runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four one runway three one clear to land wind one seven zero degrees three kno",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up and wait runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "three four two six joining right hand downwind runway two five grass",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero seven one line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "baltu two bravo runway three one copied six six two three wizz air five nine one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we will taxi to sector blue when ready hotel charlie november",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "shamrock six four four runway three one clear to land wind zero six zero degrees and five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france three nine three victor line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa five seven three establish ils approach runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "donavia three zero five runway three one clear to land wind three three zero degrees and three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger when vacated runway con",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel six eight two taxi zulu bravo delta lima holding point ru",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "turkish three whiskey quebec taxi via echo and echo seven hold short of runway one six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "klm one three five one ruzyne tower good moorning runway three one clear to land wind one seven zero degrees three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa six three alfa approaching holding point runway three one and ready for departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "al five two two taxi straight ahead via bravo delta holding point runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we hold runway one three zero six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "touch and go runway two five hotel echo xray",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello britair nine zero two delta ruzyne tower roger line up runway three one line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "qality nine one romeo request taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero six one line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four delta romeo line up runway one three and wai",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "six mike alfa taxi via blueline hotel lima holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa five three seven runway one three clear to land wind zero six zero degrees",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa six romeo xray runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "cleared to oscar lima bravo alfa via one hotel departure squawk one four three three startup approve",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel delta lima via bravo then taxi your discretion blue sector if it is full green four is available",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "austrian seven zero six papa line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel whiskey alfa taxi to holding point bravo runway one four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "to land runway three one twin star eight eight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa one kilo k runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello easy five four nine eight ruzyne tower line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "zulu mike sierra four taxi right via delta contact ground one two one nine good bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "p and runway two two holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel six eight two ruzyne delivery startup approve",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa three mike zulu radar contact descend flight level one three zero expect vectoring for left curcuit runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to land runway three one speed bird four alfa charlie",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "finn air seven one six whiskey line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air portugal nine two six at kilo cross runway two eight then contact the apron one two one decimal seven five five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa six three bravo line up runway one three csa six three bravo line up",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we will report ready runway two two intersection romeo hold short three one bee line seven zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "pushback approved sky travel one one nine two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "change so continue present heading now vectoring for ils approach correction vectoring for vor dme approach runway three one lef",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "and runway one three clear to land wind zero three zero eight knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa eight lima l line up runway three one be ready for immediate departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear takeoff runway three one good day to you easy two five echo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero one zero roger line up runway three one and wait",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sion november seven one six alfa sierra alpine jet ready for taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger shamrock six four four continue approach for runway three one and contact tower one one eight decimal one bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa eight two nine on ils o runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one two zero one runway three one clear to land wind two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "el al five two two startup approved time four five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "prague ruzyne tower oscar kilo delta sierra juliett hello establish ils runway three one runway in sight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to land runway three one sky travel one two zero one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "beline six bravo november runway one three clear to land wind three five zero degrees seven knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa seven three one ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "stablished localizer ils runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "prague malev eight two one runway two two ready",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clearance to via baltu",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss air force five two one tower grutzi and runway three four and taxi left via lima holding point runway one zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "startup",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france one seven eight two runway three one clear to land wind one nine zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "praha tower good morning quality eight nine sierra request clearance to brno",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "emirates one four zero line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero three five clear of traffic turn left heading zero nine zero vectoring for left hand curcuit runway three one four five miles to go",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower csa six one eight good afternoon approaching holding point runway two four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "emirates one three nine taxi via foxtrot cross runway one two golf juliett stand one four alfa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four echo line up runway three one and wait number two for departure number one atr intersection romeo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three el al five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "red to land runway three one csa four yankee alfa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jump run eight zero three vacate to the left taxi charlie alfa stand western apron",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tango two one three taxi to parking is approved",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "delta tango tango taxi via alfa echo six hold short of runway one six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel golf sierra after echo one join right hand base runway three two as number one and expect left hand circuit",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss one eight line up and wait runway one zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "confirm direct bohum for runway two two negative polom runway zero four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "german wings seven hotel clear takeoff runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "three one three ready for departure three one three roger line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lot five twenty eight ruzyne tower line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one clear to land csa four zero seven",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel bravo sierra charlie papa berne tower is it for startup or for taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss four seven two echo runway three one clear to land wind two one zero degrees eight knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "channex eight seven papa romeo to the left taxiway lima and contact ruzyne ground one two one decimal nine good bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one csa three zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four yankee alfa descend to flight level seven zero conntinue present heading vectoring for ils approach runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lining up runway three one csa five bravo b",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for runway three one for arrival",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france one zero eight two taxi via papa lima contact ground one two one decimal nine bye bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss four eight alfa november roger hello again ok line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one and",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa one romeo mike line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "nine two one taxi via foxtrot hotel juliett blue stand one nine",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "wizz air five nine one startup approved",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ceeding visually runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four four runway one three clea",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "may we use the runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "good evening turkish one seven seven zero ruzyne tower hold short of runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "descending four thousand established on ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "six zero five zero line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "the ils for runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four one runway three one clear to land wind one seven zero degrees three kno",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up and wait runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "three four two six joining right hand downwind runway two five grass",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero seven one line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "baltu two bravo runway three one copied six six two three wizz air five nine one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we will taxi to sector blue when ready hotel charlie november",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "shamrock six four four runway three one clear to land wind zero six zero degrees and five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france three nine three victor line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa five seven three establish ils approach runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "donavia three zero five runway three one clear to land wind three three zero degrees and three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger when vacated runway con",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel six eight two taxi zulu bravo delta lima holding point ru",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "turkish three whiskey quebec taxi via echo and echo seven hold short of runway one six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "klm one three five one ruzyne tower good moorning runway three one clear to land wind one seven zero degrees three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa six three alfa approaching holding point runway three one and ready for departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "al five two two taxi straight ahead via bravo delta holding point runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we hold runway one three zero six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "touch and go runway two five hotel echo xray",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello britair nine zero two delta ruzyne tower roger line up runway three one line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "qality nine one romeo request taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero six one line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four delta romeo line up runway one three and wai",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "six mike alfa taxi via blueline hotel lima holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa five three seven runway one three clear to land wind zero six zero degrees",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa six romeo xray runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "cleared to oscar lima bravo alfa via one hotel departure squawk one four three three startup approve",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel delta lima via bravo then taxi your discretion blue sector if it is full green four is available",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "austrian seven zero six papa line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel whiskey alfa taxi to holding point bravo runway one four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "to land runway three one twin star eight eight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa one kilo k runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello easy five four nine eight ruzyne tower line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "zulu mike sierra four taxi right via delta contact ground one two one nine good bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "p and runway two two holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel six eight two ruzyne delivery startup approve",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa three mike zulu radar contact descend flight level one three zero expect vectoring for left curcuit runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to land runway three one speed bird four alfa charlie",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "finn air seven one six whiskey line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air portugal nine two six at kilo cross runway two eight then contact the apron one two one decimal seven five five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 6 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa six three bravo line up runway one three csa six three bravo line up",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we will report ready runway two two intersection romeo hold short three one bee line seven zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "pushback approved sky travel one one nine two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "change so continue present heading now vectoring for ils approach correction vectoring for vor dme approach runway three one lef",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "and runway one three clear to land wind zero three zero eight knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa eight lima l line up runway three one be ready for immediate departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear takeoff runway three one good day to you easy two five echo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero one zero roger line up runway three one and wait",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 7 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sion november seven one six alfa sierra alpine jet ready for taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger shamrock six four four continue approach for runway three one and contact tower one one eight decimal one bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa eight two nine on ils o runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one two zero one runway three one clear to land wind two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "el al five two two startup approved time four five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "prague ruzyne tower oscar kilo delta sierra juliett hello establish ils runway three one runway in sight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to land runway three one sky travel one two zero one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "beline six bravo november runway one three clear to land wind three five zero degrees seven knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa seven three one ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 8 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "stablished localizer ils runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "prague malev eight two one runway two two ready",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clearance to via baltu",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss air force five two one tower grutzi and runway three four and taxi left via lima holding point runway one zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "startup",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france one seven eight two runway three one clear to land wind one nine zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "praha tower good morning quality eight nine sierra request clearance to brno",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 9 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "emirates one four zero line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero three five clear of traffic turn left heading zero nine zero vectoring for left hand curcuit runway three one four five miles to go",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower csa six one eight good afternoon approaching holding point runway two four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "emirates one three nine taxi via foxtrot cross runway one two golf juliett stand one four alfa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four echo line up runway three one and wait number two for departure number one atr intersection romeo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three el al five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "red to land runway three one csa four yankee alfa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 10 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jump run eight zero three vacate to the left taxi charlie alfa stand western apron",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tango two one three taxi to parking is approved",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "delta tango tango taxi via alfa echo six hold short of runway one six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 11 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel golf sierra after echo one join right hand base runway three two as number one and expect left hand circuit",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss one eight line up and wait runway one zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "confirm direct bohum for runway two two negative polom runway zero four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "german wings seven hotel clear takeoff runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "three one three ready for departure three one three roger line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 12 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lot five twenty eight ruzyne tower line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one clear to land csa four zero seven",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel bravo sierra charlie papa berne tower is it for startup or for taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss four seven two echo runway three one clear to land wind two one zero degrees eight knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 13 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "channex eight seven papa romeo to the left taxiway lima and contact ruzyne ground one two one decimal nine good bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one csa three zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four yankee alfa descend to flight level seven zero conntinue present heading vectoring for ils approach runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lining up runway three one csa five bravo b",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for runway three one for arrival",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france one zero eight two taxi via papa lima contact ground one two one decimal nine bye bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "swiss four eight alfa november roger hello again ok line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one and",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa one romeo mike line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "nine two one taxi via foxtrot hotel juliett blue stand one nine",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "wizz air five nine one startup approved",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ceeding visually runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four four runway one three clea",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 14 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "may we use the runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "good evening turkish one seven seven zero ruzyne tower hold short of runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "descending four thousand established on ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "six zero five zero line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 15 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "bline seven zero victor taxi left hotel lima holding point r",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel bravo charlie golf india taxi to blue station to fuel station approved from blue parking",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one csa two mike",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ready for clearance",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa six three four runway one three cle",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel golf papa continue on the runway vacate via charlie then taxi your discretion blue sector",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "just a question do you think there any chance to get runway two four for departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four nine turn right heading one nine five vectoring for ils approach runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower good morning two two two holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one bline nine nine zero ei",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "united one three five apron hello push back and startup is approved",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa six one nine runway one three clear to land wind zero nine zero degrees three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 16 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa three romeo kilo continue approach runway one three and contact tower one one eight one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 17 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "austrian seven zero three runway three one clear to land wind two zero zero degrees three knots clear land three one austrian seven zero three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 17 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero three eight runway three one clear to takeoff wind one three zero degrees and three knots good bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 17 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "expect right turn and expect left base leg runway three one ils approach",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 17 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "fully established on runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 17 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "two eight seven runway three one clear to land wind one seven zero degrees four knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 18 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "taxi to the right hotel lima holding point runway three one wizair five five six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 18 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower wizziar five five six stand five two request taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 18 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "limajet two four nine lima copy line up and wait runway two five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 18 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven three two zero so change of taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 18 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "slovak government zero zero four information mike time five seven qnh one zero zero eight cleared to kosice from runway one three via nitra one yankee departure initially climb altitude five thousand feet startup approved squawk six seven four six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 18 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven eight six line up runway three one line up three one csa seven eight si",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four mike bravo line up runway three one lining up runway three one csa four mike b",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero eight two tower runway one three clear to land wind zero two zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "straight ahead via bravo delta holding point runway one three el al five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven two six line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tristar eight eight seven descend five thousand feet qnh one zero two three continue present heading vectoring ils approach runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "v tango charlie alfa papa line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ing four zero call you established runway three one easy nine charlie lima",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 19 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa eight echo charlie runway one three clear to land wind zero ni eight zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 20 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "praha radar good morning bee line seven zero victor is climbing five thousand feet runway heading three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 20 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel golf oscar number two number one short final runway one four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 20 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "track is runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 20 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "heli charlie zulu wind two seven zero degrees nine knots crossing runway access five two two five landing on discretion",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 20 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway two two lima holding point runway three one or if you are able for in the tax",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 21 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "established ils runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 21 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one csa four eight zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 21 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 21 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one clear to land expediting vacating via golf csa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 21 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa five kilo papa runway one three clear to land wind zero one zero degrees six knots clear to land runway one three csa five kilo papa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 21 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero three six line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 21 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "taxiing zulu bravo delta holding point one three sky travel six eight two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "zyne tower csa three whiskey approaching holding runway three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to land runway one three csa five delta romeo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower csa seven nine zero can we take romeo taxiway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lux air five four eight two line up runway three one and wait",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "kilo one three five you can use runway two two and line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "copy continue to final runway one three csa five papa charlie",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 22 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "affirm runway two two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 23 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "november mike alfa expect the ils one four with romeo circling to runway three two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 23 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero three eight line up runway three one line up runway three one sky travel one zero three eight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 23 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower good aero flot one four four hold short runway zero se",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 23 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa nine seven one left taxiway lima and ground one two one decimal nine via lima and one two one decimal nine csa nine one seven",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 23 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one c",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 23 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "taxiways alfa one alfa delta holding point runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 23 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa six nine runway three one clear to land wind one seven zero degrees two knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven nine zero ruzyne tower roger taxi via romeo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "vacating runway two zero changing ground one two one nine",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "wizz air four romeo papa taxi papa lima golf",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "startup and",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "nor shuttle three five eight zero established ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three clear takeoff csa seven echo charlie",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "november alfa sierra line up runway two five",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower hello easy two five eight quebec taxiing holding point three one we fully ready",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "easy five three kilo romeo runway three one clear to land wind one eight zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 24 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "descend flight level one three zero direct after intercept llz runway three one csa eight two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four zero seven ruzyne tower runway three one clear",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa nine two three to the left taxiway lima and the ground one two one decimal nine",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa six zero five zero is ready for taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four one tower continue approach runway three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "nor shuttle one five one four continue present heading vectoring for ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to line up and takeoff runway one three q",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "affirm five two zero wizz air five three zero behind landing airbus three one nine short final line up runway three one behi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one zero three seven taxi via lima kilo hotel one stand tw",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "delta two one zero runway three one clear to land wind two zero zero degrees four knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "united one three five tower hello behind lufthansa line up runway two eight behind",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "eight three charlie zulu runway one three clear to land wind one two zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 25 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "eight runway three for departu",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa five three six roger line up runway one three line up runway one three cs",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "seven zero two line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "chanex eight eight papa romeo line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa seven echo lima runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower good morning quality four zero eight nine fully established on the runway zero nine",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa eight november echo line up runway three one and wai",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "continue present heading vectoring for runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven whiskey india line up runway three one lining up three one csa seven whiskey india",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 26 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "channex eight seven papa romeo runway one three clear to land wind zero two zero degrees five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "yes quality eight nine sierra we need to vacate the car from taxiway right of you now so when clear you can",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "so beline seven zero victor startup is approved information papa qnh one zero two three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "short of runway one three csa six one eight lin line up runway two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lot five two six hold short of runway one t",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one voz one bravo departure s",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three csa",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven three two two line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 27 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "one three nine establish now in the end runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "intercept localizer runway three one finn air eight five zero zero",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three clear to land csa seven three two three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four two behind landing atr short final line up runway three one be ready for immediate departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four delta romeo ruzyne tower hold short of runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger taxi to blue parking",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for takeoff runway three one csa seven six echo",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel bravo yankee juliett golf good afternoon behind you lining up pg twenty four line up runway two eight behind",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "calibra four zero runway three one clear to land wind one four zero degrees four knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa five yankee victor clear to land runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "taxi to stand six three via golf csa nine seven",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 28 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven three two runway three one clear to land wind one seven zero degrees two knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ryan air seven romeo mike route reaching and holding runway two four we are ready for departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel zulu mike sierra four ruzyne tower good morning runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "tower csa seven two six holding position runway one three csa seven two six ok ready",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven alfa juliett runway one three clear to land wind zero eight zero degrees six knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sierra november expect landing clearance shortly traffic on the runways departing three top on to the west",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "clear to line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lining up on runway one three opera jet three zero zero confirm no back track required",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three clear to land csa seven alfa juli",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 29 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "information oscar correct after passing gosek set heading zero five zero for vectoring ils runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one have a nice day madame beline seven zero victor bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway one three for departure and follow one hotel squawk one four four seven startup approved sky travel six eight two",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel one two zero zero line up runway three one be ready for immediate departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "united one three five behind lufthansa line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "n ar land runway one three beline six bravo november",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "expect runway three one for departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "confirm need to backtrack yes wah we need to backtrack runway one three air france one nine eight r",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france one nine eight romeo now expedite cross runway one three continue via delta to hold short of runway two four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven three charlie runway three one three clear to land wind zero two zero degrees nine knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa seven six four line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 30 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "CEB654 hold short runway zero six",
+      "pilot": "Hold short zero six CEB654",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL777 position and hold runway zero six",
+      "pilot": "Position and hold zero six PAL777",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB888 taxi via alpha bravo hold short runway two four",
+      "pilot": "Alpha bravo hold short two four CEB888",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL246 hold short runway zero six",
+      "pilot": "Holding runway zero six PAL246",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "missing_element",
+      "explanation": "Missing short - critical safety error"
+    },
+    {
+      "atc": "CEB135 runway two four line up and wait",
+      "pilot": "Cleared takeoff two four CEB135",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "parameter_confusion",
+      "explanation": "CRITICAL: Confused lineup with takeoff"
+    },
+    {
+      "atc": "CEB357 taxi via bravo charlie to runway two four",
+      "pilot": "Via bravo CEB357",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "missing_element",
+      "explanation": "Missing taxi route elements"
+    },
+    {
+      "atc": "PAL753 cross runway zero six report vacated",
+      "pilot": "Roger PAL753",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "incomplete_readback",
+      "explanation": "Runway crossing requires full readback"
+    },
+    {
+      "atc": "PAL nine nine nine report ready to copy",
+      "pilot": "Ready to copy PAL nine nine nine",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB one zero one pushback and start approved face south",
+      "pilot": "Pushback start approved facing south CEB one zero one",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL two zero two give way to Boeing 777 from your right",
+      "pilot": "Giving way traffic right PAL two zero two",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL113 hold short runway zero six",
+      "pilot": "Hold short zero six PAL113",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL114 taxi via alpha bravo to runway two four",
+      "pilot": "Alpha bravo to two four PAL114",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL119 line up and wait runway two four",
+      "pilot": "Line up wait two four PAL119",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB212 hold short runway two two",
+      "pilot": "Hold short two two CEB212",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB213 taxi via charlie delta to runway two two",
+      "pilot": "Charlie delta to two two CEB213",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL210 hold short runway zero six",
+      "pilot": "Roger PAL210",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "incomplete_readback",
+      "explanation": "CRITICAL: Hold short requires full readback"
+    },
+    {
+      "atc": "PAL211 line up and wait runway two four",
+      "pilot": "Cleared takeoff two four PAL211",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "parameter_confusion",
+      "explanation": "CRITICAL: Lineup confused with takeoff"
+    },
+    {
+      "atc": "PAL217 taxi via alpha bravo to runway two four",
+      "pilot": "Alpha PAL217",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "missing_element",
+      "explanation": "Incomplete taxi route"
+    },
+    {
+      "atc": "PAL218 cross runway zero six report vacated",
+      "pilot": "Wilco PAL218",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "incomplete_readback",
+      "explanation": "Runway crossing requires full readback"
+    },
+    {
+      "atc": "JBU500 taxi via kilo mike hold short runway one three right",
+      "pilot": "Kilo mike hold short one three right JBU500",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "JBU501 cross runway two two at taxiway bravo",
+      "pilot": "Cross two two at bravo JBU501",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL300 pushback approved face south",
+      "pilot": "Pushback approved face south PAL300",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL301 start approved",
+      "pilot": "Start approved PAL301",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL302 taxi via alpha bravo charlie to runway zero six",
+      "pilot": "Alpha bravo charlie to zero six PAL302",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL303 give way to Boeing 777 from your left",
+      "pilot": "Give way traffic left PAL303",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL304 follow company Airbus ahead",
+      "pilot": "Follow company PAL304",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL305 hold position",
+      "pilot": "Holding position PAL305",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL306 continue taxi",
+      "pilot": "Continue taxi PAL306",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL307 expedite taxi traffic on final",
+      "pilot": "Expediting PAL307",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL308 monitor tower one one eight decimal one",
+      "pilot": "Monitor tower one one eight decimal one PAL308",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL309 contact ground one two one decimal nine",
+      "pilot": "Ground one two one decimal nine PAL309",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB401 turn left delta hold short alpha",
+      "pilot": "Left delta hold short alpha CEB401",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "CEB402 taxi to gate bravo one",
+      "pilot": "To gate bravo one CEB402",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "CEB403 expect departure runway two four",
+      "pilot": "Expect two four CEB403",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB404 clearance available advise ready to copy",
+      "pilot": "Ready to copy CEB404",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB405 cleared to CEBU via BOREG departure climb flight level one five zero",
+      "pilot": "Cleared CEBU BOREG departure climb flight level one five zero CEB405",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB406 readback correct contact ground one two one decimal nine",
+      "pilot": "Ground one two one decimal nine CEB406",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB407 taxi holding point runway two four via alpha",
+      "pilot": "Holding point two four via alpha CEB407",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "CEB408 report ready for departure",
+      "pilot": "Ready for departure CEB408",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "UAE501 taxi via echo foxtrot to stand charlie five",
+      "pilot": "Echo foxtrot to charlie five UAE501",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "UAE502 hold short bravo waiting area",
+      "pilot": "Hold short bravo UAE502",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "UAE503 behind landing Airbus cleared to cross runway zero six",
+      "pilot": "Behind Airbus cleared cross zero six UAE503",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "UAE504 runway zero six line up via alpha",
+      "pilot": "Line up zero six via alpha UAE504",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "UAE505 cancel takeoff clearance hold position",
+      "pilot": "Cancel takeoff holding position UAE505",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL123 hold present position vehicles crossing runway",
+      "pilot": "Hold position PAL123",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL123 cancel takeoff clearance vehicle on runway",
+      "pilot": "Cancel takeoff holding position PAL123",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL123 emergency aircraft landing runway zero six hold short runway two four",
+      "pilot": "Hold short two four PAL123",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL123 give way to emergency vehicle from your left",
+      "pilot": "Give way emergency vehicle PAL123",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL 999, all aircraft, Manila ground control frequency change, contact one two one decimal eight",
+      "pilot": "Switching one two one decimal eight, PAL 999",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB 505, presidential movement in progress, hold position until further notice",
+      "pilot": "Holding position, CEB 505",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL 800, taxi to gate fourteen via taxiway alpha, bravo, hold short taxiway charlie",
+      "pilot": "Taxi gate fourteen via alpha bravo, hold short charlie, PAL 800",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "CEB 900, pushback approved, face south, expect runway two four",
+      "pilot": "Pushback approved face south, expect two four, CEB 900",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "SIA 111, hold position, vehicle crossing the taxiway",
+      "pilot": "Holding position, SIA 111",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "UAE 222, cross runway one three, report runway vacated",
+      "pilot": "Crossing runway one three, will report vacated, UAE 222",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL 333, give way to company aircraft on your left",
+      "pilot": "Giving way to company on the left, PAL 333",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "CEB 444, follow the marshaller to parking stand bravo five",
+      "pilot": "Following marshaller to bravo five, CEB 444",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "SIA 555, taxi to holding point runway two four via taxiway delta echo, monitor tower one one eight point one when ready",
+      "pilot": "Holding point two four via delta echo, monitor one one eight one when ready, SIA 555",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "UAE 666, backtrack runway zero six approved, report ready for departure",
+      "pilot": "Backtrack zero six, will report ready, UAE 666",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL 777, start up approved, QNH two niner niner four, expect departure in one zero minutes",
+      "pilot": "Start up approved, QNH two niner niner four, PAL 777",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB 888, de-icing required, proceed to de-ice bay alpha",
+      "pilot": "Proceeding de-ice bay alpha, CEB 888",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB 890, taxi to runway two four via alpha bravo",
+      "pilot": "Taxi runway two four via alpha, CEB 890",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "incomplete_readback"
+    },
+    {
+      "atc": "PAL 555, standby for revised clearance",
+      "pilot": "Standing by, PAL 555",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB 707, runway vacated, taxi to gate twenty three via taxiway delta echo",
+      "pilot": "Taxi gate twenty three via delta echo, CEB 707",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL 270, taxi to runway two four via alpha, hold short runway one three",
+      "pilot": "Taxi runway two four via alpha, PAL 270",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "missing_element"
+    },
+    {
+      "atc": "PAL 290, cleared to NAIA airport via AKLAN three alpha departure, then as filed, maintain flight level three two zero, squawk four five six seven, departure frequency one two zero decimal one",
+      "pilot": "Cleared NAIA via AKLAN three alpha, as filed, flight level three two zero, squawk four five six seven, departure one two zero one, PAL 290",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL 390, caution jet blast, heavy aircraft holding short of runway",
+      "pilot": "Caution jet blast, PAL 390",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "SIA 910, request approved as filed",
+      "pilot": "Approved as filed, SIA 910",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "PAL 008, hold short of runway two four, traffic landing",
+      "pilot": "Holding short runway two four, PAL 008",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "CEB 011, cleared to cross runway one three at taxiway bravo",
+      "pilot": "Cleared cross runway one three at alpha, CEB 011",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "wrong_value"
+    },
+    {
+      "atc": "the ils for runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "aero flot one four one runway three one clear to land wind one seven zero degrees three kno",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up and wait runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "three four two six joining right hand downwind runway two five grass",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero seven one line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "for runway one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "baltu two bravo runway three one copied six six two three wizz air five nine one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 1 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we will taxi to sector blue when ready hotel charlie november",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "shamrock six four four runway three one clear to land wind zero six zero degrees and five knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "air france three nine three victor line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa five seven three establish ils approach runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "donavia three zero five runway three one clear to land wind three three zero degrees and three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "roger when vacated runway con",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "sky travel six eight two taxi zulu bravo delta lima holding point ru",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "turkish three whiskey quebec taxi via echo and echo seven hold short of runway one six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "klm one three five one ruzyne tower good moorning runway three one clear to land wind one seven zero degrees three knots",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 2 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "ruzyne tower csa six three alfa approaching holding point runway three one and ready for departure",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "al five two two taxi straight ahead via bravo delta holding point runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "we hold runway one three zero six",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "touch and go runway two five hotel echo xray",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello britair nine zero two delta ruzyne tower roger line up runway three one line up runway",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "qality nine one romeo request taxi",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "jobair zero six one line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa four delta romeo line up runway one three and wai",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "six mike alfa taxi via blueline hotel lima holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "csa five three seven runway one three clear to land wind zero six zero degrees",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa six romeo xray runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "cleared to oscar lima bravo alfa via one hotel departure squawk one four three three startup approve",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Batch 3 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel delta lima via bravo then taxi your discretion blue sector if it is full green four is available",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "austrian seven zero six papa line up runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hotel whiskey alfa taxi to holding point bravo runway one four",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 4 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "to land runway three one twin star eight eight",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "lufthansa one kilo k runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "hello easy five four nine eight ruzyne tower line up runway one three",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "zulu mike sierra four taxi right via delta contact ground one two one nine good bye",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "p and runway two two holding point runway three one",
+      "pilot": "[HuggingFace Reference]",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Batch 5 from jacktol/atc-dataset"
+    },
+    {
+      "atc": "PAL 038, freezing rain reported, de-icing mandatory before takeoff",
+      "pilot": "De-icing mandatory, PAL 038",
+      "isCorrect": true,
+      "phase": "ground"
+    },
+    {
+      "atc": "CEB 045, wildlife reported on taxiway bravo, airport operations responding",
+      "pilot": "Wildlife on bravo, CEB 045",
+      "isCorrect": true,
+      "phase": "taxi"
+    },
+    {
+      "atc": "PAL789, line up and wait runway two four",
+      "pilot": "Copy, PAL789",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "roger_substitution",
+      "explanation": "Line up and wait requires full readback for safety verification"
+    },
+    {
+      "atc": "UAE321, hold short of runway two four",
+      "pilot": "Roger, UAE321",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "roger_substitution",
+      "explanation": "Hold short instruction requires runway readback to prevent incursions"
+    },
+    {
+      "atc": "CEB456, hold short of runway two four right",
+      "pilot": "Hold short two four, CEB456",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "missing_designator",
+      "explanation": "Missing right designator in hold short - runway incursion risk"
+    },
+    {
+      "atc": "UAE789, cross runway one three center",
+      "pilot": "Cross one three, UAE789",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "missing_designator",
+      "explanation": "Missing center designator when crossing parallel runways"
+    },
+    {
+      "atc": "CEB four five six, hold short of runway two four left",
+      "pilot": "Holding short of runway two four left, CEB four five six",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Correct acknowledgment of hold short instruction — states position explicitly"
+    },
+    {
+      "atc": "PAL one two three, hold short of runway zero six",
+      "pilot": "Wilco, PAL one two three",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "roger_substitution",
+      "explanation": "ICAO Doc 4444: 'WILCO' is NOT sufficient for HOLD SHORT instructions. Pilot must say 'HOLDING SHORT OF RUNWAY 06' — explicit position confirmation required."
+    },
+    {
+      "atc": "CEB seven eight niner, hold position",
+      "pilot": "Holding, CEB seven eight niner",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Correct acknowledgment of hold instruction using 'HOLDING'"
+    },
+    {
+      "atc": "PAL three four one, hold position",
+      "pilot": "Roger, PAL three four one",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "roger_substitution",
+      "explanation": "ICAO: 'ROGER' is not sufficient for HOLD POSITION instruction. Required acknowledgment: 'HOLDING'"
+    },
+    {
+      "atc": "PAL101, taxi to runway two four via alpha, bravo, hold short of runway two four",
+      "pilot": "Taxi runway two four, PAL101",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "incomplete_readback",
+      "explanation": "Pilot omitted taxi route alpha, bravo and hold-short instruction. Full route and hold-short must be read back per ICAO Doc 4444 Sec 4.7."
+    },
+    {
+      "atc": "CEB210, taxi to holding point runway zero four via echo, delta",
+      "pilot": "Roger, CEB210",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "roger_substitution",
+      "explanation": "'Roger' not acceptable for taxi instructions. Must read back full route: 'Echo, delta, holding point runway zero four, CEB210'"
+    },
+    {
+      "atc": "PAL302, hold short of runway zero four",
+      "pilot": "Holding short runway zero four, PAL302",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Correct explicit readback of hold-short with runway designation."
+    },
+    {
+      "atc": "AIR101, cross runway two four, taxi to apron via alpha",
+      "pilot": "Cross runway two four, alpha to apron, AIR101",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Correct readback - runway crossing and route confirmed."
+    },
+    {
+      "atc": "CEB303, taxi via alpha, hold short runway zero four",
+      "pilot": "Wilco, CEB303",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "roger_substitution",
+      "explanation": "'Wilco' without readback of route and hold-short is not acceptable."
+    },
+    {
+      "atc": "PAL404, pushback approved, expect runway two four",
+      "pilot": "Pushback approved, runway two four, PAL404",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Correct pushback readback with runway expectation confirmed."
+    },
+    {
+      "atc": "CEB601, line up and wait runway zero four",
+      "pilot": "Lining up runway zero four, CEB601",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Correct line-up-and-wait readback with runway designation."
+    },
+    {
+      "atc": "PAL505, hold short runway two four, traffic on final",
+      "pilot": "Holding short, PAL505",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "missing_element",
+      "explanation": "Runway designation omitted in hold-short readback. Runway must always be included."
+    },
+    {
+      "atc": "CEB808, engine start approved, pushback at your discretion",
+      "pilot": "Engine start approved, CEB808",
+      "isCorrect": false,
+      "phase": "ground",
+      "errorType": "missing_element",
+      "explanation": "Pushback authority not read back. Both engine start and pushback elements must be confirmed."
+    },
+    {
+      "atc": "PAL222, taxi via bravo, echo, cross runway two four, hold short runway zero four",
+      "pilot": "Bravo, echo, cross runway two four, hold short runway zero four, PAL222",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "Correct complex taxi readback with crossing and hold-short instructions."
+    },
+    {
+      "atc": "PAL222, taxi via bravo, echo, cross runway two four, hold short runway zero four",
+      "pilot": "Bravo, echo, runway zero four, PAL222",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "missing_element",
+      "explanation": "Pilot omitted 'cross runway two four' clearance and 'hold short' from readback."
+    },
+    {
+      "atc": "CEB888, hold short runway two four, number two for departure",
+      "pilot": "Hold short runway two four, CEB888",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "Correct hold-short readback with runway. Traffic sequence info (number two) does not need readback."
+    }
+  ]
+}

@@ -6,16 +6,15 @@ export const getApiDocs = () => {
     definition: {
       openapi: '3.0.0',
       info: {
-        title: 'ATC Readback ML API',
-        version: '3.0.0',
+        title: 'ATC Readback Analysis API',
+        version: '4.0.0',
         description: `
-## Adaptive Machine Learning API for ATC Readback Analysis
+## ATC Readback Analysis API
 
 This API provides:
-- **Dynamic ML Analysis** - Analyzes ATC-pilot communications with adaptive learning
-- **Real-time Learning** - Model improves from user corrections
+- **Readback Analysis** - Analyzes ATC-pilot communications using rule-based engine
 - **Training Data Management** - Fetch from HuggingFace, manage corpus
-- **Database Persistence** - PostgreSQL storage for model state
+- **Database Persistence** - PostgreSQL storage for training corpus and model weights
 
 ### Authentication
 Currently no authentication required (development mode).
@@ -36,10 +35,6 @@ Currently no authentication required (development mode).
       ],
       tags: [
         {
-          name: 'Adaptive ML',
-          description: 'Dynamic machine learning with real-time learning capabilities',
-        },
-        {
           name: 'Training',
           description: 'Training corpus management and HuggingFace integration',
         },
@@ -49,193 +44,6 @@ Currently no authentication required (development mode).
         },
       ],
       paths: {
-        '/api/adaptive-ml': {
-          get: {
-            tags: ['Adaptive ML'],
-            summary: 'Get Model State',
-            description: 'Returns the current adaptive ML model state including weights, statistics, and learning history',
-            responses: {
-              '200': {
-                description: 'Model state retrieved successfully',
-                content: {
-                  'application/json': {
-                    schema: {
-                      type: 'object',
-                      properties: {
-                        success: { type: 'boolean' },
-                        model: {
-                          type: 'object',
-                          properties: {
-                            version: { type: 'string', example: '3.0.0-adaptive' },
-                            config: { type: 'object' },
-                          },
-                        },
-                        stats: {
-                          type: 'object',
-                          properties: {
-                            accuracy: { type: 'number', example: 0.85 },
-                            totalInteractions: { type: 'integer', example: 150 },
-                            recentAccuracy: { type: 'number', example: 0.9 },
-                          },
-                        },
-                        weights: { type: 'object' },
-                        history: { type: 'object' },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          post: {
-            tags: ['Adaptive ML'],
-            summary: 'Execute ML Actions',
-            description: 'Perform various ML actions: analyze, correct, batchLearn, reinforce, config, reset, export, import',
-            parameters: [
-              {
-                name: 'action',
-                in: 'query',
-                required: true,
-                schema: {
-                  type: 'string',
-                  enum: ['analyze', 'correct', 'batchLearn', 'reinforce', 'config', 'reset', 'export', 'import'],
-                },
-                description: 'The action to perform',
-              },
-            ],
-            requestBody: {
-              required: true,
-              content: {
-                'application/json': {
-                  schema: {
-                    oneOf: [
-                      {
-                        title: 'Analyze Request',
-                        type: 'object',
-                        properties: {
-                          atc: { type: 'string', example: 'PAL456 climb and maintain flight level two five zero' },
-                          pilot: { type: 'string', example: 'Climbing two five zero PAL456' },
-                          callsign: { type: 'string', example: 'PAL456' },
-                        },
-                        required: ['atc', 'pilot'],
-                      },
-                      {
-                        title: 'Correct Request (Learning)',
-                        type: 'object',
-                        properties: {
-                          original: {
-                            type: 'object',
-                            properties: {
-                              atc: { type: 'string' },
-                              pilot: { type: 'string' },
-                              predictedCorrect: { type: 'boolean' },
-                              predictedErrors: { type: 'array', items: { type: 'string' } },
-                              predictedPhase: { type: 'string' },
-                            },
-                          },
-                          corrected: {
-                            type: 'object',
-                            properties: {
-                              isActuallyCorrect: { type: 'boolean' },
-                              actualErrors: { type: 'array', items: { type: 'string' } },
-                              actualPhase: { type: 'string' },
-                              userFeedback: { type: 'string' },
-                            },
-                          },
-                        },
-                      },
-                      {
-                        title: 'Batch Learn Request',
-                        type: 'object',
-                        properties: {
-                          examples: {
-                            type: 'array',
-                            items: {
-                              type: 'object',
-                              properties: {
-                                atc: { type: 'string' },
-                                pilot: { type: 'string' },
-                                isCorrect: { type: 'boolean' },
-                                errors: { type: 'array', items: { type: 'string' } },
-                              },
-                            },
-                          },
-                        },
-                      },
-                      {
-                        title: 'Reinforce Request',
-                        type: 'object',
-                        properties: {
-                          totalReadbacks: { type: 'integer' },
-                          correctReadbacks: { type: 'integer' },
-                          commonErrors: { type: 'array', items: { type: 'string' } },
-                          phases: { type: 'array', items: { type: 'string' } },
-                        },
-                      },
-                      {
-                        title: 'Config Request',
-                        type: 'object',
-                        properties: {
-                          learningRate: { type: 'number', minimum: 0.01, maximum: 0.5 },
-                          momentum: { type: 'number', minimum: 0, maximum: 0.9 },
-                          minConfidence: { type: 'number' },
-                          adaptiveRateEnabled: { type: 'boolean' },
-                          reinforcementEnabled: { type: 'boolean' },
-                        },
-                      },
-                    ],
-                  },
-                  examples: {
-                    analyze: {
-                      summary: 'Analyze a readback',
-                      value: {
-                        atc: 'PAL456 climb and maintain flight level two five zero',
-                        pilot: 'Climbing two five zero PAL456',
-                      },
-                    },
-                    correct: {
-                      summary: 'Apply user correction (model learns)',
-                      value: {
-                        original: {
-                          atc: 'Turn right heading 090',
-                          pilot: 'Left heading 090',
-                          predictedCorrect: true,
-                          predictedErrors: [],
-                          predictedPhase: 'cruise',
-                        },
-                        corrected: {
-                          isActuallyCorrect: false,
-                          actualErrors: ['wrong_direction'],
-                          actualPhase: 'approach',
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            responses: {
-              '200': {
-                description: 'Action completed successfully',
-                content: {
-                  'application/json': {
-                    schema: {
-                      type: 'object',
-                      properties: {
-                        success: { type: 'boolean' },
-                        analysis: { type: 'object' },
-                        weightUpdates: { type: 'array' },
-                      },
-                    },
-                  },
-                },
-              },
-              '400': {
-                description: 'Invalid request',
-              },
-            },
-          },
-        },
         '/api/training': {
           get: {
             tags: ['Training'],

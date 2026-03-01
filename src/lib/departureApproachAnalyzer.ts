@@ -1,60 +1,69 @@
 /**
- * Enhanced Departure/Approach ML Model - ADVANCED 2024 EDITION
+ * Departure/Approach Rule-Based Analyzer
  *
- * Advanced machine learning-inspired analysis engine specifically designed for
- * departure and approach phase ATC communications. Implements context-aware
- * semantic understanding, multi-part instruction analysis, and phase-specific
- * error detection with latest aviation safety research.
+ * Deterministic rule engine for analyzing ATC departure and approach phase
+ * communications. Uses regex pattern matching, weighted scoring heuristics,
+ * and ICAO-aligned rules for phase detection, multi-part instruction
+ * validation, and error classification.
  *
- * Based on:
- * - ATCO2 Corpus (Eurocontrol/Idiap) - 5000+ real ATC exchanges
- * - ATCOSIM Corpus (Graz University) - 10000+ simulated exchanges
- * - UWB-ATCC Corpus (Czech Republic) - 3000+ exchanges
- * - LDC ATCC Corpus - North American ATC data
- * - FAA Order 7110.65 (2024 Edition) - ATC procedures
- * - ICAO Doc 4444 PANS-ATM (Amendment 10, 2024)
+ * NOTE: This is NOT a machine learning model. No neural networks, probabilistic
+ * training loops, or adaptive learning are involved. The "ML" naming in exported
+ * types is retained for API compatibility.
+ *
+ * References:
+ * - ICAO Doc 4444 PANS-ATM
  * - ICAO Doc 9432 Manual of Radiotelephony (5th Edition)
- * - EUROCONTROL Safety Analysis Reports 2023-2024
- * - NASA ASRS DirectLine Reports (2020-2024)
- * - IATA Pilot/Controller Communication Safety Report 2024
- * - Controlled Flight Into Terrain (CFIT) Analysis Database
- * - Approach and Landing Accident Reduction (ALAR) Toolkit
- * - ICAO Doc 10084 Global Surveillance Manual
- *
- * Enhanced Features (2024):
- * - Bayesian probabilistic phase detection
- * - Acoustic similarity detection for callsigns
- * - Multi-dimensional safety vector analysis
- * - Contextual severity escalation with traffic/weather awareness
- * - Real-time error pattern learning and prediction
- * - Non-native speaker pattern recognition (50+ language groups)
- * - Runway incursion prevention specific patterns
- * - CFIT/ALAR specific error detection
+ * - FAA Order 7110.65
  */
 
 import {
   analyzeReadback,
-  detectInstructionType,
-  extractNumericValue,
   normalizeToDigits,
-  isTransposition,
   type SemanticAnalysisResult,
-  type ReadbackError,
   type InstructionType,
   type ErrorType,
 } from './semanticReadbackAnalyzer'
 
 import {
   calculateEnhancedSeverity,
-  getDepartureApproachSeverityModifier,
   detectErrorPattern,
-  type DepartureApproachContext,
-  type SeverityFactors,
   type ErrorPattern,
 } from './atcData'
 
+import appDepCorpus from '../data/appDepCorpus.json'
+
+// Runtime-loaded check config (all tunable patterns live in appDepCorpus.json → "checks")
+const CHECKS = (appDepCorpus as unknown as { checks: {
+  qnhEquivalents: string[]
+  expediteAcknowledgments: string[]
+  runwayHeadingAcceptedReadbacks: string[]
+  maxTranspositionDifferences: number
+  frequencyPattern: string
+} }).checks
+
 // ============================================================================
-// ENHANCED TYPES FOR DEPARTURE/APPROACH ML
+// SEVERITY NORMALIZATION
+// ============================================================================
+
+type UnifiedSeverity = 'critical' | 'high' | 'medium' | 'low'
+
+/**
+ * Normalizes severity strings from any internal subsystem into the 4-tier
+ * unified severity scale. Prevents 'critical' from being silently dropped
+ * when merging results from semanticReadbackAnalyzer (which uses all 4 tiers)
+ * and analysisEngine (which historically only used 3 tiers).
+ */
+function mapSeverity(raw: string | undefined): UnifiedSeverity {
+  switch ((raw || '').toLowerCase()) {
+    case 'critical': return 'critical'
+    case 'high':     return 'high'
+    case 'medium':   return 'medium'
+    default:         return 'low'
+  }
+}
+
+// ============================================================================
+// TYPES FOR DEPARTURE/APPROACH ANALYZER
 // ============================================================================
 
 export interface DepartureApproachMLResult extends SemanticAnalysisResult {
@@ -135,6 +144,7 @@ export type DepartureErrorType =
   | 'noise_abatement_ignored'
   | 'departure_restriction_missed'
   | 'climb_gradient_confusion'
+  | 'callsign_not_included'
 
 export interface ApproachSpecificError {
   type: ApproachErrorType
@@ -153,11 +163,13 @@ export type ApproachErrorType =
   | 'speed_restriction_missed'
   | 'missed_approach_incomplete'
   | 'go_around_altitude_wrong'
+  | 'go_around_heading_not_confirmed'
   | 'localizer_intercept_missed'
   | 'glideslope_not_confirmed'
   | 'stabilized_approach_violation'
   | 'qnh_not_confirmed'
   | 'visual_approach_traffic_missed'
+  | 'callsign_not_included'
 
 export interface SafetyVector {
   factor: string
@@ -1237,10 +1249,12 @@ const INSTRUCTION_COMPONENTS: InstructionComponent[] = [
     extractValue: (m) => m[1],
   },
 
-  // Waypoint/Direct — handles both uppercase codes (YANI) and spoken names (yani, ipata, edlex, cabanatuan)
+  // Waypoint/Direct — handles both uppercase codes (YANI) and spoken names.
+  // Negative lookahead excludes articles (the, a, an) to prevent false matches
+  // like "direct to the runway" capturing "the".
   {
     type: 'waypoint',
-    pattern: /(?:fly\s+)?(?:proceed\s+)?direct\s+(?:to\s+)?([a-zA-Z]{3,})/i,
+    pattern: /(?:fly\s+)?(?:proceed\s+)?direct\s+(?:to\s+)?(?!the\b|an?\b)([a-zA-Z]{3,})/i,
     isCritical: false,
     extractValue: (m) => m[1],
   },
@@ -1302,11 +1316,31 @@ export function analyzeMultiPartInstruction(
 
   // Calculate completeness
   const totalParts = parts.length
-  const presentParts = parts.filter(p => p.isPresent).length
-  const readbackCompleteness = totalParts > 0 ? Math.round((presentParts / totalParts) * 100) : 100
+  const presentParts = parts.filter(p => p.isPresent)
+  const readbackCompleteness = totalParts > 0 ? Math.round((presentParts.length / totalParts) * 100) : 100
 
   // Check for critical parts missing
   const criticalPartsMissing = parts.some(p => p.isCritical && !p.isPresent)
+
+  // Check if present elements appear in the same left-to-right order in the
+  // pilot readback as they do in the ATC instruction.
+  let sequenceCorrect = true
+  if (presentParts.length > 1) {
+    const normalizedPilot = normalizeToDigits(pilotLower)
+    const positions = presentParts.map(p => {
+      const digits = normalizeToDigits(p.value.toLowerCase()).match(/\d+/)
+      if (digits) return normalizedPilot.indexOf(digits[0])
+      // Fall back to first word of the value
+      const firstWord = p.value.toLowerCase().split(/\s+/)[0]
+      return pilotLower.indexOf(firstWord)
+    })
+    for (let i = 1; i < positions.length; i++) {
+      if (positions[i] !== -1 && positions[i - 1] !== -1 && positions[i] < positions[i - 1]) {
+        sequenceCorrect = false
+        break
+      }
+    }
+  }
 
   return {
     isMultiPart: parts.length > 1,
@@ -1314,7 +1348,7 @@ export function analyzeMultiPartInstruction(
     missingParts,
     readbackCompleteness,
     criticalPartsMissing,
-    sequenceCorrect: true, // Could be enhanced to check order
+    sequenceCorrect,
   }
 }
 
@@ -1367,19 +1401,23 @@ function checkComponentInReadback(type: string, value: string, pilotText: string
     case 'squawk':
       return normalizedPilot.includes(normalizedValue)
 
-    case 'frequency':
-      // Try numeric format first (e.g. "125.7")
-      const freqMatch = valueLower.match(/(\d{3})\.(\d{1,3})/)
-      if (freqMatch) {
-        return normalizedPilot.includes(freqMatch[1]) && normalizedPilot.includes(freqMatch[2])
+    case 'frequency': {
+      // Normalize both sides: replace "decimal", "point", or "." with a
+      // consistent separator, then strip all spaces so "125 decimal 7",
+      // "125.7", and "one two five decimal seven" all compare equal.
+      const normFreqValue = normalizeToDigits(valueLower)
+        .replace(/decimal|point/gi, '.')
+        .replace(/\s+/g, '')
+      const normFreqPilot = normalizeToDigits(pilotText)
+        .replace(/decimal|point/gi, '.')
+        .replace(/\s+/g, '')
+      // Extract just the digit-and-dot portion for comparison
+      const freqDigits = normFreqValue.match(/\d{3}\.?\d*/)
+      if (freqDigits) {
+        return normFreqPilot.includes(freqDigits[0])
       }
-      // For spoken-word frequencies, normalize both to digits and compare
-      const freqDigitsInValue = normalizedValue.match(/\d{3,}/)
-      if (freqDigitsInValue) {
-        return normalizedPilot.includes(freqDigitsInValue[0])
-      }
-      // Last resort: check if spoken-word frequency appears as-is in pilot text
-      return pilotText.toLowerCase().includes(valueLower.replace(/^[\w\s]+?\s(?=one|two|three|four|five|six|seven|eight|nine|zero)/i, ''))
+      return normFreqPilot.includes(normFreqValue)
+    }
 
 
     case 'runway':
@@ -1412,14 +1450,15 @@ function checkComponentInReadback(type: string, value: string, pilotText: string
 export function detectDepartureErrors(
   atcInstruction: string,
   pilotReadback: string,
-  phase: FlightPhase
+  _phase: FlightPhase,
+  callsign?: string
 ): DepartureSpecificError[] {
   const errors: DepartureSpecificError[] = []
   const atcLower = atcInstruction.toLowerCase()
   const pilotLower = pilotReadback.toLowerCase()
 
-  // Check for SID missed
-  const sidMatch = atcLower.match(/cleared\s+(\w+\s+\w+)\s+departure/i)
+  // Check for SID missed — matches 1–3 word SID names (e.g. "GUYAM", "LUCAS ONE", "DAGAT ONE ALPHA")
+  const sidMatch = atcLower.match(/cleared\s+([a-z0-9]+(?:\s+[a-z0-9]+){0,2})\s+departure/i)
   if (sidMatch && !pilotLower.includes(sidMatch[1].toLowerCase())) {
     errors.push({
       type: 'sid_missed',
@@ -1432,7 +1471,10 @@ export function detectDepartureErrors(
   }
 
   // Check for runway heading not acknowledged
-  if (/runway\s+heading/i.test(atcLower) && !/runway\s*heading/i.test(pilotLower)) {
+  // Dynamic: accepted readbacks loaded from appDepCorpus.json checks.runwayHeadingAcceptedReadbacks
+  const rhPatterns = CHECKS.runwayHeadingAcceptedReadbacks.join('|')
+  const rhRegex = new RegExp(rhPatterns, 'i')
+  if (/runway\s+heading/i.test(atcLower) && !rhRegex.test(pilotLower)) {
     errors.push({
       type: 'runway_heading_error',
       description: 'Runway heading instruction not read back',
@@ -1444,7 +1486,9 @@ export function detectDepartureErrors(
   }
 
   // Check for expedite not acknowledged
-  if (/expedite/i.test(atcLower) && !/expedite/i.test(pilotLower)) {
+  // Dynamic: accepted acknowledgments from appDepCorpus.json checks.expediteAcknowledgments
+  const expRegex = new RegExp(CHECKS.expediteAcknowledgments.join('|'), 'i')
+  if (/expedite/i.test(atcLower) && !expRegex.test(pilotLower)) {
     errors.push({
       type: 'expedite_not_acknowledged',
       description: 'Expedite instruction not acknowledged',
@@ -1538,6 +1582,28 @@ export function detectDepartureErrors(
     }
   }
 
+  // Callsign missing from readback
+  // Accepts: exact match, numeric-only match (for phonetically spoken callsigns), or alpha prefix match
+  if (callsign) {
+    const csLower = callsign.toLowerCase()
+    const pilotLower = pilotReadback.toLowerCase()
+    const csNumeric = csLower.replace(/[^0-9]/g, '')
+    const csAlpha = csLower.replace(/[0-9]/g, '').trim()
+    const hasCallsign = pilotLower.includes(csLower) ||
+      (csNumeric.length > 0 && pilotLower.includes(csNumeric)) ||
+      (csAlpha.length > 0 && pilotLower.includes(csAlpha))
+    if (!hasCallsign) {
+      errors.push({
+        type: 'callsign_not_included',
+        description: `Callsign "${callsign.toUpperCase()}" not included in readback`,
+        severity: 'high',
+        correction: `End readback with callsign: "..., ${callsign.toUpperCase()}"`,
+        icaoReference: 'ICAO Doc 9432 Chapter 5',
+        flightSafetyImpact: 'ATC cannot confirm correct aircraft acknowledged the instruction',
+      })
+    }
+  }
+
   return errors
 }
 
@@ -1547,7 +1613,8 @@ export function detectDepartureErrors(
 export function detectApproachErrors(
   atcInstruction: string,
   pilotReadback: string,
-  phase: FlightPhase
+  _phase: FlightPhase,
+  callsign?: string
 ): ApproachSpecificError[] {
   const errors: ApproachSpecificError[] = []
   const atcLower = atcInstruction.toLowerCase()
@@ -1587,15 +1654,26 @@ export function detectApproachErrors(
   }
 
   // Check for QNH not confirmed
-  if (/qnh\s+\d/i.test(atcLower) && !/qnh/i.test(pilotLower)) {
-    errors.push({
-      type: 'qnh_not_confirmed',
-      description: 'QNH/altimeter setting not confirmed',
-      severity: 'critical',
-      correction: 'Include QNH value in readback',
-      icaoReference: 'ICAO Doc 4444 Section 7.2.4',
-      flightSafetyImpact: 'Wrong altimeter setting can cause altitude deviation',
-    })
+  // Dynamic: accepted terms from appDepCorpus.json checks.qnhEquivalents (e.g. "qnh", "altimeter")
+  // Both the QNH word AND a numeric value must appear in the pilot readback — word-only ("altimeter set")
+  // is not sufficient; the actual value must be confirmed to prevent altitude deviations.
+  const qnhRegex = new RegExp(CHECKS.qnhEquivalents.join('|'), 'i')
+  if (/qnh\s+\d/i.test(atcLower)) {
+    const pilotHasQnhWord = qnhRegex.test(pilotLower)
+    const pilotHasQnhVal = /\b\d{4}\b/.test(normalizeToDigits(pilotLower)) ||
+                            /\b\d{2,3}\.\d{1,2}\b/.test(pilotLower)
+    if (!pilotHasQnhWord || !pilotHasQnhVal) {
+      errors.push({
+        type: 'qnh_not_confirmed',
+        description: !pilotHasQnhWord
+          ? 'QNH/altimeter setting not confirmed in readback'
+          : 'QNH numeric value not read back (word only, no value)',
+        severity: 'high',
+        correction: 'Include both the word "QNH"/"altimeter" and its numeric value in readback',
+        icaoReference: 'ICAO Doc 4444 Section 7.2.4',
+        flightSafetyImpact: 'Wrong or unconfirmed altimeter setting can cause altitude deviation',
+      })
+    }
   }
 
   // Check for missed approach incomplete
@@ -1615,7 +1693,12 @@ export function detectApproachErrors(
       })
     }
 
-    if (!hasAltitude && /\d{3,5}/.test(atcLower)) {
+    // Dynamic: strip VHF frequencies before checking for altitude digits.
+    // Normalize to digits first so spoken frequencies ("one one nine decimal one") are also stripped.
+    const freqPattern = new RegExp(CHECKS.frequencyPattern, 'g')
+    const atcNormalized = normalizeToDigits(atcLower)
+    const atcWithoutFreqs = atcNormalized.replace(freqPattern, '')
+    if (!hasAltitude && /\b[1-9]\d{3,4}\b/.test(atcWithoutFreqs)) {
       errors.push({
         type: 'go_around_altitude_wrong',
         description: 'Go around altitude not confirmed',
@@ -1628,7 +1711,7 @@ export function detectApproachErrors(
 
     if (!hasHeading && /heading|turn/i.test(atcLower)) {
       errors.push({
-        type: 'go_around_altitude_wrong',
+        type: 'go_around_heading_not_confirmed',
         description: 'Go around heading not confirmed',
         severity: 'high',
         correction: 'Include heading/turn in go around readback',
@@ -1648,6 +1731,28 @@ export function detectApproachErrors(
         correction: 'Acknowledge "traffic in sight" for visual separation',
         icaoReference: 'ICAO Doc 4444 Section 6.5.3.1',
         flightSafetyImpact: 'Visual separation cannot be applied without traffic in sight',
+      })
+    }
+  }
+
+  // Callsign missing from readback
+  // Accepts: exact match, numeric-only match (for phonetically spoken callsigns), or alpha prefix match
+  if (callsign) {
+    const csLower = callsign.toLowerCase()
+    const pilotLower = pilotReadback.toLowerCase()
+    const csNumeric = csLower.replace(/[^0-9]/g, '')
+    const csAlpha = csLower.replace(/[0-9]/g, '').trim()
+    const hasCallsign = pilotLower.includes(csLower) ||
+      (csNumeric.length > 0 && pilotLower.includes(csNumeric)) ||
+      (csAlpha.length > 0 && pilotLower.includes(csAlpha))
+    if (!hasCallsign) {
+      errors.push({
+        type: 'callsign_not_included',
+        description: `Callsign "${callsign.toUpperCase()}" not included in readback`,
+        severity: 'high',
+        correction: `End readback with callsign: "..., ${callsign.toUpperCase()}"`,
+        icaoReference: 'ICAO Doc 9432 Chapter 5',
+        flightSafetyImpact: 'ATC cannot confirm correct aircraft acknowledged the instruction',
       })
     }
   }
@@ -1736,40 +1841,45 @@ export function calculateSafetyVectors(
  * Calculates ML confidence scores for the analysis
  */
 export function calculateMLConfidence(
-  phase: FlightPhase,
+  _phase: FlightPhase,
   phaseConfidence: number,
   baseAnalysis: SemanticAnalysisResult,
   multiPart: MultiPartInstructionAnalysis
 ): MLConfidenceScores {
-  // Phase detection confidence
+  // Phase detection: use the score from detectFlightPhase() directly
   const phaseDetection = phaseConfidence
 
-  // Instruction classification confidence based on matched patterns
-  const instructionClassification = baseAnalysis.errors.length > 0 ? 0.85 : 0.9
+  // Instruction classification: penalize based on error count relative to
+  // total instruction parts. More errors vs. parts = less confident.
+  const totalParts = multiPart.parts.length || 1
+  const errorRatio = baseAnalysis.errors.length / totalParts
+  const instructionClassification = Math.max(0.5, Math.min(1.0, 1 - errorRatio * 0.5))
 
-  // Error detection confidence
-  const hasAmbiguity = baseAnalysis.errors.some(e =>
-    e.type === 'hearback_error' || e.explanation.includes('unclear')
-  )
-  const errorDetection = hasAmbiguity ? 0.7 : 0.9
+  // Error detection: derived from multi-part completeness. A higher
+  // completeness score means we were able to validate more elements,
+  // making us more confident in what we detected.
+  const errorDetection = Math.max(0.5, multiPart.readbackCompleteness / 100 * 0.5 + 0.5)
 
-  // Severity assessment confidence
-  const severityAssessment = 0.85 // Generally high confidence in severity rules
+  // Severity assessment: penalized for each critical error found, since
+  // critical errors indicate high-stakes ambiguity in the exchange.
+  const criticalErrors = baseAnalysis.errors.filter(e => mapSeverity(e.severity) === 'critical').length
+  const severityAssessment = Math.max(0.4, Math.min(1.0, 1 - criticalErrors * 0.2))
 
-  // Overall confidence
+  // Overall: phase detection weighted highest (30%) as it drives all
+  // downstream analysis; other factors equally weighted.
   const overallConfidence = (
-    phaseDetection * 0.25 +
+    phaseDetection * 0.30 +
     instructionClassification * 0.25 +
     errorDetection * 0.25 +
-    severityAssessment * 0.25
+    severityAssessment * 0.20
   )
 
   return {
-    phaseDetection,
-    instructionClassification,
-    errorDetection,
-    severityAssessment,
-    overallConfidence: Math.round(overallConfidence * 100) / 100,
+    phaseDetection:            Math.round(phaseDetection * 100) / 100,
+    instructionClassification: Math.round(instructionClassification * 100) / 100,
+    errorDetection:            Math.round(errorDetection * 100) / 100,
+    severityAssessment:        Math.round(severityAssessment * 100) / 100,
+    overallConfidence:         Math.round(overallConfidence * 100) / 100,
   }
 }
 
@@ -1795,29 +1905,26 @@ export function analyzeDepartureApproach(
   // 3. Analyze multi-part instructions
   const multiPartAnalysis = analyzeMultiPartInstruction(atcInstruction, pilotReadback)
 
-  // 4. Detect phase-specific errors
+  // 4. Detect phase-specific errors (callsign passed so each detector can
+  //    validate that the pilot included their callsign in the readback)
   const departureErrors = ['initial_departure', 'departure_climb', 'takeoff_roll', 'lineup', 'taxi']
     .includes(phaseResult.phase)
-    ? detectDepartureErrors(atcInstruction, pilotReadback, phaseResult.phase)
+    ? detectDepartureErrors(atcInstruction, pilotReadback, phaseResult.phase, callsign)
     : []
 
   const approachErrors = ['approach', 'final_approach', 'go_around', 'descent', 'arrival']
     .includes(phaseResult.phase)
-    ? detectApproachErrors(atcInstruction, pilotReadback, phaseResult.phase)
+    ? detectApproachErrors(atcInstruction, pilotReadback, phaseResult.phase, callsign)
     : []
 
   // 5. Calculate contextual severity
-  const severityFactors: Partial<SeverityFactors> = {
-    flightPhase: mapPhaseToSeverityPhase(phaseResult.phase),
-    trafficDensity: 'medium', // Could be enhanced with context
-    weatherConditions: 'vmc', // Could be enhanced with context
-    consecutiveErrors: previousErrors?.length || 0,
-    instructionType: detectInstructionType(atcInstruction),
-  }
-
-  const contextualSeverity = calculateEnhancedSeverity(
-    { phase: mapPhaseToSeverityPhase(phaseResult.phase) || 'cruise' },
-    baseAnalysis.errors.length > 0 ? baseAnalysis.errors[0].type : 'unknown'
+  // mapSeverity ensures the result is always in the 4-tier unified scale,
+  // preventing 'critical' from being silently dropped by downstream consumers.
+  const contextualSeverity: UnifiedSeverity = mapSeverity(
+    calculateEnhancedSeverity(
+      { phase: mapPhaseToSeverityPhase(phaseResult.phase) || 'cruise' },
+      baseAnalysis.errors.length > 0 ? baseAnalysis.errors[0].type : 'unknown'
+    )
   )
 
   // 6. Sequence analysis

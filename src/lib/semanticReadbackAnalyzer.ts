@@ -14,6 +14,11 @@
  * Hugging Face Compatible: Can be extended with transformers for NLU
  */
 
+import appDepCorpus from '../data/appDepCorpus.json'
+
+// Dynamic check config — tunable parameters loaded from appDepCorpus.json → "checks"
+const _CHECKS = (appDepCorpus as unknown as { checks: { maxTranspositionDifferences: number } }).checks
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -1108,8 +1113,10 @@ export function isTransposition(value1: string, value2: string): boolean {
     if (value1[i] !== value2[i]) differences++
   }
 
-  // Transposition typically involves 2 or more positions
-  return differences >= 2 && differences <= value1.length
+  // Transposition: at most maxTranspositionDifferences differing positions (loaded from appDepCorpus.json checks)
+  // Prevents full-anagram scrambles from being classified as transpositions
+  const maxDiff = _CHECKS.maxTranspositionDifferences ?? 4
+  return differences >= 2 && differences <= maxDiff
 }
 
 // Enhanced: Calculate similarity score between two values
@@ -1140,6 +1147,13 @@ const COMPOUND_NUMBERS: Record<string, string> = {
  */
 export function normalizeToDigits(text: string): string {
   let normalized = text.toLowerCase().trim()
+
+  // Normalize ICAO Doc 9432 Table 5-1 phonetic word spellings and common corpus variants
+  // before any digit replacement. These are word-level variants (not individual digit
+  // phonetics) that appear in ICAO-trained pilot/controller transcripts.
+  normalized = normalized.replace(/\btousand\b/gi, 'thousand')          // ICAO: TOU-SAND
+  normalized = normalized.replace(/\bday[\-\s]?see[\-\s]?mal\b/gi, 'decimal') // ICAO: DAY-SEE-MAL
+  normalized = normalized.replace(/\bdesimal\b/gi, 'decimal')            // Filipino phonetic variant
 
   // Handle compound numbers first (twenty, thirty, etc.)
   for (const [word, digits] of Object.entries(COMPOUND_NUMBERS)) {
@@ -1217,7 +1231,9 @@ export function extractNumericValue(text: string, type: 'altitude' | 'heading' |
         const wordToNum: Record<string, string> = {
           'one': '1000', 'two': '2000', 'three': '3000', 'four': '4000', 'five': '5000',
           'six': '6000', 'seven': '7000', 'eight': '8000', 'nine': '9000', 'niner': '9000',
-          'ten': '10000', 'eleven': '11000', 'twelve': '12000'
+          'ten': '10000', 'eleven': '11000', 'twelve': '12000',
+          'thirteen': '13000', 'fourteen': '14000', 'fifteen': '15000',
+          'sixteen': '16000', 'seventeen': '17000', 'eighteen': '18000', 'nineteen': '19000',
         }
         if (wordToNum[numWord]) return wordToNum[numWord]
       }
@@ -1289,8 +1305,12 @@ export function extractNumericValue(text: string, type: 'altitude' | 'heading' |
     }
 
     case 'frequency': {
-      // Frequency is XXX.XX format
-      const freqMatch = normalized.match(/(\d{3})\s*(?:decimal|point|\.)\s*(\d{1,3})/i)
+      // Frequency is XXX.XX format — also handle phonetic/regional "decimal" variants:
+      //   standard: "decimal", "point"
+      //   Filipino phonetic: "day-see-mal", "day see mal", "desimal"
+      const freqMatch = normalized.match(
+        /(\d{3})\s*(?:decimal|point|day[\-\s]?see[\-\s]?mal|desimal|\.)\s*(\d{1,3})/i
+      )
       return freqMatch ? `${freqMatch[1]}.${freqMatch[2]}` : null
     }
   }
@@ -1386,7 +1406,8 @@ export function parseStructuredCommand(atcInstruction: string): StructuredComman
   let parameter = 'unknown'
   if (/altitude|flight\s+level|fl\s*\d|thousand|feet/i.test(normalized)) parameter = 'altitude'
   else if (/heading\s*\d|turn\s+(left|right)/i.test(normalized)) parameter = 'heading'
-  else if (/speed|knots?/i.test(normalized)) parameter = 'speed'
+  else if (/speed\b/i.test(normalized) ||
+           (/knots?\b/i.test(normalized) && !/\bwind\b/i.test(normalized))) parameter = 'speed'
   else if (/altimeter|qnh/i.test(normalized)) parameter = 'altimeter'
   else if (/squawk/i.test(normalized)) parameter = 'squawk'
   else if (/frequency|contact/i.test(normalized)) parameter = 'frequency'
@@ -1532,7 +1553,7 @@ export function validateReadbackAgainstCommand(
         severity: atcCommand.parameter === 'altitude' || atcCommand.parameter === 'heading' ? 'high' : 'medium',
         explanation: `Required ${atcCommand.parameter} value not read back`
       })
-    } else if (normalizeToDigits(pilotValue) !== atcValue && !pilotValue.includes(atcValue)) {
+    } else if (normalizeToDigits(pilotValue) !== normalizeToDigits(atcValue)) {
       errors.push({
         type: 'wrong_value',
         parameter: atcCommand.parameter,
@@ -1706,7 +1727,7 @@ const INSTRUCTION_PATTERNS: InstructionPattern[] = [
   {
     type: 'altitude_change',
     patterns: [
-      /(climb|descend)\s+(and\s+)?maintain/i,
+      /(climb|descend)\s+(to\s+)?(and\s+)?maintain/i,  // handles "climb and maintain", "climb to and maintain"
       /(climb|descend)\s+(to\s+)?(flight\s+level|fl\s*\d|\d+\s*(thousand|hundred|feet))/i,
       /maintain\s+(flight\s+level|fl\s*\d|\d+\s*(thousand|hundred|feet))/i,
       /stop\s+(climb|descent)/i,
@@ -1773,9 +1794,10 @@ const INSTRUCTION_PATTERNS: InstructionPattern[] = [
   {
     type: 'frequency_change',
     patterns: [
-      /contact\s+\w+\s+(on\s+)?\d{3}/i,
-      /monitor\s+\w+/i,
-      /frequency\s+\d{3}/i
+      /contact\s+\w+(?:\s+\w+)?\s+(on\s+)?\d{3}/i,  // up to 2-word facility: "Manila Tower"
+      /monitor\s+\w+(?:\s+\w+)?/i,
+      /frequency\s+\d{3}/i,
+      /\d{3}\.\d/  // bare frequency digits (e.g. "118.5")
     ],
     priority: 75,
     requiredReadbackElements: ['facility', 'frequency', 'callsign']
@@ -2264,10 +2286,10 @@ function checkForCriticalElements(pilotText: string, instructionType: Instructio
       return hasSqkTerms && hasSqkNumbers
 
     case 'frequency_change':
-      // Must have contact/monitor AND frequency numbers
-      const hasFreqTerms = /\b(contact|monitor|frequency)\b/i.test(withoutAck)
+      // ICAO standard: pilot reads back frequency digits only (no "contact" required).
+      // Accept VHF format ddd or ddd.d (e.g. "118", "118.5", "one one eight decimal five").
       const hasFreqNumbers = /\d{3}/.test(normalized)
-      return hasFreqTerms && hasFreqNumbers
+      return hasFreqNumbers
 
     case 'takeoff_clearance':
     case 'landing_clearance':
@@ -2294,12 +2316,17 @@ function detectParameterConfusion(
 
   // Case: ATC gave heading, pilot read back as altitude/flight level
   if (instructionType === 'heading_change') {
-    // Check if pilot mentioned flight level or climb/descend (altitude context)
     const hasAltitudeContext = /\b(flight\s*level|fl\s*\d|climb|descend|climbing|descending|altitude)\b/i.test(pilotLower)
-    // But ATC was talking about heading
     const atcHasHeading = /\b(heading|turn\s+(left|right)|fly\s+heading)\b/i.test(atcLower)
 
-    if (hasAltitudeContext && atcHasHeading) {
+    // Guard: if ATC instruction ALSO contains altitude/climb content it is a
+    // multi-part instruction.  The pilot reading back BOTH heading and altitude
+    // is CORRECT, not confusion.  Only flag when ATC was heading-ONLY.
+    const atcAlsoHasAltitude = /\b(climb|descend|maintain|flight\s*level|thousand|hundred)\b/i.test(atcLower)
+    // Guard: if pilot ALSO reads back heading words it correctly covered both parts.
+    const pilotAlsoHasHeading = /\b(heading|left|right)\b/i.test(pilotLower)
+
+    if (hasAltitudeContext && atcHasHeading && !atcAlsoHasAltitude && !pilotAlsoHasHeading) {
       const atcHeading = extractNumericValue(atcText, 'heading')
 
       return {
@@ -2698,6 +2725,17 @@ function checkValueMatch(
           explanation: `CRITICAL: Wrong turn direction. ATC instructed turn ${atcDir[1].toUpperCase()}, pilot read back turn ${pilotDir[1].toUpperCase()}. Turn direction errors can cause immediate conflict.`,
           icaoReference: 'ICAO Doc 4444 - Turn direction critical'
         }
+      } else if (atcDir && !pilotDir) {
+        // Turn direction was specified by ATC but omitted entirely from readback
+        return {
+          type: 'missing_element',
+          parameter: 'turn direction',
+          expectedValue: atcDir[1],
+          actualValue: null,
+          severity: 'high',
+          explanation: `Turn direction "${atcDir[1].toUpperCase()}" was not read back. Omitting turn direction can cause ambiguity in busy airspace.`,
+          icaoReference: 'ICAO Doc 4444 §8.3.1'
+        }
       }
       break
     }
@@ -2934,8 +2972,10 @@ function checkRequiredElements(
   }
 
   // Runway check - critical for takeoff/landing
+  // Pilot must say "runway XX" or at minimum include the runway number with a designator
+  // (L/R/C). A bare digit like "27" is NOT sufficient — it could be anything.
   if (/runway\s+(\d{1,2})\s*(left|right|center|L|R|C)?/i.test(atcText)) {
-    if (!/runway|\d{1,2}\s*(left|right|center|L|R|C)?/i.test(pilotText)) {
+    if (!/runway\s*\d{1,2}|\b\d{1,2}\s*[LRC]\b/i.test(pilotText)) {
       const runway = atcText.match(/runway\s+(\d{1,2}\s*(left|right|center|L|R|C)?)/i)?.[1]
       errors.push({
         type: 'missing_element',
@@ -4120,7 +4160,7 @@ export function analyzeReadbackCompleteness(
   }
 
   return {
-    score: totalWeight > 0 ? Math.round((achievedWeight / totalWeight) * 100) : 100,
+    score: totalWeight > 0 ? Math.round((achievedWeight / totalWeight) * 100) : 0,
     missingElements,
     presentElements,
     criticalMissing,

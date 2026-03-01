@@ -1,0 +1,8 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "lastUpdated": "2026-02-28",
+    "description": "PAEC RAMP corpus — Ramp control training pairs. Phases: ramp, pushback. (stub — to be expanded)"
+  },
+  "corpus": []
+}
