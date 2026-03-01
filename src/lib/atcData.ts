@@ -317,7 +317,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
     instructionType: 'approach',
     requiredElements: ['approach type', 'runway', 'callsign'],
     severity: 'mandatory',
-    instruction: /cleared\s+(?:ils|rnav|vor|ndb|visual|instrument)\s+(?:runway\s+)?\d|cleared\s+\w+\s+approach/i,
+    instruction: /cleared\s+(?:ils|rnav|vor|ndb|visual|instrument|rnp|gls|lnav|vnav)\s+(?:runway\s+)?\d|cleared\s+(?:ils|rnav|vor|ndb|visual|rnp|gls)\s+approach/i,
     mustReadback: ['approach type', 'runway'],
     description: 'Approach clearance type and runway must be read back (ICAO Doc 4444 §12.3.4.1)',
   },

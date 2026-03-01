@@ -371,7 +371,7 @@ function buildExchangePairs(lines: ParsedLine[], context: ConversationContext): 
         let responseDelay = 0
         const currentGroup = line.conversationGroup
 
-        for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+        for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
           // Don't pair across conversation boundaries.
           // Note: undefined === undefined (both unknown-group) → same group → don't break.
           // Any mismatch (number vs undefined, or different numbers) → different group → break.
@@ -1706,7 +1706,7 @@ function expandInlineLabels(lines: string[]): string[] {
  * All other lines pass through unchanged.
  */
 function normalizeMultiLineFormat(rawLines: string[]): string[] {
-  const ATC_STANDALONE    = /^(ATC|ATCO|APP|DEP|TWR|TOWER|GND|GROUND|APPROACH|DEPARTURE|RADAR|CONTROL|RAMP|CLEARANCE|DELIVERY|ATIS)$/i
+  const ATC_STANDALONE    = /^(ATC|ATCO|APP|DEP|TWR|TOWER|GND|GROUND|APPROACH|DEPARTURE|RADAR|CONTROL|RAMP|CLEARANCE|CLR|DELIVERY|DEL|ATIS)$/i
   const PILOT_STANDALONE  = /^(PILOT|PLT|CREW|FO|CAPT|CAPTAIN|PF|PM|PNF)$/i
   const EXCHANGE_NUMBER   = /^\d{1,3}$/
 
@@ -1984,7 +1984,10 @@ function extractAnonType(raw: string): string | null {
   //   optional angle brackets + optional spaces  →  "anon type = <value>"
   const normalised = raw.replace(/<<+/g, '<').replace(/<\s+/g, '<')
   // The value sits between "=" and the next quote/slash/angle-bracket/newline
+  // Two-pass match: prefer delimited form, fall back to end-of-line anchor for truncated tags
+  // like `<anon type="Philippine"` (no closing >).
   const m = normalised.match(/\banon\s+type\s*=\s*["']?\s*([A-Za-z][A-Za-z ]*?)["']?\s*[/<>]/i)
+         || normalised.match(/\banon\s+type\s*=\s*["']([^"'\n]+)["']\s*$/im)
   if (!m) return null
   return m[1].trim().toUpperCase().replace(/\s+/g, '')
 }
@@ -2074,11 +2077,8 @@ function extractQuotedSegments(text: string): string[] {
   const singleQuotes = /[\u0027\u2018\u2019\u201A\u201B\u2032\u2035\uFF07\u0060\u00B4]/g
   normalized = normalized.replace(singleQuotes, '"')
 
-  console.log('[Parser] Normalized text:', normalized)
-
   // Method 1: Split by quote character and filter meaningful parts
   const splitParts = normalized.split('"')
-  console.log('[Parser] Split by quote:', splitParts)
 
   for (const part of splitParts) {
     const cleaned = part.trim()
@@ -2102,7 +2102,6 @@ function extractQuotedSegments(text: string): string[] {
   }
 
   if (segments.length >= 2) {
-    console.log('[Parser] Method 1 success:', segments)
     return segments
   }
 
@@ -2120,7 +2119,6 @@ function extractQuotedSegments(text: string): string[] {
   }
 
   if (segments.length >= 2) {
-    console.log('[Parser] Method 2 success:', segments)
     return segments
   }
 
@@ -2154,7 +2152,6 @@ function extractQuotedSegments(text: string): string[] {
   }
 
   if (segments.length >= 2) {
-    console.log('[Parser] Method 3 (callsign) success:', segments)
     return segments
   }
 
@@ -2170,7 +2167,6 @@ function extractQuotedSegments(text: string): string[] {
     }
   }
 
-  console.log('[Parser] Final result:', segments.length, 'segments')
   return segments
 }
 
@@ -3213,9 +3209,8 @@ function analyzeReadbacks(lines: ParsedLine[]): ReadbackAnalysis {
     const pilotResponse = lines.find((l, idx) => {
       if (idx <= i) return false
       if (l.speaker !== 'PILOT') return false
-      // Don't cross conversation boundaries
-      if (currentGroup !== undefined && l.conversationGroup !== undefined &&
-          l.conversationGroup !== currentGroup) return false
+      // Don't cross conversation boundaries (same fix as buildExchangePairs)
+      if (currentGroup !== l.conversationGroup) return false
       return true
     })
     if (!pilotResponse) {
@@ -3227,7 +3222,7 @@ function analyzeReadbacks(lines: ParsedLine[]): ReadbackAnalysis {
     // This is the same function used by buildExchangePairs — both now produce consistent
     // results. The old validateReadback/hasElement pipeline has been removed because it
     // did not call the semantic analyzer and produced systematically wrong scores.
-    const quality = evaluateReadbackQuality(line, pilotResponse, 'auto')
+    const quality = evaluateReadbackQuality(line, pilotResponse, detectInstructionType(line.text))
     if (quality === 'complete') {
       completeReadbacks++
     } else {

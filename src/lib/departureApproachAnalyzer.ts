@@ -1526,15 +1526,25 @@ export function detectDepartureErrors(
     })
   }
 
-  // Check for frequency not read back on departure handoff
+  // Check for frequency not read back on departure handoff.
+  // Extract the FULL frequency ("124.1") from both sides and compare as a single string —
+  // using substring matching on individual digit groups was too loose (the decimal part
+  // "1" would match almost anything).
+  const extractFullFreq = (text: string): string | null => {
+    const norm = normalizeToDigits(text)
+    // digits + decimal/point + more digits
+    const m = norm.match(/(\d{3})\s*(?:decimal|point|\.)\s*(\d{1,3})/i)
+    if (m) return `${m[1]}.${m[2]}`
+    // Bare 3-digit VHF frequency (118–137) with no decimal
+    const bare = norm.match(/\b(1[123]\d)\b/)
+    return bare ? bare[1] : null
+  }
   const freqMatch = atcLower.match(/contact\s+\w+[\w\s]*?((?:one|two|three|four|five|six|seven|eight|nine|zero|niner)\s*){2,}/i) ||
                     atcLower.match(/contact\s+\w+[\w\s]*?(\d{3})\s*(decimal|point)\s*(\d{1,3})/i)
   if (freqMatch && pilotReadback) {
-    // Extract frequency digits from ATC instruction and check pilot read them back
-    const atcDigits = normalizeToDigits(freqMatch[0])
-    const pilotDigits = normalizeToDigits(pilotReadback)
-    const atcFreqNumbers = atcDigits.match(/\d{3,}/g)
-    if (atcFreqNumbers && !atcFreqNumbers.some(n => pilotDigits.includes(n))) {
+    const atcFreq  = extractFullFreq(freqMatch[0])
+    const pilotFreq = extractFullFreq(pilotReadback)
+    if (atcFreq && (!pilotFreq || atcFreq !== pilotFreq)) {
       errors.push({
         type: 'frequency_confusion',
         description: 'Frequency not correctly read back on departure handoff',

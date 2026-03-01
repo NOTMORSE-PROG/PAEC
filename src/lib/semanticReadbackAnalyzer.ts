@@ -1234,6 +1234,8 @@ export function extractNumericValue(text: string, type: 'altitude' | 'heading' |
           'ten': '10000', 'eleven': '11000', 'twelve': '12000',
           'thirteen': '13000', 'fourteen': '14000', 'fifteen': '15000',
           'sixteen': '16000', 'seventeen': '17000', 'eighteen': '18000', 'nineteen': '19000',
+          'twenty': '20000', 'thirty': '30000', 'forty': '40000', 'fifty': '50000',
+          'sixty': '60000', 'seventy': '70000', 'eighty': '80000', 'ninety': '90000',
         }
         if (wordToNum[numWord]) return wordToNum[numWord]
       }
@@ -1273,7 +1275,12 @@ export function extractNumericValue(text: string, type: 'altitude' | 'heading' |
     }
 
     case 'speed': {
-      // Speed is typically 2-3 digits, look for knots context
+      // Mach speed (high-altitude cruise): "mach point eight two" → "M.82"
+      const machMatch = normalized.match(/mach\s*(?:point\s*)?(\d{1,2})/i) ||
+                        normalized.match(/\bm\s*\.\s*(\d{1,2})\b/i)
+      if (machMatch) return 'M.' + machMatch[1]
+
+      // Knot speed: 2-3 digit number in knots context
       const spdMatch = normalized.match(/speed[^0-9]*(\d{2,3})/i) ||
                        normalized.match(/(\d{2,3})\s*knots?/i) ||
                        normalized.match(/(?:reduce|increase|maintain)[^0-9]*(\d{2,3})/i)
@@ -2836,13 +2843,22 @@ function checkValueMatch(
         }
       }
 
-      // Check runway
-      const atcRunwayMatch = atcText.match(/runway\s*(\d{1,2}[LRC]?)/i)
-      const pilotRunwayMatch = pilotText.match(/runway\s*(\d{1,2}[LRC]?)/i)
+      // Check runway — normalize designator forms before comparing:
+      // "24 left" → "24L", "24 right" → "24R", "24 center/centre" → "24C"
+      // so that mixed forms (ATC long-hand vs pilot short-hand) are not falsely flagged.
+      const normalizeRunwayDesignator = (s: string): string =>
+        s.toUpperCase()
+          .replace(/\bLEFT\b/g, 'L').replace(/\bRIGHT\b/g, 'R')
+          .replace(/\bCENTER\b|\bCENTRE\b/g, 'C')
+          .replace(/\s+/g, '')
+
+      // Capture runway even when designator is a separate word ("24 left" → group "24")
+      const atcRunwayMatch = atcText.match(/runway\s*(\d{1,2}(?:\s*(?:left|right|center|centre|[LRC]))?)/i)
+      const pilotRunwayMatch = pilotText.match(/runway\s*(\d{1,2}(?:\s*(?:left|right|center|centre|[LRC]))?)/i)
 
       if (atcRunwayMatch && pilotRunwayMatch) {
-        const atcRunway = atcRunwayMatch[1].toUpperCase()
-        const pilotRunway = pilotRunwayMatch[1].toUpperCase()
+        const atcRunway  = normalizeRunwayDesignator(atcRunwayMatch[1])
+        const pilotRunway = normalizeRunwayDesignator(pilotRunwayMatch[1])
         if (atcRunway !== pilotRunway) {
           return {
             type: 'wrong_value',
@@ -2936,16 +2952,9 @@ function checkRequiredElements(
         break
 
       case 'direction':
-        if (/\b(left|right)\b/i.test(atcText) && !/\b(left|right)\b/i.test(pilotText)) {
-          errors.push({
-            type: 'missing_element',
-            parameter: 'turn direction',
-            expectedValue: atcText.match(/\b(left|right)\b/i)?.[0] || 'direction',
-            actualValue: null,
-            severity: 'high',
-            explanation: 'Missing turn direction (left/right) in readback.'
-          })
-        }
+        // Turn direction (left/right) omission and wrong-direction are already handled
+        // by checkValueMatch() which is called before checkRequiredElements(). Keeping
+        // the check here would push a duplicate error for the same parameter.
         break
     }
   }
