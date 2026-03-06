@@ -48,12 +48,12 @@ const CHECKS = (appDepCorpus as unknown as { checks: {
 type UnifiedSeverity = 'critical' | 'high' | 'medium' | 'low'
 
 /**
- * Normalizes severity strings from any internal subsystem into the 4-tier
- * unified severity scale. Prevents 'critical' from being silently dropped
+ * Normalizes weight strings from any internal subsystem into the 4-tier
+ * unified weight scale. Prevents 'critical' from being silently dropped
  * when merging results from semanticReadbackAnalyzer (which uses all 4 tiers)
  * and analysisEngine (which historically only used 3 tiers).
  */
-function mapSeverity(raw: string | undefined): UnifiedSeverity {
+function mapWeight(raw: string | undefined): UnifiedSeverity {
   switch ((raw || '').toLowerCase()) {
     case 'critical': return 'critical'
     case 'high':     return 'high'
@@ -69,7 +69,7 @@ function mapSeverity(raw: string | undefined): UnifiedSeverity {
 export interface DepartureApproachMLResult extends SemanticAnalysisResult {
   phase: FlightPhase
   phaseConfidence: number
-  contextualSeverity: 'critical' | 'high' | 'medium' | 'low'
+  contextualWeight: 'critical' | 'high' | 'medium' | 'low'
   multiPartAnalysis: MultiPartInstructionAnalysis
   sequenceAnalysis: SequenceAnalysis
   departureSpecificErrors: DepartureSpecificError[]
@@ -112,7 +112,7 @@ export interface InstructionPart {
   actualReadback: string | null
   isPresent: boolean
   isCritical: boolean
-  severity: 'critical' | 'high' | 'medium' | 'low'
+  weight: 'critical' | 'high' | 'medium' | 'low'
 }
 
 export interface SequenceAnalysis {
@@ -127,7 +127,7 @@ export interface SequenceAnalysis {
 export interface DepartureSpecificError {
   type: DepartureErrorType
   description: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
+  weight: 'critical' | 'high' | 'medium' | 'low'
   correction: string
   icaoReference: string
   flightSafetyImpact: string
@@ -149,7 +149,7 @@ export type DepartureErrorType =
 export interface ApproachSpecificError {
   type: ApproachErrorType
   description: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
+  weight: 'critical' | 'high' | 'medium' | 'low'
   correction: string
   icaoReference: string
   flightSafetyImpact: string
@@ -183,7 +183,7 @@ export interface MLConfidenceScores {
   phaseDetection: number
   instructionClassification: number
   errorDetection: number
-  severityAssessment: number
+  weightAssessment: number
   overallConfidence: number
 }
 
@@ -1305,7 +1305,7 @@ export function analyzeMultiPartInstruction(
         actualReadback: isPresent ? value : null,
         isPresent,
         isCritical: component.isCritical,
-        severity: component.isCritical ? 'critical' : 'medium',
+        weight: component.isCritical ? 'critical' : 'medium',
       })
 
       if (!isPresent) {
@@ -1463,7 +1463,7 @@ export function detectDepartureErrors(
     errors.push({
       type: 'sid_missed',
       description: `SID "${sidMatch[1]}" not read back`,
-      severity: 'high',
+      weight: 'high',
       correction: `Include SID name: "${sidMatch[1]}" in readback`,
       icaoReference: 'ICAO Doc 4444 Section 4.5.7.5',
       flightSafetyImpact: 'May result in incorrect departure routing',
@@ -1478,7 +1478,7 @@ export function detectDepartureErrors(
     errors.push({
       type: 'runway_heading_error',
       description: 'Runway heading instruction not read back',
-      severity: 'critical',
+      weight: 'critical',
       correction: 'Include "runway heading" in readback',
       icaoReference: 'ICAO Doc 4444',
       flightSafetyImpact: 'May result in premature turn after takeoff',
@@ -1492,7 +1492,7 @@ export function detectDepartureErrors(
     errors.push({
       type: 'expedite_not_acknowledged',
       description: 'Expedite instruction not acknowledged',
-      severity: 'high',
+      weight: 'high',
       correction: 'Include "expedite" in readback to confirm urgency',
       icaoReference: 'ICAO Doc 4444 Section 8.6.5.2',
       flightSafetyImpact: 'Traffic separation may be compromised',
@@ -1506,7 +1506,7 @@ export function detectDepartureErrors(
       errors.push({
         type: 'conditional_clearance_missed',
         description: `Conditional phrase "${conditionMatch[1]}" not read back`,
-        severity: 'critical',
+        weight: 'critical',
         correction: 'Include the conditional phrase to confirm understanding',
         icaoReference: 'ICAO Doc 4444 Section 4.5.7.4',
         flightSafetyImpact: 'May execute clearance prematurely',
@@ -1519,7 +1519,7 @@ export function detectDepartureErrors(
     errors.push({
       type: 'noise_abatement_ignored',
       description: 'Noise abatement procedure not acknowledged',
-      severity: 'medium',
+      weight: 'medium',
       correction: 'Acknowledge noise abatement departure procedure',
       icaoReference: 'ICAO Doc 8168',
       flightSafetyImpact: 'May violate noise restrictions',
@@ -1548,7 +1548,7 @@ export function detectDepartureErrors(
       errors.push({
         type: 'frequency_confusion',
         description: 'Frequency not correctly read back on departure handoff',
-        severity: 'high',
+        weight: 'high',
         correction: 'Read back the full frequency including decimals',
         icaoReference: 'ICAO Doc 4444 Section 4.5.7.1',
         flightSafetyImpact: 'May contact wrong frequency after departure, losing communication',
@@ -1564,7 +1564,7 @@ export function detectDepartureErrors(
       errors.push({
         type: 'departure_restriction_missed',
         description: `Direct-to waypoint "${directMatch[1]}" not read back`,
-        severity: 'high',
+        weight: 'high',
         correction: `Include waypoint "${directMatch[1]}" in readback`,
         icaoReference: 'ICAO Doc 4444 Section 4.5.7',
         flightSafetyImpact: 'May fly incorrect routing after departure',
@@ -1583,7 +1583,7 @@ export function detectDepartureErrors(
         errors.push({
           type: 'initial_altitude_wrong',
           description: 'Continue climb altitude not correctly read back',
-          severity: 'high',
+          weight: 'high',
           correction: 'Read back the assigned altitude/flight level for continue climb',
           icaoReference: 'ICAO Doc 4444 Section 4.5.7.3',
           flightSafetyImpact: 'May stop climb at wrong altitude, causing separation loss',
@@ -1606,7 +1606,7 @@ export function detectDepartureErrors(
       errors.push({
         type: 'callsign_not_included',
         description: `Callsign "${callsign.toUpperCase()}" not included in readback`,
-        severity: 'high',
+        weight: 'high',
         correction: `End readback with callsign: "..., ${callsign.toUpperCase()}"`,
         icaoReference: 'ICAO Doc 9432 Chapter 5',
         flightSafetyImpact: 'ATC cannot confirm correct aircraft acknowledged the instruction',
@@ -1637,7 +1637,7 @@ export function detectApproachErrors(
     errors.push({
       type: 'approach_type_confusion',
       description: `Approach type mismatch: ATC cleared ${atcApproach[1].toUpperCase()}, pilot read ${pilotApproach[1].toUpperCase()}`,
-      severity: 'critical',
+      weight: 'critical',
       correction: `Correct approach type: ${atcApproach[1].toUpperCase()}`,
       icaoReference: 'ICAO Doc 4444 Section 6.5.3',
       flightSafetyImpact: 'Wrong approach procedure could lead to CFIT',
@@ -1655,7 +1655,7 @@ export function detectApproachErrors(
       errors.push({
         type: 'crossing_altitude_error',
         description: `Crossing restriction "${waypoint} at ${altitude}" not confirmed`,
-        severity: 'critical',
+        weight: 'critical',
         correction: `Confirm: Cross ${waypoint.toUpperCase()} at ${altitude}`,
         icaoReference: 'ICAO Doc 4444 Section 6.3.2',
         flightSafetyImpact: 'Altitude bust at waypoint may cause separation loss',
@@ -1678,7 +1678,7 @@ export function detectApproachErrors(
         description: !pilotHasQnhWord
           ? 'QNH/altimeter setting not confirmed in readback'
           : 'QNH numeric value not read back (word only, no value)',
-        severity: 'high',
+        weight: 'high',
         correction: 'Include both the word "QNH"/"altimeter" and its numeric value in readback',
         icaoReference: 'ICAO Doc 4444 Section 7.2.4',
         flightSafetyImpact: 'Wrong or unconfirmed altimeter setting can cause altitude deviation',
@@ -1696,7 +1696,7 @@ export function detectApproachErrors(
       errors.push({
         type: 'missed_approach_incomplete',
         description: 'Go around/missed approach not acknowledged',
-        severity: 'critical',
+        weight: 'critical',
         correction: 'Start readback with "Going around" or "Missed approach"',
         icaoReference: 'ICAO Doc 4444 Section 6.5.3.4',
         flightSafetyImpact: 'Unclear if go around is being executed',
@@ -1712,7 +1712,7 @@ export function detectApproachErrors(
       errors.push({
         type: 'go_around_altitude_wrong',
         description: 'Go around altitude not confirmed',
-        severity: 'critical',
+        weight: 'critical',
         correction: 'Include altitude in go around readback',
         icaoReference: 'ICAO Doc 4444',
         flightSafetyImpact: 'May climb to wrong altitude during go around',
@@ -1723,7 +1723,7 @@ export function detectApproachErrors(
       errors.push({
         type: 'go_around_heading_not_confirmed',
         description: 'Go around heading not confirmed',
-        severity: 'high',
+        weight: 'high',
         correction: 'Include heading/turn in go around readback',
         icaoReference: 'ICAO Doc 4444',
         flightSafetyImpact: 'May turn wrong direction during go around',
@@ -1737,7 +1737,7 @@ export function detectApproachErrors(
       errors.push({
         type: 'visual_approach_traffic_missed',
         description: 'Traffic to follow not acknowledged for visual approach',
-        severity: 'high',
+        weight: 'high',
         correction: 'Acknowledge "traffic in sight" for visual separation',
         icaoReference: 'ICAO Doc 4444 Section 6.5.3.1',
         flightSafetyImpact: 'Visual separation cannot be applied without traffic in sight',
@@ -1759,7 +1759,7 @@ export function detectApproachErrors(
       errors.push({
         type: 'callsign_not_included',
         description: `Callsign "${callsign.toUpperCase()}" not included in readback`,
-        severity: 'high',
+        weight: 'high',
         correction: `End readback with callsign: "..., ${callsign.toUpperCase()}"`,
         icaoReference: 'ICAO Doc 9432 Chapter 5',
         flightSafetyImpact: 'ATC cannot confirm correct aircraft acknowledged the instruction',
@@ -1788,7 +1788,7 @@ export function calculateSafetyVectors(
 
   // Critical parameter accuracy
   const criticalErrors = baseAnalysis.errors.filter(e =>
-    e.severity === 'critical' || e.type === 'wrong_value' || e.type === 'transposition'
+    e.weight === 'critical' || e.type === 'wrong_value' || e.type === 'transposition'
   )
   vectors.push({
     factor: 'Critical Parameter Accuracy',
@@ -1872,8 +1872,8 @@ export function calculateMLConfidence(
 
   // Severity assessment: penalized for each critical error found, since
   // critical errors indicate high-stakes ambiguity in the exchange.
-  const criticalErrors = baseAnalysis.errors.filter(e => mapSeverity(e.severity) === 'critical').length
-  const severityAssessment = Math.max(0.4, Math.min(1.0, 1 - criticalErrors * 0.2))
+  const criticalErrors = baseAnalysis.errors.filter(e => mapWeight(e.weight) === 'critical').length
+  const weightAssessment = Math.max(0.4, Math.min(1.0, 1 - criticalErrors * 0.2))
 
   // Overall: phase detection weighted highest (30%) as it drives all
   // downstream analysis; other factors equally weighted.
@@ -1881,14 +1881,14 @@ export function calculateMLConfidence(
     phaseDetection * 0.30 +
     instructionClassification * 0.25 +
     errorDetection * 0.25 +
-    severityAssessment * 0.20
+    weightAssessment * 0.20
   )
 
   return {
     phaseDetection:            Math.round(phaseDetection * 100) / 100,
     instructionClassification: Math.round(instructionClassification * 100) / 100,
     errorDetection:            Math.round(errorDetection * 100) / 100,
-    severityAssessment:        Math.round(severityAssessment * 100) / 100,
+    weightAssessment:        Math.round(weightAssessment * 100) / 100,
     overallConfidence:         Math.round(overallConfidence * 100) / 100,
   }
 }
@@ -1904,7 +1904,7 @@ export function analyzeDepartureApproach(
   atcInstruction: string,
   pilotReadback: string,
   callsign?: string,
-  previousErrors?: { type: string; severity: string; timestamp: number }[]
+  previousErrors?: { type: string; weight: string; timestamp: number }[]
 ): DepartureApproachMLResult {
   // 1. Base semantic analysis
   const baseAnalysis = analyzeReadback(atcInstruction, pilotReadback, callsign)
@@ -1927,10 +1927,10 @@ export function analyzeDepartureApproach(
     ? detectApproachErrors(atcInstruction, pilotReadback, phaseResult.phase, callsign)
     : []
 
-  // 5. Calculate contextual severity
-  // mapSeverity ensures the result is always in the 4-tier unified scale,
+  // 5. Calculate contextual weight
+  // mapWeight ensures the result is always in the 4-tier unified scale,
   // preventing 'critical' from being silently dropped by downstream consumers.
-  const contextualSeverity: UnifiedSeverity = mapSeverity(
+  const contextualWeight: UnifiedSeverity = mapWeight(
     calculateEnhancedSeverity(
       { phase: mapPhaseToSeverityPhase(phaseResult.phase) || 'cruise' },
       baseAnalysis.errors.length > 0 ? baseAnalysis.errors[0].type : 'unknown'
@@ -1982,7 +1982,7 @@ export function analyzeDepartureApproach(
     // Enhanced results
     phase: phaseResult.phase,
     phaseConfidence: phaseResult.confidence,
-    contextualSeverity,
+    contextualWeight,
     multiPartAnalysis,
     sequenceAnalysis,
     departureSpecificErrors: departureErrors,
@@ -2020,10 +2020,10 @@ function mapPhaseToSeverityPhase(phase: FlightPhase): SeverityPhase {
   return mapping[phase] || 'cruise'
 }
 
-function getErrorTrend(previousErrors: { type: string; severity: string; timestamp: number }[]): 'improving' | 'stable' | 'declining' {
+function getErrorTrend(previousErrors: { type: string; weight: string; timestamp: number }[]): 'improving' | 'stable' | 'declining' {
   if (previousErrors.length < 2) return 'stable'
 
-  const severityValues: Record<string, number> = {
+  const weightValues: Record<string, number> = {
     critical: 4,
     high: 3,
     medium: 2,
@@ -2033,18 +2033,18 @@ function getErrorTrend(previousErrors: { type: string; severity: string; timesta
   const recentHalf = previousErrors.slice(-Math.ceil(previousErrors.length / 2))
   const olderHalf = previousErrors.slice(0, Math.floor(previousErrors.length / 2))
 
-  const recentAvg = recentHalf.reduce((sum, e) => sum + (severityValues[e.severity] || 0), 0) / recentHalf.length
-  const olderAvg = olderHalf.reduce((sum, e) => sum + (severityValues[e.severity] || 0), 0) / olderHalf.length
+  const recentAvg = recentHalf.reduce((sum, e) => sum + (weightValues[e.weight] || 0), 0) / recentHalf.length
+  const olderAvg = olderHalf.reduce((sum, e) => sum + (weightValues[e.weight] || 0), 0) / olderHalf.length
 
   if (recentAvg < olderAvg - 0.5) return 'improving'
   if (recentAvg > olderAvg + 0.5) return 'declining'
   return 'stable'
 }
 
-function countConsecutiveErrors(previousErrors: { type: string; severity: string; timestamp: number }[]): number {
+function countConsecutiveErrors(previousErrors: { type: string; weight: string; timestamp: number }[]): number {
   let count = 0
   for (let i = previousErrors.length - 1; i >= 0; i--) {
-    if (previousErrors[i].severity !== 'low') {
+    if (previousErrors[i].weight !== 'low') {
       count++
     } else {
       break
@@ -2210,7 +2210,7 @@ export function batchAnalyzeDepartureApproach(
     totalApproachErrors += result.approachSpecificErrors.length
     totalCompleteness += result.multiPartAnalysis.readbackCompleteness
 
-    if (result.contextualSeverity === 'critical') {
+    if (result.contextualWeight === 'critical') {
       criticalErrorCount++
     }
   }

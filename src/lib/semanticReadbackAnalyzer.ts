@@ -38,7 +38,7 @@ export interface ReadbackError {
   parameter: string
   expectedValue: string | null
   actualValue: string | null
-  severity: 'critical' | 'high' | 'medium' | 'low'
+  weight: 'critical' | 'high' | 'medium' | 'low'
   explanation: string
   icaoReference?: string
 }
@@ -1537,7 +1537,7 @@ export function validateReadbackAgainstCommand(
       parameter: atcCommand.parameter,
       expectedValue: atcCommand.value.toString(),
       actualValue: pilotReadback,
-      severity: 'critical',
+      weight: 'critical',
       explanation: `"${hasRogerWilco ? pilotReadback.match(/\b(roger|wilco|copied|copy)\b/i)?.[0] : 'Roger'}" cannot substitute for readback of safety-critical items. Full readback required for verification.`,
       icaoReference: 'ICAO Doc 9432 §4.5.7 - Readback/Hearback Requirements'
     })
@@ -1557,7 +1557,7 @@ export function validateReadbackAgainstCommand(
         parameter: atcCommand.parameter,
         expectedValue: atcCommand.value.toString(),
         actualValue: null,
-        severity: atcCommand.parameter === 'altitude' || atcCommand.parameter === 'heading' ? 'high' : 'medium',
+        weight: atcCommand.parameter === 'altitude' || atcCommand.parameter === 'heading' ? 'high' : 'medium',
         explanation: `Required ${atcCommand.parameter} value not read back`
       })
     } else if (normalizeToDigits(pilotValue) !== normalizeToDigits(atcValue)) {
@@ -1566,7 +1566,7 @@ export function validateReadbackAgainstCommand(
         parameter: atcCommand.parameter,
         expectedValue: atcCommand.value.toString(),
         actualValue: pilotValue,
-        severity: 'high',
+        weight: 'high',
         explanation: `${atcCommand.parameter} mismatch: ATC said "${atcCommand.value}", pilot read back "${pilotValue}"`
       })
     }
@@ -1590,7 +1590,7 @@ export function validateReadbackAgainstCommand(
         parameter: 'condition',
         expectedValue: atcCommand.condition.phrase,
         actualValue: null,
-        severity: 'high',
+        weight: 'high',
         explanation: `Conditional phrase "${atcCommand.condition.phrase}" not read back. Controllers need to verify pilot understands the timing.`,
         icaoReference: 'ICAO Doc 9432 - Conditional clearances must be read back'
       })
@@ -1604,7 +1604,7 @@ export function validateReadbackAgainstCommand(
         parameter: 'timing',
         expectedValue: atcCommand.condition.phrase,
         actualValue: pilotReadback.match(/\b(now|immediately|right\s+now)\b/i)?.[0] || 'now',
-        severity: 'critical',
+        weight: 'critical',
         explanation: `Pilot added "now" but ATC instruction was conditional ("${atcCommand.condition.phrase}"). This could cause premature execution.`,
         icaoReference: 'FAA 7110.65 §4-3-1 - Conditional instructions timing'
       })
@@ -1629,7 +1629,7 @@ export function validateReadbackAgainstCommand(
         parameter: 'constraint',
         expectedValue: atcCommand.constraint.phrase,
         actualValue: null,
-        severity: 'high',
+        weight: 'high',
         explanation: `Altitude constraint "${atcCommand.constraint.phrase}" not read back. This is a critical restriction.`,
         icaoReference: 'FAA 7110.65 §4-5-7 - Altitude restrictions'
       })
@@ -2116,7 +2116,7 @@ export function analyzeReadback(
         parameter: 'full readback',
         expectedValue: generateExpectedReadback(atcNorm, instructionType, callsign),
         actualValue: ackWord,
-        severity: 'high',
+        weight: 'high',
         explanation: `"${ackWord}" is inadequate for ${instructionType} instructions. Full readback of all parameters is required.`,
         icaoReference: 'ICAO Doc 4444 Section 12.3.1.2'
       })
@@ -2190,8 +2190,8 @@ export function analyzeReadback(
     if (!isDuplicate) {
       errors.push(mpError)
       if (quality === 'complete') quality = 'partial'
-      // Upgrade severity if this is a critical component
-      if (mpError.severity === 'critical' && quality !== 'incorrect') {
+      // Upgrade weight if this is a critical component
+      if (mpError.weight === 'critical' && quality !== 'incorrect') {
         quality = 'partial'
       }
     }
@@ -2341,7 +2341,7 @@ function detectParameterConfusion(
         parameter: 'heading → altitude',
         expectedValue: `heading ${atcHeading}`,
         actualValue: pilotText,
-        severity: 'critical',
+        weight: 'critical',
         explanation: `Parameter confusion: ATC instructed HEADING ${atcHeading}, but pilot read back as ALTITUDE/FLIGHT LEVEL. This changes the meaning entirely.`,
         icaoReference: 'ICAO Doc 4444 - Critical parameter confusion'
       }
@@ -2362,7 +2362,7 @@ function detectParameterConfusion(
         parameter: 'altitude → heading',
         expectedValue: `altitude ${atcAlt}`,
         actualValue: pilotText,
-        severity: 'critical',
+        weight: 'critical',
         explanation: `Parameter confusion: ATC instructed ALTITUDE ${atcAlt}, but pilot read back as HEADING.`,
         icaoReference: 'ICAO Doc 4444 - Critical parameter confusion'
       }
@@ -2382,7 +2382,7 @@ function detectParameterConfusion(
         parameter: 'speed → altitude',
         expectedValue: `${atcSpeed} knots`,
         actualValue: pilotText,
-        severity: 'high',
+        weight: 'high',
         explanation: `Parameter confusion: ATC instructed SPEED ${atcSpeed} knots, but pilot read back as ALTITUDE.`,
         icaoReference: 'ICAO Doc 4444 - Parameter confusion'
       }
@@ -2398,7 +2398,7 @@ function detectParameterConfusion(
         parameter: 'speed → heading',
         expectedValue: `speed ${atcSpeed} knots`,
         actualValue: pilotText,
-        severity: 'critical',
+        weight: 'critical',
         explanation: `Parameter confusion: ATC instructed SPEED ${atcSpeed} knots, but pilot read back as HEADING. Speed instruction was incorrectly interpreted as a heading change.`,
         icaoReference: 'ICAO Doc 4444 - Critical parameter confusion'
       }
@@ -2467,7 +2467,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       parameter: 'altitude',
       expectedValue: atcAlt,
       actualValue: null,
-      severity: 'critical',
+      weight: 'critical',
       explanation: 'Missing altitude in multi-part instruction readback. Altitude is safety-critical.',
       icaoReference: 'ICAO Doc 4444 Section 12.3.1.2'
     })
@@ -2480,7 +2480,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       parameter: 'heading',
       expectedValue: atcHdg,
       actualValue: null,
-      severity: 'high',
+      weight: 'high',
       explanation: 'Missing heading in multi-part instruction readback.',
       icaoReference: 'ICAO Doc 4444'
     })
@@ -2493,7 +2493,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       parameter: 'speed',
       expectedValue: atcSpd ? atcSpd + ' knots' : null,
       actualValue: null,
-      severity: 'medium',
+      weight: 'medium',
       explanation: 'Missing speed in multi-part instruction readback.',
       icaoReference: 'ICAO Doc 4444'
     })
@@ -2506,7 +2506,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       parameter: 'altimeter/QNH',
       expectedValue: atcAltim,
       actualValue: null,
-      severity: 'critical',
+      weight: 'critical',
       explanation: 'Missing altimeter setting (QNH) readback. This is safety-critical for approach.',
       icaoReference: 'ICAO Doc 9432'
     })
@@ -2519,7 +2519,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       parameter: 'squawk',
       expectedValue: atcSqk,
       actualValue: null,
-      severity: 'high',
+      weight: 'high',
       explanation: 'Missing squawk code readback.',
       icaoReference: 'ICAO Doc 4444'
     })
@@ -2538,7 +2538,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       parameter: 'constraint',
       expectedValue: constraintMatch ? constraintMatch[0] : 'altitude/position constraint',
       actualValue: null,
-      severity: 'critical',
+      weight: 'critical',
       explanation: `Missing constraint in readback. ATC instructed "${constraintMatch?.[0] || 'constraint'}" which is a critical restriction that must be read back.`,
       icaoReference: 'ICAO Doc 4444 - Conditional clearance constraints must be read back'
     })
@@ -2566,7 +2566,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
             parameter: 'waypoint/fix',
             expectedValue: atcWpt,
             actualValue: similarWpt,
-            severity: 'critical',
+            weight: 'critical',
             explanation: `Wrong waypoint/fix name. ATC instructed "${atcWpt}", pilot read back "${similarWpt}". This could lead to navigation to wrong location.`,
             icaoReference: 'ICAO Doc 4444 - Fix names must be read back accurately'
           })
@@ -2588,7 +2588,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       parameter: 'callsign',
       expectedValue: atcCallsign,
       actualValue: null,
-      severity: 'medium',
+      weight: 'medium',
       explanation: `Missing callsign in readback. Pilot should end with callsign "${atcCallsign}" to confirm which aircraft is responding.`,
       icaoReference: 'ICAO Doc 4444 - Callsign required in readback'
     })
@@ -2690,7 +2690,7 @@ function checkValueMatch(
           parameter: isMagnitudeError ? 'altitude (magnitude)' : 'altitude',
           expectedValue: atcAlt,
           actualValue: pilotAlt,
-          severity: 'critical',
+          weight: 'critical',
           explanation: errorExplanation,
           icaoReference: 'ICAO Doc 4444 Section 12.3.1.2 - Altitude readback mandatory'
         }
@@ -2711,7 +2711,7 @@ function checkValueMatch(
           parameter: 'heading',
           expectedValue: atcHdg,
           actualValue: pilotHdg,
-          severity: isTransposed ? 'critical' : 'high',
+          weight: isTransposed ? 'critical' : 'high',
           explanation: isTransposed
             ? `Heading digit transposition. ATC instructed heading ${atcHdg}, pilot read back ${pilotHdg}. Digits appear swapped - this is a common and dangerous error.`
             : `Wrong heading readback. ATC instructed heading ${atcHdg}, pilot read back heading ${pilotHdg}.`,
@@ -2728,7 +2728,7 @@ function checkValueMatch(
           parameter: 'turn direction',
           expectedValue: atcDir[1],
           actualValue: pilotDir[1],
-          severity: 'critical',
+          weight: 'critical',
           explanation: `CRITICAL: Wrong turn direction. ATC instructed turn ${atcDir[1].toUpperCase()}, pilot read back turn ${pilotDir[1].toUpperCase()}. Turn direction errors can cause immediate conflict.`,
           icaoReference: 'ICAO Doc 4444 - Turn direction critical'
         }
@@ -2739,7 +2739,7 @@ function checkValueMatch(
           parameter: 'turn direction',
           expectedValue: atcDir[1],
           actualValue: null,
-          severity: 'high',
+          weight: 'high',
           explanation: `Turn direction "${atcDir[1].toUpperCase()}" was not read back. Omitting turn direction can cause ambiguity in busy airspace.`,
           icaoReference: 'ICAO Doc 4444 §8.3.1'
         }
@@ -2757,7 +2757,7 @@ function checkValueMatch(
           parameter: 'speed',
           expectedValue: atcSpd + ' knots',
           actualValue: pilotSpd + ' knots',
-          severity: 'high',
+          weight: 'high',
           explanation: `Wrong speed readback. ATC instructed ${atcSpd} knots, pilot read back ${pilotSpd} knots.`,
           icaoReference: 'ICAO Doc 4444 - Speed readback'
         }
@@ -2778,7 +2778,7 @@ function checkValueMatch(
           parameter: 'altimeter',
           expectedValue: atcAltim,
           actualValue: pilotAltim,
-          severity: 'critical',
+          weight: 'critical',
           explanation: `Wrong altimeter readback (${isTransposition ? 'digit transposition' : 'incorrect value'}). ATC instructed ${atcAltim}, pilot read back ${pilotAltim}. Altimeter errors are safety-critical.`,
           icaoReference: 'ICAO Doc 4444 - Altimeter setting mandatory readback'
         }
@@ -2796,7 +2796,7 @@ function checkValueMatch(
           parameter: 'squawk',
           expectedValue: atcSqk,
           actualValue: pilotSqk,
-          severity: 'high',
+          weight: 'high',
           explanation: `Wrong squawk code. ATC instructed ${atcSqk}, pilot read back ${pilotSqk}.`,
           icaoReference: 'ICAO Doc 4444 - Transponder code readback'
         }
@@ -2814,7 +2814,7 @@ function checkValueMatch(
           parameter: 'frequency',
           expectedValue: atcFreq,
           actualValue: pilotFreq,
-          severity: 'high',
+          weight: 'high',
           explanation: `Wrong frequency. ATC instructed ${atcFreq}, pilot read back ${pilotFreq}.`,
           icaoReference: 'ICAO Doc 4444 - Frequency readback mandatory'
         }
@@ -2836,7 +2836,7 @@ function checkValueMatch(
             parameter: 'approach type',
             expectedValue: atcApproach.toUpperCase(),
             actualValue: pilotApproach.toUpperCase(),
-            severity: 'critical',
+            weight: 'critical',
             explanation: `Wrong approach type. ATC cleared ${atcApproach.toUpperCase()} approach, pilot read back ${pilotApproach.toUpperCase()}.`,
             icaoReference: 'ICAO Doc 4444 - Approach clearance readback'
           }
@@ -2865,7 +2865,7 @@ function checkValueMatch(
             parameter: 'runway',
             expectedValue: atcRunway,
             actualValue: pilotRunway,
-            severity: 'critical',
+            weight: 'critical',
             explanation: `CRITICAL: Wrong runway. ATC cleared for runway ${atcRunway}, pilot read back runway ${pilotRunway}. Runway confusion is a major safety hazard.`,
             icaoReference: 'ICAO Doc 4444 - Runway mandatory readback'
           }
@@ -2876,7 +2876,7 @@ function checkValueMatch(
           parameter: 'runway',
           expectedValue: atcRunwayMatch[1],
           actualValue: null,
-          severity: 'critical',
+          weight: 'critical',
           explanation: 'Missing runway in approach clearance readback. Runway must always be confirmed.',
           icaoReference: 'ICAO Doc 4444 - Runway mandatory readback'
         }
@@ -2895,7 +2895,7 @@ function checkValueMatch(
             parameter: 'crossing restriction',
             expectedValue: `${waypoint} at ${altitude}`,
             actualValue: null,
-            severity: 'high',
+            weight: 'high',
             explanation: `Missing crossing restriction in readback. Must confirm cross ${waypoint} at ${altitude}.`,
             icaoReference: 'ICAO Doc 4444 - Altitude restrictions mandatory'
           }
@@ -2945,7 +2945,7 @@ function checkRequiredElements(
             parameter: 'climb/descend action',
             expectedValue: atcText.match(/\b(climb|descend)\b/i)?.[0] || 'action',
             actualValue: null,
-            severity: 'medium',
+            weight: 'medium',
             explanation: 'Missing climb/descend action verb in readback.'
           })
         }
@@ -2973,7 +2973,7 @@ function checkRequiredElements(
         parameter: 'altitude',
         expectedValue: atcAltitude,
         actualValue: null,
-        severity: 'critical',
+        weight: 'critical',
         explanation: 'Altitude must be read back. Missing altitude in readback.',
         icaoReference: 'ICAO Doc 4444 12.3.1.2'
       })
@@ -2991,7 +2991,7 @@ function checkRequiredElements(
         parameter: 'runway',
         expectedValue: runway || 'runway',
         actualValue: null,
-        severity: 'critical',
+        weight: 'critical',
         explanation: 'Runway number must always be read back.',
         icaoReference: 'ICAO Doc 4444 12.3.1.3'
       })
@@ -3008,7 +3008,7 @@ function checkRequiredElements(
         parameter: 'heading',
         expectedValue: atcHeading,
         actualValue: null,
-        severity: 'high',
+        weight: 'high',
         explanation: 'Heading value must be read back.',
         icaoReference: 'ICAO Doc 4444 12.3.1.2'
       })
@@ -3024,7 +3024,7 @@ function checkRequiredElements(
         parameter: 'squawk code',
         expectedValue: squawk || 'squawk',
         actualValue: null,
-        severity: 'high',
+        weight: 'high',
         explanation: 'Squawk code must be read back.'
       })
     }
@@ -3037,7 +3037,7 @@ function checkRequiredElements(
       parameter: 'expedite',
       expectedValue: 'expedite',
       actualValue: null,
-      severity: 'high',
+      weight: 'high',
       explanation: 'Expedite instruction must be read back to confirm urgency.'
     })
   }
@@ -3049,7 +3049,7 @@ function checkRequiredElements(
       parameter: 'runway heading',
       expectedValue: 'runway heading',
       actualValue: null,
-      severity: 'critical',
+      weight: 'critical',
       explanation: 'Runway heading instruction must be read back.'
     })
   }
@@ -3064,7 +3064,7 @@ function checkRequiredElements(
         parameter: 'approach type',
         expectedValue: approachMatch[0],
         actualValue: null,
-        severity: 'critical',
+        weight: 'critical',
         explanation: `Approach type "${approachType.toUpperCase()}" must be read back.`,
         icaoReference: 'ICAO Doc 4444 12.3.1.2'
       })
@@ -3080,7 +3080,7 @@ function checkRequiredElements(
         parameter: 'frequency',
         expectedValue: freq || 'frequency',
         actualValue: null,
-        severity: 'high',
+        weight: 'high',
         explanation: 'Frequency must be read back before changing.'
       })
     }
@@ -3094,7 +3094,7 @@ function checkRequiredElements(
         parameter: 'conditional phrase',
         expectedValue: 'conditional instruction',
         actualValue: null,
-        severity: 'high',
+        weight: 'high',
         explanation: 'Conditional clearances must include the condition in readback.'
       })
     }
@@ -3108,7 +3108,7 @@ function checkRequiredElements(
         parameter: 'takeoff clearance',
         expectedValue: 'cleared for takeoff',
         actualValue: null,
-        severity: 'critical',
+        weight: 'critical',
         explanation: 'Takeoff clearance must be explicitly read back.',
         icaoReference: 'ICAO Doc 4444 12.3.1.3'
       })
@@ -3125,7 +3125,7 @@ function checkRequiredElements(
         parameter: 'waypoint/fix',
         expectedValue: waypoint,
         actualValue: null,
-        severity: 'high',
+        weight: 'high',
         explanation: `Waypoint "${waypoint}" must be read back.`
       })
     }
@@ -4221,7 +4221,7 @@ export function generateDynamicFeedback(
   }
 
   // Add ICAO references for critical errors
-  const criticalErrors = errors.filter(e => e.severity === 'critical')
+  const criticalErrors = errors.filter(e => e.weight === 'critical')
   if (criticalErrors.length > 0) {
     feedback.push(`Reference: ${criticalErrors[0].icaoReference || 'ICAO Doc 4444 12.3.1'}`)
   }

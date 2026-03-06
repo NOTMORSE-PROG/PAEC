@@ -48,8 +48,8 @@ interface CorpusFile {
 interface SharedFile {
   metadata: { version: string; lastUpdated: string; description: string }
   phraseology: {
-    nonStandardPhrases: { incorrect: string; correct: string; severity: string }[]
-    numberPronunciation: { incorrect: string; correct: string; severity: string }[]
+    nonStandardPhrases: { incorrect: string; correct: string; weight: string }[]
+    numberPronunciation: { incorrect: string; correct: string; weight: string }[]
   }
   callsigns: { philippine: string[]; international: string[] }
   waypoints: string[]

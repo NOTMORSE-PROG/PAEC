@@ -20,7 +20,7 @@ export interface PhraseCorrection {
   explanation: string
   nonStandard: RegExp
   standard: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
+  weight: 'critical' | 'high' | 'medium' | 'low'
   category: 'acknowledgment' | 'instruction' | 'clarification' | 'number' | 'emergency'
   safetyImpact: 'safety' | 'clarity' | 'efficiency'
   exclude?: RegExp      // if set and matches the full line, this phrase is NOT flagged
@@ -33,7 +33,7 @@ export interface PhraseCorrection {
 export interface ReadbackRequirement {
   instructionType: string
   requiredElements: string[]
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'mandatory'
+  weight: 'critical' | 'high' | 'medium' | 'low' | 'mandatory'
   instruction: RegExp
   mustReadback: string[]
   description: string
@@ -71,7 +71,7 @@ export interface SeverityFactors {
 export interface ErrorPattern {
   pattern: RegExp
   errorType: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
+  weight: 'critical' | 'high' | 'medium' | 'low'
   frequency?: number
   issue?: string
   correction?: string
@@ -89,7 +89,7 @@ export interface ErrorPattern {
 //
 // JSON entry schema:
 //   { incorrect, correct, explanation, pattern (regex string), flags,
-//     standard, severity, category, safetyImpact,
+//     standard, weight, category, safetyImpact,
 //     excludePattern? (skip detection if this regex also matches the line),
 //     incident?, icaoRef? }
 
@@ -101,7 +101,7 @@ interface RawPhraseEntry {
   flags?: string         // default "i"
   excludePattern?: string // if set and matches the line, the entry is NOT flagged
   standard: string
-  severity: string
+  weight: string
   category: string
   safetyImpact: string
   incident?: string
@@ -127,7 +127,7 @@ export const NON_STANDARD_PHRASES: PhraseCorrection[] = (
     explanation:  entry.explanation ?? '',
     nonStandard,
     standard:     entry.standard,
-    severity:     (entry.severity    as PhraseCorrection['severity']),
+    weight:     (entry.weight    as PhraseCorrection['weight']),
     category:     (entry.category    as PhraseCorrection['category']),
     safetyImpact: (entry.safetyImpact as PhraseCorrection['safetyImpact']),
     ...(exclude        ? { exclude }                  : {}),
@@ -149,7 +149,7 @@ export const NUMBER_PRONUNCIATION_ERRORS: PhraseCorrection[] = [
     explanation: "ICAO requires 'niner' to prevent confusion with German 'nein' (no)",
     nonStandard: /\bnine\b(?!\s+(?:thousand|hundred))/i,
     standard: "niner",
-    severity: 'medium',
+    weight: 'medium',
     category: 'number',
     safetyImpact: 'safety',
     pattern: /\bnine\b(?!\s+(?:thousand|hundred))/i,
@@ -166,7 +166,7 @@ export const NUMBER_PRONUNCIATION_ERRORS: PhraseCorrection[] = [
     explanation: "ICAO phonetic: 'tree' is clearer over radio for individual digit transmission",
     nonStandard: /\bthree\b(?!\s+(?:thousand|hundred))/i,
     standard: "tree",
-    severity: 'low',
+    weight: 'low',
     category: 'number',
     safetyImpact: 'clarity',
     pattern: /\bthree\b(?!\s+(?:thousand|hundred))/i,
@@ -181,7 +181,7 @@ export const NUMBER_PRONUNCIATION_ERRORS: PhraseCorrection[] = [
     explanation: "ICAO phonetic: 'fife' prevents confusion with 'four' or 'nine' in digit-by-digit transmission",
     nonStandard: /\bfive\b(?!\s+(?:thousand|hundred))/i,
     standard: "fife",
-    severity: 'low',
+    weight: 'low',
     category: 'number',
     safetyImpact: 'clarity',
     pattern: /\bfive\b(?!\s+(?:thousand|hundred))/i,
@@ -228,7 +228,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'altitude',
     requiredElements: ['action', 'value', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /climb|descend/i,
     mustReadback: ['altitude', 'action'],
     description: 'Altitude changes must be read back with climb/descend action',
@@ -236,7 +236,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'heading',
     requiredElements: ['direction', 'value', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /\bheading\b|\bturn\s+(?:left|right)\b/i,
     mustReadback: ['heading', 'direction'],
     description: 'Heading instructions must include direction and value',
@@ -244,7 +244,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'speed',
     requiredElements: ['value', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /\breduce\s+speed\b|\bincrease\s+speed\b|\bmaintain\s+\d+\s*knots\b|\bspeed\s+\d+\b/i,
     mustReadback: ['speed'],
     description: 'Speed instructions must be read back (ICAO Doc 4444 §12.3.2.1)',
@@ -252,7 +252,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'squawk',
     requiredElements: ['code', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /squawk/i,
     mustReadback: ['squawk'],
     description: 'Squawk codes must be read back',
@@ -260,7 +260,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'frequency',
     requiredElements: ['frequency', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /contact|frequency/i,
     mustReadback: ['frequency'],
     description: 'Frequency changes must be read back',
@@ -268,7 +268,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'runway',
     requiredElements: ['runway', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /runway/i,
     mustReadback: ['runway'],
     description: 'Runway assignments are safety-critical',
@@ -276,7 +276,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'altimeter',
     requiredElements: ['setting', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /altimeter|qnh/i,
     mustReadback: ['altimeter'],
     description: 'Altimeter settings must be read back',
@@ -284,7 +284,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'holdShort',
     requiredElements: ['hold short', 'runway', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /hold\s*short/i,
     mustReadback: ['hold short', 'runway'],
     description: 'Hold short instructions prevent runway incursions',
@@ -292,7 +292,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'takeoff',
     requiredElements: ['cleared for takeoff', 'runway', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /cleared\s*(for\s*)?take\s*off/i,
     mustReadback: ['cleared for takeoff', 'runway'],
     description: 'Takeoff clearance is safety-critical',
@@ -300,7 +300,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'landing',
     requiredElements: ['cleared to land', 'runway', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /cleared\s*(to\s*)?land/i,
     mustReadback: ['cleared to land', 'runway'],
     description: 'Landing clearance is safety-critical',
@@ -308,7 +308,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'goAround',
     requiredElements: ['go around', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /go\s*around/i,
     mustReadback: ['go around'],
     description: 'Go around instruction is safety-critical',
@@ -316,7 +316,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'approach',
     requiredElements: ['approach type', 'runway', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /cleared\s+(?:ils|rnav|vor|ndb|visual|instrument|rnp|gls|lnav|vnav)\s+(?:runway\s+)?\d|cleared\s+(?:ils|rnav|vor|ndb|visual|rnp|gls)\s+approach/i,
     mustReadback: ['approach type', 'runway'],
     description: 'Approach clearance type and runway must be read back (ICAO Doc 4444 §12.3.4.1)',
@@ -324,7 +324,7 @@ export const READBACK_REQUIREMENTS: ReadbackRequirement[] = [
   {
     instructionType: 'lineup',
     requiredElements: ['line up and wait', 'runway', 'callsign'],
-    severity: 'mandatory',
+    weight: 'mandatory',
     instruction: /line\s*up\s*and\s*wait|luaw/i,
     mustReadback: ['line up and wait', 'runway'],
     description: 'Line up and wait is safety-critical — prevents runway incursion (ICAO Doc 4444 §8.5.2)',
@@ -413,15 +413,15 @@ export const ENHANCED_STARS = [
 interface RawSafetyCriticalEntry {
   pattern: string
   description: string
-  severity: 'critical' | 'high'
+  weight: 'critical' | 'high'
 }
 
-export const SAFETY_CRITICAL_PATTERNS: { pattern: RegExp; description: string; severity: 'critical' | 'high' }[] = (
+export const SAFETY_CRITICAL_PATTERNS: { pattern: RegExp; description: string; weight: 'critical' | 'high' }[] = (
   (rawCorpus.phraseology as { safetyCriticalPatterns: RawSafetyCriticalEntry[] }).safetyCriticalPatterns ?? []
 ).map(e => ({
   pattern:     new RegExp(e.pattern, 'i'),
   description: e.description,
-  severity:    e.severity,
+  weight:    e.weight,
 }))
 
 // ============================================================================
@@ -489,7 +489,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bsero\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.08,
     issue: 'Non-standard pronunciation of "zero" (Tagalog/Spanish influence)',
     correction: 'Pronounce as "ZEE-ro" with emphasis on first syllable',
@@ -498,7 +498,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bziro\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.05,
     issue: 'Non-standard pronunciation of "zero" (short vowel)',
     correction: 'Pronounce as "ZEE-ro" with long "ee" sound',
@@ -511,7 +511,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bwan\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.12,
     issue: 'Non-standard pronunciation of "one" (missing "w-uh-n" sound)',
     correction: 'Pronounce as "WUN" with clear "w" start',
@@ -524,7 +524,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\btee\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.06,
     issue: 'Dropped "th" sound in "three"',
     correction: 'Pronounce as "TREE" (ICAO standard) or "THREE"',
@@ -533,7 +533,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bsree\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.04,
     issue: '"S" substitution for "th" in "three"',
     correction: 'Pronounce as "TREE" (ICAO standard)',
@@ -546,7 +546,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bpor\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.03,
     issue: '"P" substitution for "f" in "four"',
     correction: 'Pronounce as "FOW-er" (ICAO standard)',
@@ -555,7 +555,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bfo\b(?!\w)/i,
     errorType: 'non_native_pronunciation',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.05,
     issue: 'Shortened pronunciation of "four"',
     correction: 'Pronounce as "FOW-er" (ICAO standard)',
@@ -568,7 +568,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bpive\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.02,
     issue: '"P" substitution for "f" in "five"',
     correction: 'Pronounce as "FIFE" (ICAO standard)',
@@ -581,7 +581,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bsicks\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.03,
     issue: 'Extended "six" pronunciation',
     correction: 'Pronounce as "SIX" with short "i"',
@@ -594,7 +594,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bseben\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.08,
     issue: '"B" substitution for "v" in "seven"',
     correction: 'Pronounce as "SEV-en" with clear "v" sound',
@@ -603,7 +603,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bsewen\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.04,
     issue: '"W" substitution for "v" in "seven"',
     correction: 'Pronounce as "SEV-en" with clear "v" sound',
@@ -616,7 +616,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\beyt\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.04,
     issue: 'Non-standard pronunciation of "eight"',
     correction: 'Pronounce as "AIT" (ICAO acceptable)',
@@ -629,7 +629,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bnain\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.06,
     issue: 'Non-standard pronunciation of "nine"',
     correction: 'Pronounce as "NINER" (ICAO standard)',
@@ -642,7 +642,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bclearing\s+for\b/i,
     errorType: 'non_native_grammar',
-    severity: 'medium',
+    weight: 'medium',
     frequency: 0.05,
     issue: 'Incorrect tense: "clearing for" instead of "cleared for"',
     correction: 'Use past tense "cleared for"',
@@ -651,7 +651,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bwe\s+are\s+(climbing|descending|turning)\b/i,
     errorType: 'non_native_grammar',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.08,
     issue: 'Verbose construction - use direct form',
     correction: 'Say "climbing" not "we are climbing"',
@@ -660,7 +660,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bplease\s+(climb|descend|turn|contact|squawk)\b/i,
     errorType: 'non_native_grammar',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.04,
     issue: 'Unnecessary politeness marker in readback',
     correction: 'Omit "please" in operational readbacks',
@@ -673,7 +673,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\b(one|two|three|four|five|six|seven|eight|nine|niner|zero)\s+(heading|altitude|speed)\b/i,
     errorType: 'non_native_word_order',
-    severity: 'high',
+    weight: 'high',
     frequency: 0.03,
     issue: 'Number before parameter type (should be "heading 270" not "270 heading")',
     correction: 'Say parameter type first, then value',
@@ -686,7 +686,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\brunway\s+\d{1,2}\s*(reft|leight)\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'critical',
+    weight: 'critical',
     frequency: 0.02,
     issue: 'L/R confusion in runway designator - CRITICAL SAFETY ISSUE',
     correction: 'Practice clear distinction between "LEFT" and "RIGHT"',
@@ -695,7 +695,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\b(reft|leight)\s+heading\b/i,
     errorType: 'non_native_pronunciation',
-    severity: 'high',
+    weight: 'high',
     frequency: 0.02,
     issue: 'L/R confusion in turn direction',
     correction: 'Practice clear distinction between "LEFT" and "RIGHT"',
@@ -708,7 +708,7 @@ export const NON_NATIVE_ERROR_PATTERNS: ErrorPattern[] = [
   {
     pattern: /\bDEpart\b/i,
     errorType: 'non_native_stress',
-    severity: 'low',
+    weight: 'low',
     frequency: 0.04,
     issue: 'Wrong stress pattern on "departure"',
     correction: 'Stress on second syllable: de-PAR-ture',
@@ -781,7 +781,7 @@ export const RUNWAY_INCURSION_PATTERNS = [
     atcPattern: /line\s+up\s+(and\s+)?wait/i,
     errorPattern: /cleared\s+(for\s+)?take\s*off/i,
     errorType: 'critical_confusion',
-    severity: 'critical',
+    weight: 'critical',
     explanation: 'Confused line up and wait with takeoff clearance - RUNWAY INCURSION RISK',
     icaoReference: 'ICAO Doc 4444 - Line up and wait is NOT a takeoff clearance',
   },
@@ -789,7 +789,7 @@ export const RUNWAY_INCURSION_PATTERNS = [
     atcPattern: /hold\s+short\s+(of\s+)?runway/i,
     errorPattern: /cross(ing)?\s+runway/i,
     errorType: 'critical_confusion',
-    severity: 'critical',
+    weight: 'critical',
     explanation: 'Confused hold short with runway crossing - RUNWAY INCURSION RISK',
     icaoReference: 'FAA 7110.65 - Hold short means do not enter runway',
   },
@@ -802,7 +802,7 @@ export const RUNWAY_INCURSION_PATTERNS = [
       return atcRunway !== pilotRunway
     },
     errorType: 'wrong_runway',
-    severity: 'critical',
+    weight: 'critical',
     explanation: 'Wrong runway read back in hold short instruction - WRONG RUNWAY RISK',
     icaoReference: 'FAA 7110.65 - Runway must match exactly',
   },
@@ -810,7 +810,7 @@ export const RUNWAY_INCURSION_PATTERNS = [
     atcPattern: /runway\s+(\d{1,2})\s*(left|right|center)/i,
     errorPattern: /runway\s+(\d{1,2})(?!\s*(left|right|center))/i,
     errorType: 'missing_designator',
-    severity: 'high',
+    weight: 'high',
     explanation: 'Missing runway designator (L/R/C) - WRONG RUNWAY POSSIBLE',
     icaoReference: 'ICAO Annex 14 - Parallel runway designators are mandatory',
   },
@@ -822,7 +822,7 @@ export const RUNWAY_INCURSION_PATTERNS = [
       return atcRunway !== pilotRunway
     },
     errorType: 'wrong_runway',
-    severity: 'critical',
+    weight: 'critical',
     explanation: 'Wrong runway read back in takeoff clearance',
     icaoReference: 'ICAO Doc 4444 - Runway must be verified',
   },

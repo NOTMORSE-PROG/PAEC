@@ -16,6 +16,7 @@ import {
   ENHANCED_STARS,
   NON_NATIVE_ERROR_PATTERNS,
   DEPARTURE_APPROACH_CORPUS,
+  GND_CORPUS,
   extractCommandsFromText,
   // Dynamic pattern builders — add new airlines/facilities to atcData.ts only
   CALLSIGN_LABEL_RE,
@@ -77,7 +78,7 @@ export interface ExchangeAnalysisResult {
   pilotResponse: string | null
   instructionType: string
   readbackQuality: 'complete' | 'partial' | 'missing' | 'incorrect'
-  contextualSeverity: 'low' | 'medium' | 'high' | 'critical'
+  contextualWeight: 'low' | 'medium' | 'high' | 'critical'
   issue: string | null
   dynamicFeedback: string
 }
@@ -94,7 +95,7 @@ export interface PhraseologyError {
   original: string
   issue: string
   suggestion: string
-  severity: 'low' | 'medium' | 'high'
+  weight: 'low' | 'medium' | 'high'
   category: 'language' | 'number' | 'procedure' | 'structure' | 'safety'
   safetyImpact?: 'clarity' | 'efficiency' | 'safety'
   // Enhanced descriptive fields
@@ -117,14 +118,14 @@ export interface MissingElement {
   line: number
   instruction: string
   missing: string[]
-  severity: 'mandatory' | 'recommended'
+  weight: 'mandatory' | 'recommended'
 }
 
 export interface SafetyMetrics {
   criticalIssues: number
-  highSeverityIssues: number
-  mediumSeverityIssues: number
-  lowSeverityIssues: number
+  highWeightIssues: number
+  mediumWeightIssues: number
+  lowWeightIssues: number
   safetyCriticalPhrases: SafetyCriticalDetection[]
   overallSafetyScore: number
 }
@@ -207,11 +208,11 @@ interface ExchangePair {
   instructionType: string
   readbackQuality: 'complete' | 'partial' | 'missing' | 'incorrect'
   responseDelay: number // lines between instruction and response
-  contextualSeverity: 'low' | 'medium' | 'high' | 'critical'
+  contextualWeight: 'low' | 'medium' | 'high' | 'critical'
 }
 
 interface IssueAccumulator {
-  recentIssues: { line: number; severity: string; timestamp: number }[]
+  recentIssues: { line: number; weight: string; timestamp: number }[]
   escalationLevel: number // 0-3, increases with consecutive issues
   patternDetected: string | null
 }
@@ -397,8 +398,8 @@ function buildExchangePairs(lines: ParsedLine[], context: ConversationContext): 
           ? evaluateReadbackQuality(line, pilotResponse, instructionType)
           : 'missing'
 
-        // Calculate contextual severity based on phase and instruction type
-        const contextualSeverity = calculateContextualSeverity(
+        // Calculate contextual weight based on phase and instruction type
+        const contextualWeight = calculateContextualSeverity(
           instructionType,
           readbackQuality,
           context.flightPhase,
@@ -411,7 +412,7 @@ function buildExchangePairs(lines: ParsedLine[], context: ConversationContext): 
           instructionType,
           readbackQuality,
           responseDelay,
-          contextualSeverity,
+          contextualWeight,
         })
       }
     }
@@ -1191,14 +1192,14 @@ function evaluateReadbackQualityDetailed(
   }
 }
 
-// Calculate severity dynamically based on context
+// Calculate weight dynamically based on context
 function calculateContextualSeverity(
   instructionType: string,
   readbackQuality: string,
   flightPhase: FlightPhase,
   emergencyDeclared: boolean
 ): 'low' | 'medium' | 'high' | 'critical' {
-  // Emergency always escalates severity
+  // Emergency always escalates weight
   if (emergencyDeclared) {
     if (readbackQuality === 'missing' || readbackQuality === 'incorrect') {
       return 'critical'
@@ -1206,15 +1207,15 @@ function calculateContextualSeverity(
     return 'high'
   }
 
-  // Phase-based severity adjustment
+  // Phase-based weight adjustment
   const criticalPhases: FlightPhase[] = ['approach', 'landing', 'departure']
   const isPhraseCritical = criticalPhases.includes(flightPhase)
 
-  // Instruction type severity
+  // Instruction type weight
   const criticalInstructions = ['altitude', 'takeoff', 'landing', 'lineup', 'hold']
   const isInstructionCritical = criticalInstructions.includes(instructionType)
 
-  // Calculate final severity
+  // Calculate final weight
   if (readbackQuality === 'incorrect') {
     return 'critical' // Wrong readback is always critical
   }
@@ -1237,7 +1238,7 @@ function calculateContextualSeverity(
 // Update issue accumulator and detect patterns
 function updateIssueAccumulator(
   accumulator: IssueAccumulator,
-  newIssue: { line: number; severity: string }
+  newIssue: { line: number; weight: string }
 ): IssueAccumulator {
   const now = Date.now()
   const recentWindow = 5 // Consider issues within 5 lines as "recent"
@@ -1252,11 +1253,11 @@ function updateIssueAccumulator(
   }
 
   // Calculate escalation level from SIGNIFICANT issues only.
-  // Low-severity issues (number pronunciation, minor phrasing) are common in
+  // Low-weight issues (number pronunciation, minor phrasing) are common in
   // real transcripts and should not trigger the 🔴 pattern warning.
   // Only medium/high/critical errors drive the escalation counter.
   const significantCount = updated.recentIssues.filter(
-    i => i.severity === 'medium' || i.severity === 'high' || i.severity === 'critical'
+    i => i.weight === 'medium' || i.weight === 'high' || i.weight === 'critical'
   ).length
 
   if (significantCount >= 4) {
@@ -1429,7 +1430,7 @@ function buildContextInfo(context: ConversationContext): ContextInfo {
       pilotResponse: pair.pilotLine?.rawText.substring(0, 80) || null,
       instructionType: pair.instructionType,
       readbackQuality: pair.readbackQuality,
-      contextualSeverity: pair.contextualSeverity,
+      contextualWeight: pair.contextualWeight,
       issue,
       dynamicFeedback,
     }
@@ -1517,7 +1518,7 @@ function getExchangeIssue(pair: ExchangePair): string | null {
 
 // Generate dynamic, context-aware feedback
 function generateDynamicFeedback(pair: ExchangePair, flightPhase: FlightPhase): string {
-  const { instructionType, readbackQuality, contextualSeverity } = pair
+  const { instructionType, readbackQuality, contextualWeight } = pair
 
   // If everything is fine
   if (readbackQuality === 'complete') {
@@ -1562,9 +1563,9 @@ function generateDynamicFeedback(pair: ExchangePair, flightPhase: FlightPhase): 
   }
 
   // Severity-specific addition
-  if (contextualSeverity === 'critical') {
+  if (contextualWeight === 'critical') {
     feedback += ' ⚠️ This is a CRITICAL issue in the current context.'
-  } else if (contextualSeverity === 'high') {
+  } else if (contextualWeight === 'high') {
     feedback += ' This requires immediate attention.'
   }
 
@@ -2327,7 +2328,7 @@ function cleanSpeakerLabel(line: string): string {
 // ERROR DETECTION
 // ============================================================================
 
-// Context-aware error detection with dynamic severity adjustment
+// Context-aware error detection with dynamic weight adjustment
 function detectAllErrorsWithContext(
   lines: ParsedLine[],
   corpusType: string,
@@ -2354,26 +2355,28 @@ function detectAllErrorsWithContext(
     // Corpus-specific checks
     if (corpusType === 'APP/DEP') {
       lineErrors.push(...detectAppDepSpecificErrors(line))
+    } else if (corpusType === 'GND') {
+      lineErrors.push(...detectGndSpecificErrors(line))
     }
 
-    // Apply dynamic severity adjustment based on context
+    // Apply dynamic weight adjustment based on context
     for (const error of lineErrors) {
       const adjustedError = adjustErrorSeverity(error, context)
 
       // Update issue accumulator for pattern detection
       issueAccumulator = updateIssueAccumulator(issueAccumulator, {
         line: error.line,
-        severity: adjustedError.severity,
+        weight: adjustedError.weight,
       })
 
-      // Add escalation warning only for medium/high severity errors.
-      // Low-severity flags (number pronunciation, minor phrasing) should never
+      // Add escalation warning only for medium/high weight errors.
+      // Low-weight flags (number pronunciation, minor phrasing) should never
       // carry the 🔴 warning — that would mislead reviewers into thinking a
       // mostly-correct dialogue has systematic safety issues.
       if (
         issueAccumulator.escalationLevel >= 2 &&
         issueAccumulator.patternDetected &&
-        (adjustedError.severity === 'medium' || adjustedError.severity === 'high')
+        (adjustedError.weight === 'medium' || adjustedError.weight === 'high')
       ) {
         adjustedError.whyItMatters = `${adjustedError.whyItMatters || ''}\n\n🔴 ${issueAccumulator.patternDetected}`
       }
@@ -2383,7 +2386,7 @@ function detectAllErrorsWithContext(
   }
 
   // Add context-based errors from exchange pair analysis
-  errors.push(...generateExchangePairErrors(context))
+  errors.push(...generateExchangePairErrors(context, corpusType))
 
   // Update context with final accumulator state
   context.issueAccumulator = issueAccumulator
@@ -2391,7 +2394,7 @@ function detectAllErrorsWithContext(
   return errors
 }
 
-// Adjust error severity based on flight phase and context
+// Adjust error weight based on flight phase and context
 function adjustErrorSeverity(
   error: PhraseologyError,
   context: ConversationContext
@@ -2400,15 +2403,15 @@ function adjustErrorSeverity(
 
   // Emergency context - escalate everything
   if (context.emergencyDeclared) {
-    if (adjusted.severity === 'low') adjusted.severity = 'medium'
-    if (adjusted.severity === 'medium') adjusted.severity = 'high'
+    if (adjusted.weight === 'low') adjusted.weight = 'medium'
+    if (adjusted.weight === 'medium') adjusted.weight = 'high'
     adjusted.whyItMatters = `⚠️ EMERGENCY CONTEXT: ${adjusted.whyItMatters || 'Critical attention required during emergency.'}`
   }
 
   // TCAS active - altitude errors are critical
   if (context.tcasActive && error.category === 'number') {
     if (/altitude|flight\s+level|FL/i.test(error.issue)) {
-      adjusted.severity = 'high'
+      adjusted.weight = 'high'
       adjusted.whyItMatters = `⚠️ TCAS ACTIVE: ${adjusted.whyItMatters || 'Altitude accuracy is critical during TCAS RA.'}`
     }
   }
@@ -2416,9 +2419,9 @@ function adjustErrorSeverity(
   // Critical flight phases - escalate procedural errors
   if (context.flightPhase === 'approach' || context.flightPhase === 'landing') {
     if (error.category === 'procedure' || error.category === 'structure') {
-      if (adjusted.severity === 'low') adjusted.severity = 'medium'
-      if (adjusted.severity === 'medium' && error.safetyImpact === 'safety') {
-        adjusted.severity = 'high'
+      if (adjusted.weight === 'low') adjusted.weight = 'medium'
+      if (adjusted.weight === 'medium' && error.safetyImpact === 'safety') {
+        adjusted.weight = 'high'
       }
       adjusted.explanation = `[APPROACH/LANDING PHASE] ${adjusted.explanation || ''}`
     }
@@ -2427,7 +2430,7 @@ function adjustErrorSeverity(
   if (context.flightPhase === 'departure') {
     // Altitude and heading errors are more critical during departure
     if (/altitude|heading|climb/i.test(error.issue)) {
-      if (adjusted.severity === 'low') adjusted.severity = 'medium'
+      if (adjusted.weight === 'low') adjusted.weight = 'medium'
       adjusted.explanation = `[DEPARTURE PHASE] ${adjusted.explanation || ''}`
     }
   }
@@ -2435,7 +2438,7 @@ function adjustErrorSeverity(
   if (context.flightPhase === 'ground') {
     // Runway and taxi instructions are critical on ground
     if (/runway|taxi|hold\s+short/i.test(error.issue)) {
-      if (adjusted.severity === 'medium') adjusted.severity = 'high'
+      if (adjusted.weight === 'medium') adjusted.weight = 'high'
       adjusted.explanation = `[GROUND PHASE] ${adjusted.explanation || ''}`
     }
   }
@@ -2444,7 +2447,7 @@ function adjustErrorSeverity(
 }
 
 // Generate errors from exchange pair analysis
-function generateExchangePairErrors(context: ConversationContext): PhraseologyError[] {
+function generateExchangePairErrors(context: ConversationContext, corpusType: string = 'APP/DEP'): PhraseologyError[] {
   const errors: PhraseologyError[] = []
 
   for (const pair of context.exchangePairs) {
@@ -2458,8 +2461,8 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
     // Generate error based on exchange pair analysis
     const dynamicFeedback = generateDynamicFeedback(pair, context.flightPhase)
 
-    // Map contextual severity to standard severity
-    const severityMap: Record<string, 'low' | 'medium' | 'high'> = {
+    // Map contextual weight to standard weight
+    const weightMap: Record<string, 'low' | 'medium' | 'high'> = {
       'low': 'low',
       'medium': 'medium',
       'high': 'high',
@@ -2474,7 +2477,7 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
     const semanticResult = semanticAnalyzeReadback(atcText, pilotText, context.primaryCallsign || undefined)
 
     // Find matching training example for better explanations
-    const trainingMatch = findMatchingTrainingExample(atcText, pilotText)
+    const trainingMatch = findMatchingTrainingExample(atcText, pilotText, corpusType)
 
     if (pair.readbackQuality === 'incorrect') {
       // Get specific error details from semantic analysis
@@ -2488,7 +2491,7 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
           ? `INCORRECT READBACK: ${semanticResult.errors[0].explanation}`
           : `INCORRECT READBACK: ${pair.instructionType} values don't match ATC instruction`,
         suggestion: `Correct readback: "${expectedReadback}"`,
-        severity: 'high',
+        weight: 'high',
         category: 'safety',
         safetyImpact: 'safety',
         icaoReference: semanticResult.errors[0]?.icaoReference || 'ICAO Doc 4444 Section 12.3.1.5',
@@ -2499,7 +2502,7 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
         incorrectPhrase: pair.pilotLine?.text || '',
         correctExample: `Should be: "${expectedReadback}"`,
       })
-    } else if (pair.readbackQuality === 'missing' && pair.contextualSeverity !== 'low') {
+    } else if (pair.readbackQuality === 'missing' && pair.contextualWeight !== 'low') {
       // Detect if pilot used improper acknowledgment like "Roger", "Copy", etc.
       const improperAckMatch = pilotText.match(/\b(roger|copied|copy|ok|okay|understood|got\s*it|wilco)\b/i)
       const improperAck = improperAckMatch ? improperAckMatch[0] : null
@@ -2512,9 +2515,9 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
           ? `"${improperAck.toUpperCase()}" is inadequate - missing ${pair.instructionType} readback`
           : `Missing readback for ${pair.instructionType} instruction`,
         suggestion: `Correct readback: "${expectedReadback}"`,
-        severity: severityMap[pair.contextualSeverity],
+        weight: weightMap[pair.contextualWeight],
         category: 'structure',
-        safetyImpact: pair.contextualSeverity === 'critical' || pair.contextualSeverity === 'high' ? 'safety' : 'clarity',
+        safetyImpact: pair.contextualWeight === 'critical' || pair.contextualWeight === 'high' ? 'safety' : 'clarity',
         icaoReference: 'ICAO Doc 4444 Section 12.3.1.5',
         explanation: improperAck
           ? `"${improperAck.toUpperCase()}" only indicates message received. It does NOT confirm understanding of ${pair.instructionType}. ATC needs verbal confirmation of the specific values.`
@@ -2534,9 +2537,9 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
         issue: `Incomplete readback for ${pair.instructionType}`,
         suggestion: `Complete readback: "${expectedReadback}"`,
         // Partial readbacks are always clarity issues (pilot DID acknowledge, just incompletely).
-        // Cap at 'medium' regardless of contextual severity — prevents high-context partial readbacks
+        // Cap at 'medium' regardless of contextual weight — prevents high-context partial readbacks
         // from being penalized at the same rate as completely missing readbacks.
-        severity: severityMap[pair.contextualSeverity] === 'high' ? 'medium' : severityMap[pair.contextualSeverity],
+        weight: weightMap[pair.contextualWeight] === 'high' ? 'medium' : weightMap[pair.contextualWeight],
         category: 'structure',
         safetyImpact: 'clarity',
         icaoReference: 'ICAO Doc 4444 Section 12.3.1.5',
@@ -2551,7 +2554,7 @@ function generateExchangePairErrors(context: ConversationContext): PhraseologyEr
 
 // Helper: Find matching training example for better error explanations
 // NOTE: Only returns examples when there's a very specific match to avoid false positives
-function findMatchingTrainingExample(atcInstruction: string, pilotReadback: string): { explanation: string } | null {
+function findMatchingTrainingExample(atcInstruction: string, pilotReadback: string, corpusType: string = 'APP/DEP'): { explanation: string } | null {
   const atcLower = atcInstruction.toLowerCase()
   const pilotLower = pilotReadback.toLowerCase()
 
@@ -2559,25 +2562,36 @@ function findMatchingTrainingExample(atcInstruction: string, pilotReadback: stri
   const atcNorm = normalizeSpelledNumbers(atcLower)
   const pilotNorm = normalizeSpelledNumbers(pilotLower)
 
-  for (const example of DEPARTURE_APPROACH_CORPUS) {
+  const corpus = corpusType === 'GND' ? GND_CORPUS : DEPARTURE_APPROACH_CORPUS
+
+  for (const example of corpus) {
     if (!example.isCorrect || !example.explanation) continue
 
-    // Only match if the error type is specifically demonstrated
-    // For parameter confusion: pilot mistook heading for altitude or vice versa
+    // For parameter confusion
     if (example.errorType === 'parameter_confusion') {
-      const atcHasHeading = /heading\s*\d+/.test(atcNorm)
-      const pilotHasAltitude = /flight\s*level|FL\s*\d|climb|descend/.test(pilotNorm)
-      const atcHasAltitude = /flight\s*level|FL\s*\d|climb|descend/.test(atcNorm)
-      const pilotHasHeading = /heading\s*\d+/.test(pilotNorm)
+      if (corpusType === 'APP/DEP') {
+        // APP/DEP: heading vs altitude confusion
+        const atcHasHeading = /heading\s*\d+/.test(atcNorm)
+        const pilotHasAltitude = /flight\s*level|FL\s*\d|climb|descend/.test(pilotNorm)
+        const atcHasAltitude = /flight\s*level|FL\s*\d|climb|descend/.test(atcNorm)
+        const pilotHasHeading = /heading\s*\d+/.test(pilotNorm)
 
-      if ((atcHasHeading && pilotHasAltitude && !atcHasAltitude) ||
-          (atcHasAltitude && pilotHasHeading && !atcHasHeading)) {
-        return { explanation: example.explanation }
+        if ((atcHasHeading && pilotHasAltitude && !atcHasAltitude) ||
+            (atcHasAltitude && pilotHasHeading && !atcHasHeading)) {
+          return { explanation: example.explanation }
+        }
+      } else if (corpusType === 'GND') {
+        // GND: line up and wait vs takeoff clearance confusion
+        const atcHasLUAW = /line\s*up\s*(and\s*)?wait/i.test(atcLower)
+        const pilotHasTO = /cleared\s+(for\s+)?take\s*off/i.test(pilotLower)
+        if (atcHasLUAW && pilotHasTO) {
+          return { explanation: example.explanation || 'CRITICAL: Confused line up and wait with takeoff clearance' }
+        }
       }
     }
 
-    // For wrong direction: pilot said left when ATC said right, or vice versa
-    if (example.errorType === 'wrong_direction') {
+    // For wrong direction: pilot said left when ATC said right, or vice versa (APP/DEP only)
+    if (example.errorType === 'wrong_direction' && corpusType === 'APP/DEP') {
       const atcSaidRight = /\bright\b/.test(atcLower)
       const atcSaidLeft = /\bleft\b/.test(atcLower)
       const pilotSaidRight = /\bright\b/.test(pilotLower)
@@ -2616,6 +2630,7 @@ function getRequiredElements(instructionType: string): string {
 
 
 function detectNonStandardPhrases(line: ParsedLine): PhraseologyError[] {
+  if (line.speaker !== 'PILOT') return []
   const errors: PhraseologyError[] = []
 
   for (const phrase of NON_STANDARD_PHRASES) {
@@ -2626,13 +2641,13 @@ function detectNonStandardPhrases(line: ParsedLine): PhraseologyError[] {
     if (match && phrase.exclude && phrase.exclude.test(line.text)) continue
     if (match) {
       const incorrectPhrase = match[0]
-      const severity = phrase.severity === 'critical' ? 'high' : phrase.severity
+      const weight = phrase.weight === 'critical' ? 'high' : phrase.weight
       errors.push({
         line: line.lineNumber,
         original: line.rawText,
         issue: phrase.explanation,
         suggestion: `Use "${phrase.standard}" instead`,
-        severity: severity as 'low' | 'medium' | 'high',
+        weight: weight as 'low' | 'medium' | 'high',
         category: phrase.category === 'acknowledgment' || phrase.category === 'instruction'
           ? 'language' : 'procedure',
         safetyImpact: phrase.safetyImpact,
@@ -2697,6 +2712,7 @@ function getWhyItMatters(impact?: string, category?: string): string {
 }
 
 function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
+  if (line.speaker !== 'PILOT') return []
   const errors: PhraseologyError[] = []
 
   for (const numError of NUMBER_PRONUNCIATION_ERRORS) {
@@ -2724,15 +2740,15 @@ function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
         whyItMatters = `This exact issue has caused real aviation incidents. ${numError.incident}. Using proper ICAO pronunciation prevents these dangerous miscommunications.`
       }
 
-      // Map severity
-      const severity = numError.severity === 'critical' ? 'high' : numError.severity
+      // Map weight
+      const weight = numError.weight === 'critical' ? 'high' : numError.weight
 
       errors.push({
         line: line.lineNumber,
         original: line.rawText,
         issue: numError.issue || numError.explanation,
         suggestion: `Use "${numError.correct}" for ICAO standard pronunciation`,
-        severity: severity as 'low' | 'medium' | 'high',
+        weight: weight as 'low' | 'medium' | 'high',
         category: 'number',
         icaoReference: icaoRef,
         explanation: fullExplanation,
@@ -2754,7 +2770,7 @@ function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Heading must be expressed as 3 digits',
         suggestion: `Use "heading ${correctedHeading}" instead of "heading ${heading}"`,
-        severity: 'low',
+        weight: 'low',
         category: 'number',
         icaoReference: 'ICAO Doc 9432 Section 5.2.1.4.1',
         explanation: 'All headings must be expressed using three digits (001-360). This prevents confusion between similar-sounding headings and ensures clarity in navigation instructions.',
@@ -2771,7 +2787,7 @@ function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Invalid heading value - outside valid range',
         suggestion: 'Heading must be between 001 and 360',
-        severity: 'high',
+        weight: 'high',
         category: 'number',
         safetyImpact: 'safety',
         icaoReference: 'ICAO Doc 9432 Section 5.2.1.4.1',
@@ -2792,7 +2808,7 @@ function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Flight level format incorrect',
         suggestion: 'Flight levels should be 2-3 digits (e.g., FL350, FL50)',
-        severity: 'low',
+        weight: 'low',
         category: 'number',
         icaoReference: 'ICAO Doc 9432 Section 5.2.1.4.2',
         explanation: 'Flight levels are expressed in hundreds of feet above the standard pressure datum (1013.25 hPa). FL350 means 35,000 feet, FL050 means 5,000 feet.',
@@ -2812,7 +2828,7 @@ function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Squawk code must be 4 digits',
         suggestion: `Use 4-digit squawk code (0000-7777). Did you mean "squawk ${squawk.padStart(4, '0')}"?`,
-        severity: 'medium',
+        weight: 'medium',
         category: 'number',
         icaoReference: 'ICAO Doc 9432 Section 5.2.1.4.4',
         explanation: 'Transponder (squawk) codes are always 4 digits, using octal numbers (0-7 only). Each code is unique for radar identification.',
@@ -2826,7 +2842,7 @@ function detectNumberErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Invalid squawk code - contains digits 8 or 9',
         suggestion: 'Squawk codes use octal digits (0-7) only. This code is physically impossible to set.',
-        severity: 'high',
+        weight: 'high',
         category: 'number',
         safetyImpact: 'safety',
         icaoReference: 'ICAO Doc 9432 Section 5.2.1.4.4',
@@ -2865,7 +2881,7 @@ function detectStructuralIssues(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Missing callsign in pilot transmission',
         suggestion: 'Always include aircraft callsign at the end of readback',
-        severity: 'medium',
+        weight: 'medium',
         category: 'structure',
         safetyImpact: 'clarity',
       })
@@ -2894,7 +2910,7 @@ function detectSafetyCriticalIssues(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: pattern.description,
         suggestion: 'Safety-critical phrase detected - verify proper handling',
-        severity: pattern.severity === 'critical' ? 'high' : 'medium',
+        weight: pattern.weight === 'critical' ? 'high' : 'medium',
         category: 'safety',
         safetyImpact: 'safety',
       })
@@ -2925,7 +2941,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Altitude readback requires careful verification',
         suggestion: 'Verify altitude digits are in correct order',
-        severity: 'low',
+        weight: 'low',
         category: 'procedure',
         safetyImpact: 'clarity',
         explanation: 'Altitude transpositions are a common error in ATC communications',
@@ -2943,7 +2959,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Incomplete descent instruction',
         suggestion: 'Use "DESCEND AND MAINTAIN [altitude]" for standard phraseology',
-        severity: 'low',
+        weight: 'low',
         category: 'procedure',
         safetyImpact: 'clarity',
         icaoReference: 'ICAO Doc 4444 Section 12.3.1',
@@ -2959,7 +2975,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Incomplete climb instruction',
         suggestion: 'Use "CLIMB AND MAINTAIN [altitude]" for standard phraseology',
-        severity: 'low',
+        weight: 'low',
         category: 'procedure',
         safetyImpact: 'clarity',
         icaoReference: 'ICAO Doc 4444 Section 12.3.1',
@@ -2991,7 +3007,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Incomplete separation instruction format',
         suggestion: 'Use "TURN LEFT/RIGHT HEADING [XXX] FOR SEPARATION" or "EXPEDITE CLIMB/DESCENT FOR SEPARATION"',
-        severity: 'medium',
+        weight: 'medium',
         category: 'procedure',
         safetyImpact: 'safety',
         icaoReference: 'ICAO Doc 4444 Chapter 8',
@@ -3013,7 +3029,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: 'Non-standard frequency pronunciation: "point" instead of "decimal"',
         suggestion: 'Use "DECIMAL" not "point" for frequencies (e.g., "ONE ONE NINER DECIMAL ONE")',
-        severity: 'low',
+        weight: 'low',
         category: 'procedure',
         safetyImpact: 'clarity',
         icaoReference: 'ICAO Doc 9432 Section 5.2.1.4',
@@ -3029,13 +3045,13 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
   for (const errorPattern of NON_NATIVE_ERROR_PATTERNS) {
     if (errorPattern.pattern.test(line.text)) {
       if (errorPattern.issue && errorPattern.correction) {
-        const severity = errorPattern.severity === 'critical' ? 'high' : errorPattern.severity
+        const weight = errorPattern.weight === 'critical' ? 'high' : errorPattern.weight
         errors.push({
           line: line.lineNumber,
           original: line.rawText,
           issue: errorPattern.issue,
           suggestion: errorPattern.correction,
-          severity: severity as 'low' | 'medium' | 'high',
+          weight: weight as 'low' | 'medium' | 'high',
           category: 'language',
           safetyImpact: 'clarity',
           explanation: errorPattern.nativeLanguages?.length
@@ -3073,7 +3089,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
       original: line.rawText,
       issue: 'Incomplete approach clearance',
       suggestion: 'Include "APPROACH" after the approach type (e.g., "CLEARED ILS APPROACH RUNWAY XX")',
-      severity: 'medium',
+      weight: 'medium',
       category: 'procedure',
       safetyImpact: 'clarity',
       icaoReference: 'ICAO Doc 4444 §8.9.3',
@@ -3090,7 +3106,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
       original: line.rawText,
       issue: 'Incomplete vectoring instruction',
       suggestion: 'Use "VECTORING FOR [approach type] APPROACH" or "VECTORING TO [waypoint]"',
-      severity: 'low',
+      weight: 'low',
       category: 'procedure',
       safetyImpact: 'clarity',
       icaoReference: 'ICAO Doc 4444 §8.9.1',
@@ -3115,7 +3131,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
       original: line.rawText,
       issue: 'Missing turn direction',
       suggestion: 'Specify "TURN LEFT HEADING" or "TURN RIGHT HEADING"',
-      severity: 'medium',
+      weight: 'medium',
       category: 'procedure',
       safetyImpact: 'clarity',
       icaoReference: 'ICAO Doc 4444 §12.3.2',
@@ -3138,7 +3154,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
         original: line.rawText,
         issue: `Heading "${heading}" should be expressed as 3 digits`,
         suggestion: `Use "${heading.padStart(3, '0')}" for clarity (e.g., "HEADING ZERO ${heading.padStart(2, '0')}")`,
-        severity: 'low',
+        weight: 'low',
         category: 'procedure',
         safetyImpact: 'clarity',
       })
@@ -3169,7 +3185,7 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
               original: line.rawText,
               issue: 'Callsign position may be non-standard',
               suggestion: 'Pilots typically place callsign at the END of transmissions',
-              severity: 'low',
+              weight: 'low',
               category: 'procedure',
               safetyImpact: 'clarity',
               explanation: 'Standard practice: Pilot callsigns appear at transmission end.',
@@ -3179,6 +3195,64 @@ function detectAppDepSpecificErrors(line: ParsedLine): PhraseologyError[] {
       }
       break
     }
+  }
+
+  return errors
+}
+
+function detectGndSpecificErrors(line: ParsedLine): PhraseologyError[] {
+  const errors: PhraseologyError[] = []
+
+  // 1. Deprecated phrase: "taxi into position and hold" (replaced by "line up and wait" in 2012)
+  if (line.speaker === 'ATC' && /taxi\s+into\s+position\s+and\s+hold/i.test(line.text)) {
+    errors.push({
+      line: line.lineNumber,
+      original: line.rawText,
+      issue: 'Deprecated: "taxi into position and hold"',
+      suggestion: 'Use "LINE UP AND WAIT" — ICAO standard since 2012',
+      weight: 'medium',
+      category: 'procedure',
+      safetyImpact: 'clarity',
+      icaoReference: 'ICAO Doc 9432 §7.1.3 (2012 amendment)',
+      explanation: '"Taxi into position and hold" was retired globally to harmonise with ICAO phraseology. Current standard is "line up and wait".',
+    })
+  }
+
+  // 2. Pilot uses "roger" or "wilco" alone (≤3 words) as GND readback for safety-critical instruction
+  if (line.speaker === 'PILOT' && /\b(roger|wilco|copy)\b/i.test(line.text)) {
+    const wordCount = line.text.trim().split(/\s+/).length
+    if (wordCount <= 3) {
+      errors.push({
+        line: line.lineNumber,
+        original: line.rawText,
+        issue: '"Roger/Wilco" alone is insufficient for GND safety-critical readbacks',
+        suggestion: 'Read back the full instruction including runway, taxiway, and callsign',
+        weight: 'medium',
+        category: 'procedure',
+        safetyImpact: 'safety',
+        icaoReference: 'ICAO Doc 4444 §7.11.2',
+        explanation: 'Ground instructions affecting runway movements must be fully read back to prevent runway incursions.',
+      })
+    }
+  }
+
+  // 3. ATC line contains BOTH "line up and wait" AND "cleared for takeoff" — ambiguous
+  if (
+    line.speaker === 'ATC' &&
+    /line\s*up\s*(and\s*)?wait/i.test(line.text) &&
+    /cleared\s+(for\s+)?take\s*off/i.test(line.text)
+  ) {
+    errors.push({
+      line: line.lineNumber,
+      original: line.rawText,
+      issue: 'Ambiguous: message contains both "line up and wait" and "cleared for takeoff"',
+      suggestion: 'Issue only one instruction to avoid takeoff without clearance',
+      weight: 'high',
+      category: 'procedure',
+      safetyImpact: 'safety',
+      icaoReference: 'ICAO Doc 4444 §7.11.3',
+      explanation: 'Combining LUAW and takeoff clearance risks pilot commencing takeoff prematurely.',
+    })
   }
 
   return errors
@@ -3231,7 +3305,7 @@ function analyzeReadbacks(lines: ParsedLine[]): ReadbackAnalysis {
         line: pilotResponse.lineNumber,
         instruction: line.text.substring(0, 50),
         missing: [quality === 'partial' ? 'Incomplete readback' : 'Missing readback'],
-        severity: 'recommended',
+        weight: 'recommended',
       })
     }
   }
@@ -3263,34 +3337,34 @@ function calculateSafetyMetrics(lines: ParsedLine[], errors: PhraseologyError[],
         safetyCriticalPhrases.push({
           line: line.lineNumber,
           text: line.rawText,
-          type: safetyPattern.severity,
+          type: safetyPattern.weight,
           description: safetyPattern.description,
         })
       }
     }
   }
 
-  const criticalIssues = errors.filter(e => e.severity === 'high' && e.safetyImpact === 'safety').length
+  const criticalIssues = errors.filter(e => e.weight === 'high' && e.safetyImpact === 'safety').length
   // Non-critical highs only — criticalIssues already counted separately above to avoid double-penalizing
-  const highSeverityIssues = errors.filter(e => e.severity === 'high' && e.safetyImpact !== 'safety').length
-  const mediumSeverityIssues = errors.filter(e => e.severity === 'medium').length
-  const lowSeverityIssues = errors.filter(e => e.severity === 'low').length
+  const highWeightIssues = errors.filter(e => e.weight === 'high' && e.safetyImpact !== 'safety').length
+  const mediumWeightIssues = errors.filter(e => e.weight === 'medium').length
+  const lowWeightIssues = errors.filter(e => e.weight === 'low').length
 
   // Calculate safety score (0-100) — density-based to prevent long transcripts from flooring at 0.
   // Low errors don't affect safety; only critical/high/medium errors are weighted.
   const n = Math.max(exchangeCount, 1)
   const safetyFactor = Math.min(1.0,
     (criticalIssues  / n) * 2.0 +
-    (highSeverityIssues / n) * 1.2 +
-    (mediumSeverityIssues / n) * 0.3
+    (highWeightIssues / n) * 1.2 +
+    (mediumWeightIssues / n) * 0.3
   )
   const overallSafetyScore = Math.round(Math.max(0, (1 - safetyFactor) * 100))
 
   return {
     criticalIssues,
-    highSeverityIssues,
-    mediumSeverityIssues,
-    lowSeverityIssues,
+    highWeightIssues,
+    mediumWeightIssues,
+    lowWeightIssues,
     safetyCriticalPhrases,
     overallSafetyScore,
   }
@@ -3337,17 +3411,17 @@ function calculateRiskLevel(
   safetyMetrics: SafetyMetrics,
   readbackAnalysis: ReadbackAnalysis
 ): 'low' | 'medium' | 'high' {
-  if (safetyMetrics.criticalIssues > 0 || safetyMetrics.highSeverityIssues >= 5) {
+  if (safetyMetrics.criticalIssues > 0 || safetyMetrics.highWeightIssues >= 5) {
     return 'high'
   }
 
-  if (safetyMetrics.highSeverityIssues >= 2 || readbackAnalysis.completenessScore < 50) {
+  if (safetyMetrics.highWeightIssues >= 2 || readbackAnalysis.completenessScore < 50) {
     return 'medium'
   }
 
-  // Exclude low-severity errors (e.g. number-pronunciation) from this threshold —
+  // Exclude low-weight errors (e.g. number-pronunciation) from this threshold —
   // 102 pronunciation flags shouldn't elevate risk when there are no real errors.
-  const significantErrors = errors.filter(e => e.severity !== 'low')
+  const significantErrors = errors.filter(e => e.weight !== 'low')
   if (significantErrors.length > 10 || readbackAnalysis.completenessScore < 75) {
     return 'medium'
   }
@@ -3458,7 +3532,7 @@ function generateComprehensiveSummary(
   if (safetyMetrics.criticalIssues > 0) {
     keyFindings.push(`${safetyMetrics.criticalIssues} critical safety issues detected requiring immediate attention`)
     criticalIssues.push(...errors
-      .filter(e => e.severity === 'high' && e.safetyImpact === 'safety')
+      .filter(e => e.weight === 'high' && e.safetyImpact === 'safety')
       .slice(0, 3)
       .map(e => e.issue))
   }
@@ -3505,6 +3579,8 @@ function generateComprehensiveSummary(
   // Corpus-specific recommendations
   if (corpusType === 'APP/DEP') {
     recommendations.push('Review APP/DEP procedures: climb/descend phraseology, approach clearances, vectoring')
+  } else if (corpusType === 'GND') {
+    recommendations.push('Review GND procedures: hold short phraseology, taxi route readbacks, line up and wait vs takeoff clearance')
   }
 
   // Calculate compliance score — density-based formula to normalize for transcript length.
@@ -3513,9 +3589,9 @@ function generateComprehensiveSummary(
   const ec = Math.max(exchangeCount, 1)
   const complianceFactor = Math.min(1.0,
     (safetyMetrics.criticalIssues  / ec) * 1.5 +
-    (safetyMetrics.highSeverityIssues / ec) * 1.0 +
-    (safetyMetrics.mediumSeverityIssues / ec) * 0.4 +
-    (safetyMetrics.lowSeverityIssues / ec) * 0.1
+    (safetyMetrics.highWeightIssues / ec) * 1.0 +
+    (safetyMetrics.mediumWeightIssues / ec) * 0.4 +
+    (safetyMetrics.lowWeightIssues / ec) * 0.1
   )
   const readbackComponent = readbackAnalysis.completenessScore / 100
   const overallCompliance = Math.round(
@@ -3552,7 +3628,7 @@ function generateDetailedFindings(errors: PhraseologyError[], readbackAnalysis: 
     const existing = findingsMap.get(key)
 
     const impact = error.safetyImpact || (
-      error.severity === 'high' ? 'safety' :
+      error.weight === 'high' ? 'safety' :
       error.category === 'structure' ? 'clarity' : 'efficiency'
     )
 

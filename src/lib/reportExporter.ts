@@ -61,14 +61,6 @@ export async function exportAnalysisToPDF(
   function scoreColour(score: number): RGB {
     return score >= 80 ? GREEN : score >= 60 ? AMBER : RED
   }
-  function riskColour(level: string): RGB {
-    return level === 'low' ? GREEN : level === 'medium' ? AMBER : RED
-  }
-  function severityColour(sev: string): RGB {
-    if (sev === 'critical' || sev === 'high') return RED
-    if (sev === 'medium') return AMBER
-    return GRAY
-  }
 
   // ── Pagination ────────────────────────────────────────────────────────────
   let pageNum = 1
@@ -146,23 +138,6 @@ export async function exportAnalysisToPDF(
     y += 22
   }
 
-  // ── Severity badge (coloured pill, white text) ────────────────────────────
-  // Drawn inside a table cell at absolute (cx, cy). Returns badge width.
-  function severityBadge(sev: string, cx: number, cy: number): number {
-    const label = sev.toUpperCase()
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    const tw  = doc.getTextWidth(label)
-    const bw  = tw + 6    // horizontal padding
-    const bh  = 4.5
-    const col = severityColour(sev)
-    doc.setFillColor(...col)
-    doc.roundedRect(cx, cy - 3.5, bw, bh, 1, 1, 'F')
-    doc.setTextColor(...WHITE)
-    doc.text(label, cx + 3, cy)
-    return bw
-  }
-
   // ════════════════════════════════════════════════════════════════════════════
   // PAGE 1 — HEADER BANNER
   // ════════════════════════════════════════════════════════════════════════════
@@ -179,17 +154,6 @@ export async function exportAnalysisToPDF(
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(199, 210, 254)
   doc.text(`${result.corpusType} Corpus  •  ${today()}`, M, 28)
-
-  // Risk badge (top-right)
-  const riskCol = riskColour(result.riskLevel)
-  doc.setFillColor(...WHITE)
-  doc.roundedRect(pageW - 52, 9, 34, 20, 3, 3, 'F')
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...riskCol)
-  doc.text('RISK', pageW - 35, 17, { align: 'center' })
-  doc.setFontSize(13)
-  doc.text(result.riskLevel.toUpperCase(), pageW - 35, 25, { align: 'center' })
 
   y = 46
 
@@ -266,7 +230,7 @@ export async function exportAnalysisToPDF(
   // ════════════════════════════════════════════════════════════════════════════
   // SECTION — ERROR TABLE
   // Redesigned with proper column proportions and dynamic row heights.
-  // No more text overflow — issue text wraps within its column, severity
+  // No more text overflow — issue text wraps within its column, weight
   // is a coloured pill badge so it never bleeds into adjacent cells.
   // ════════════════════════════════════════════════════════════════════════════
   const allErrors = result.phraseologyErrors ?? []
@@ -274,13 +238,11 @@ export async function exportAnalysisToPDF(
     sectionHeader(`Error Summary  (${allErrors.length} issues detected)`)
 
     // Column layout (relative to M):
-    //  Issue    0   → 92  mm  (92 mm, ~52 chars at 8pt — wraps if longer)
-    //  Severity 92  → 122 mm  (30 mm — badge)
+    //  Issue    0   → 122 mm  (122 mm, ~68 chars at 8pt — wraps if longer)
     //  Category 122 → 156 mm  (34 mm)
     //  Line     156 → 174 mm  (18 mm, right-aligned)
     const TC = {
-      issue:    { x: 0,   w: 92 },
-      severity: { x: 92,  w: 30 },
+      issue:    { x: 0,   w: 122 },
       category: { x: 122, w: 34 },
       line:     { x: 156, w: 18 },
     }
@@ -293,7 +255,6 @@ export async function exportAnalysisToPDF(
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...DARK)
     doc.text('Issue',    M + TC.issue.x    + 2, y + 4.8)
-    doc.text('Severity', M + TC.severity.x + 2, y + 4.8)
     doc.text('Category', M + TC.category.x + 2, y + 4.8)
     doc.text('Line',     M + TC.line.x     + TC.line.w - 2, y + 4.8, { align: 'right' })
     y += 8
@@ -321,7 +282,7 @@ export async function exportAnalysisToPDF(
       // Draw thin vertical dividers between columns
       doc.setDrawColor(203, 213, 225)
       doc.setLineWidth(0.2)
-      ;[TC.severity.x, TC.category.x, TC.line.x].forEach(cx => {
+      ;[TC.category.x, TC.line.x].forEach(cx => {
         doc.line(M + cx, y, M + cx, y + ROW_H)
       })
 
@@ -335,9 +296,6 @@ export async function exportAnalysisToPDF(
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(...DARK)
       doc.text(issueLines, M + TC.issue.x + 2, textStartY)
-
-      // Severity badge (vertically centred)
-      severityBadge(err.severity ?? 'low', M + TC.severity.x + 3, midY)
 
       // Category
       doc.setFontSize(7.5)
@@ -417,10 +375,9 @@ export function exportAnalysisToCSV(
   rows.push(`Total Words,${result.totalWords}`)
   rows.push(`Total Exchanges,${result.totalExchanges}`)
   rows.push(`Non-Standard Uses,${result.nonStandardFreq}`)
-  rows.push(`Risk Level,${result.riskLevel}`)
   rows.push('')
 
-  rows.push(['Line', 'Issue', 'Original Text', 'Suggestion', 'Severity', 'Category', 'Safety Impact', 'Explanation'].map(esc).join(','))
+  rows.push(['Line', 'Issue', 'Original Text', 'Suggestion', 'Weight', 'Category', 'Safety Impact', 'Explanation'].map(esc).join(','))
 
   ;(result.phraseologyErrors ?? []).forEach(err => {
     rows.push([
@@ -428,7 +385,7 @@ export function exportAnalysisToCSV(
       err.issue ?? '',
       err.original ?? '',
       err.suggestion ?? '',
-      err.severity ?? '',
+      err.weight ?? '',
       err.category ?? '',
       err.safetyImpact ?? '',
       err.explanation ?? '',

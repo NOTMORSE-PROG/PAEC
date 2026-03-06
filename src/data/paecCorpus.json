@@ -13,7 +13,7 @@
         "pattern": "\\bwith you\\b",
         "flags": "i",
         "standard": "on your frequency",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "incident": "Avianca 52 crash (1990) - miscommunication contributed to fuel exhaustion",
@@ -26,7 +26,7 @@
         "pattern": "\\bchecking in\\b",
         "flags": "i",
         "standard": "[callsign], [altitude]",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 4444 §3.5.1.2"
@@ -38,7 +38,7 @@
         "pattern": "\\bany traffic\\b",
         "flags": "i",
         "standard": "traffic information",
-        "severity": "low",
+        "weight": "low",
         "category": "instruction",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 4444 §4.7.4"
@@ -50,7 +50,7 @@
         "pattern": "\\bgo ahead\\b",
         "flags": "i",
         "standard": "pass your message",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 9432 §5.3"
@@ -62,7 +62,7 @@
         "pattern": "\\bno joy\\b",
         "flags": "i",
         "standard": "negative contact",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity"
       },
@@ -73,7 +73,7 @@
         "pattern": "\\bhave a good one\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -84,7 +84,7 @@
         "pattern": "\\bsee ya\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -95,7 +95,7 @@
         "pattern": "\\bback to you\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -106,7 +106,7 @@
         "pattern": "\\bsay again all after\\b",
         "flags": "i",
         "standard": "say again",
-        "severity": "low",
+        "weight": "low",
         "category": "clarification",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 9432 §5.6"
@@ -119,7 +119,7 @@
         "flags": "i",
         "excludePattern": "\\bcleared\\b",
         "standard": "departure",
-        "severity": "high",
+        "weight": "high",
         "category": "instruction",
         "safetyImpact": "safety",
         "incident": "Tenerife disaster (1977) - 'takeoff' misunderstood as clearance",
@@ -132,7 +132,7 @@
         "pattern": "\\b(one|three|four|five|six|seven|eight|nine|niner|zero)\\s+to\\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)\\b",
         "flags": "i",
         "standard": "use 'two' in number sequences",
-        "severity": "high",
+        "weight": "high",
         "category": "number",
         "safetyImpact": "safety",
         "icaoRef": "ICAO Doc 9432 §5.2.1"
@@ -144,7 +144,7 @@
         "pattern": "\\b(one|two|three|five|six|seven|eight|nine|niner|zero)\\s+for\\s+(one|two|three|four|five|six|seven|eight|nine|niner|zero)\\b",
         "flags": "i",
         "standard": "use 'four' in number sequences",
-        "severity": "high",
+        "weight": "high",
         "category": "number",
         "safetyImpact": "safety",
         "icaoRef": "ICAO Doc 9432 §5.2.1"
@@ -156,7 +156,7 @@
         "pattern": "\\bokay\\b",
         "flags": "i",
         "standard": "affirm",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 9432 §5.4"
@@ -168,7 +168,7 @@
         "pattern": "\\byeah\\b",
         "flags": "i",
         "standard": "affirm",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity"
       },
@@ -179,7 +179,7 @@
         "pattern": "\\buh\\s*huh\\b",
         "flags": "i",
         "standard": "affirm",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity"
       },
@@ -190,7 +190,7 @@
         "pattern": "\\bcopy that\\b",
         "flags": "i",
         "standard": "roger",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 9432 §5.4"
@@ -202,7 +202,7 @@
         "pattern": "\\bstandby one\\b",
         "flags": "i",
         "standard": "standby",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency",
         "icaoRef": "ICAO Doc 9432 §5.4"
@@ -214,7 +214,7 @@
         "pattern": "\\brunning\\s+heading\\b",
         "flags": "i",
         "standard": "runway heading",
-        "severity": "high",
+        "weight": "high",
         "category": "instruction",
         "safetyImpact": "safety",
         "icaoRef": "ICAO Doc 4444 §4.5.1"
@@ -226,7 +226,7 @@
         "pattern": "\\bdecent\\b",
         "flags": "i",
         "standard": "descend",
-        "severity": "high",
+        "weight": "high",
         "category": "instruction",
         "safetyImpact": "safety"
       },
@@ -237,7 +237,7 @@
         "pattern": "\\bgood\\s+(morning|afternoon|evening)\\b",
         "flags": "i",
         "standard": "[callsign], [altitude/flight level]",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency",
         "icaoRef": "ICAO Doc 9432 §5.1.1"
@@ -249,7 +249,7 @@
         "pattern": "\\bdirect\\s+contact\\b",
         "flags": "i",
         "standard": "radar contact",
-        "severity": "medium",
+        "weight": "medium",
         "category": "instruction",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 4444 §8.6.1"
@@ -261,7 +261,7 @@
         "pattern": "\\breclimb\\b",
         "flags": "i",
         "standard": "climb",
-        "severity": "medium",
+        "weight": "medium",
         "category": "instruction",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 4444 §12.3.1"
@@ -273,7 +273,7 @@
         "pattern": "\\b(sir|ma[''']?am|maam)\\b",
         "flags": "i",
         "standard": "[callsign]",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -284,7 +284,7 @@
         "pattern": "\\bgoodbye\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency",
         "icaoRef": "ICAO Doc 9432 §5.4"
@@ -296,7 +296,7 @@
         "pattern": "\\bgood(morning|afternoon|evening|night)\\b",
         "flags": "i",
         "standard": "[callsign], [altitude/flight level]",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -307,7 +307,7 @@
         "pattern": "\\bthank\\s+you\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -318,7 +318,7 @@
         "pattern": "\\bbye\\s*-?\\s*bye\\b|\\bbye\\b(?!\\s*-?\\s*bye)",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -329,7 +329,7 @@
         "pattern": "\\bso long\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -340,7 +340,7 @@
         "pattern": "\\bhave a good\\s+(day|flight)\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency"
       },
@@ -351,7 +351,7 @@
         "pattern": "\\breach\\s+your\\s+speed\\b",
         "flags": "i",
         "standard": "reduce/increase speed to [speed] knots",
-        "severity": "medium",
+        "weight": "medium",
         "category": "instruction",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 4444 §12.3"
@@ -363,7 +363,7 @@
         "pattern": "\\bmaayong\\s+buntag\\b",
         "flags": "i",
         "standard": "[callsign], [altitude/flight level]",
-        "severity": "high",
+        "weight": "high",
         "category": "instruction",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Annex 10 Vol. II §5.2.1.3"
@@ -375,7 +375,7 @@
         "pattern": "\\bsalamat\\b",
         "flags": "i",
         "standard": "good day",
-        "severity": "high",
+        "weight": "high",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Annex 10 Vol. II §5.2.1.3"
@@ -387,7 +387,7 @@
         "pattern": "\\bexpedite\\s+passing\\b",
         "flags": "i",
         "standard": "expedite",
-        "severity": "medium",
+        "weight": "medium",
         "category": "instruction",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 4444 §12.3.2"
@@ -399,7 +399,7 @@
         "pattern": "\\baffirmative\\b",
         "flags": "i",
         "standard": "affirm",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 9432 §5.4"
@@ -411,7 +411,7 @@
         "pattern": "\\btaxi\\s+into\\s+position\\s+and\\s+hold\\b",
         "flags": "i",
         "standard": "line up and wait",
-        "severity": "medium",
+        "weight": "medium",
         "category": "instruction",
         "safetyImpact": "safety",
         "icaoRef": "ICAO Doc 4444 Amendment 7; Doc 9432 §8.5"
@@ -423,7 +423,7 @@
         "pattern": "\\bpo\\b",
         "flags": "i",
         "standard": "(omit)",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency",
         "icaoRef": "ICAO Annex 10 Vol. II §5.2.1.3"
@@ -435,7 +435,7 @@
         "pattern": "\\byes\\b(?!\\s*sir|\\s*ma)",
         "flags": "i",
         "standard": "affirm",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "icaoRef": "ICAO Doc 9432 §5.4"
@@ -447,7 +447,7 @@
         "pattern": "\\bcontacting\\b",
         "flags": "i",
         "standard": "[frequency] [callsign]",
-        "severity": "low",
+        "weight": "low",
         "category": "acknowledgment",
         "safetyImpact": "efficiency",
         "icaoRef": "ICAO Doc 4444 §3.5.1.2"
@@ -455,7 +455,7 @@
       {
         "pattern": "\\bopo\\b",
         "correction": "affirm / [read back instruction]",
-        "severity": "high",
+        "weight": "high",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "explanation": "Tagalog formal 'yes' — not standard ICAO phraseology. Use 'affirm' or read back the instruction.",
@@ -464,7 +464,7 @@
       {
         "pattern": "\\boo\\b",
         "correction": "affirm / [read back instruction]",
-        "severity": "high",
+        "weight": "high",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "explanation": "Tagalog informal 'yes' — not standard. Use 'affirm' or read back the instruction.",
@@ -473,7 +473,7 @@
       {
         "pattern": "\\bsandali\\b|\\bsandali\\s+lang\\b",
         "correction": "standby",
-        "severity": "medium",
+        "weight": "medium",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "explanation": "Tagalog 'sandali / sandali lang' (just a moment) — use 'standby' per ICAO Doc 9432.",
@@ -482,7 +482,7 @@
       {
         "pattern": "\\bganoon\\b|\\bganun\\b",
         "correction": "roger",
-        "severity": "medium",
+        "weight": "medium",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "explanation": "Tagalog 'ganoon/ganun' (like that / I see) — not standard. Use 'roger' if acknowledging.",
@@ -491,7 +491,7 @@
       {
         "pattern": "\\bnandoon\\b|\\bnandito\\b",
         "correction": "[position report in standard format]",
-        "severity": "medium",
+        "weight": "medium",
         "category": "acknowledgment",
         "safetyImpact": "clarity",
         "explanation": "Tagalog position terms not standard on radio. Use standard position reporting phraseology.",
@@ -502,99 +502,99 @@
       {
         "incorrect": "nine",
         "correct": "niner",
-        "severity": "medium"
+        "weight": "medium"
       },
       {
         "incorrect": "three",
         "correct": "tree",
-        "severity": "low"
+        "weight": "low"
       },
       {
         "incorrect": "five",
         "correct": "fife",
-        "severity": "low"
+        "weight": "low"
       },
       {
         "incorrect": "thousand",
         "correct": "tousand",
-        "severity": "low"
+        "weight": "low"
       }
     ],
     "safetyCriticalPatterns": [
       {
         "pattern": "runways*d{1,2}[LRC]?",
         "description": "Runway designation",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "holds*short",
         "description": "Hold short instruction",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "lines*ups*(?:ands*)?wait",
         "description": "Line up and wait",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "gos*around",
         "description": "Go around instruction",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "cleareds*(?:tos*)?land",
         "description": "Landing clearance",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "cleareds*(?:fors*)?takes*off",
         "description": "Takeoff clearance",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "misseds*approach",
         "description": "Missed approach",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "cancels*takes*off",
         "description": "Takeoff cancellation",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "stops*(?:immediately)?",
         "description": "Stop instruction",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "traffics*alert",
         "description": "Traffic alert",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "terrains*ahead",
         "description": "Terrain warning",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "pulls*up",
         "description": "Pull up warning",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "breaks*(?:left|right)",
         "description": "Emergency break",
-        "severity": "critical"
+        "weight": "critical"
       },
       {
         "pattern": "expedite",
         "description": "Expedite instruction",
-        "severity": "high"
+        "weight": "high"
       },
       {
         "pattern": "immediately",
         "description": "Immediate action required",
-        "severity": "high"
+        "weight": "high"
       }
     ]
   },

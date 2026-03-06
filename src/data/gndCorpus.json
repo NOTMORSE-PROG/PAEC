@@ -3875,5 +3875,13 @@
       "phase": "ground",
       "explanation": "Correct hold-short readback with runway. Traffic sequence info (number two) does not need readback."
     }
-  ]
+  ],
+  "checks": {
+    "holdShortEquivalents": ["hold\\s+short", "holding\\s+short"],
+    "lineUpAndWaitPattern": "line\\s*up\\s*(and\\s*)?wait",
+    "takeoffClearancePattern": "cleared\\s+(for\\s+)?take\\s*off",
+    "runwayPattern": "runway\\s+([0-9]{1,2}[LRC]?)",
+    "taxiwayViaPattern": "via\\s+([a-z][a-z,\\s0-9]*)",
+    "pushbackPattern": "push\\s*back|pushback"
+  }
 }

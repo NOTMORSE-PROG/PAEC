@@ -281,7 +281,7 @@ Currently no authentication required (development mode).
               phase: { type: 'string' },
               phaseConfidence: { type: 'number' },
               errors: { type: 'array', items: { type: 'object' } },
-              severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+              weight: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
               suggestions: { type: 'array', items: { type: 'string' } },
             },
           },

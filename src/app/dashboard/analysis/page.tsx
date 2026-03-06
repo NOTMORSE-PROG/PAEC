@@ -36,6 +36,7 @@ import { extractTextFromDOCX } from '@/lib/docxExtractor'
 import { exportAnalysisToPDF, exportAnalysisToCSV } from '@/lib/reportExporter'
 import { analyzeDialogue, parseLines, type AnalysisOutput, type PhraseologyError, type ParsedLine } from '@/lib/analysisEngine'
 import { analyzeDepartureApproach, type DepartureApproachMLResult, type FlightPhase } from '@/lib/departureApproachAnalyzer'
+import { analyzeGround, type GroundMLResult, type GroundPhase } from '@/lib/groundAnalyzer'
 import { analyzeWithPhaseContext } from '@/lib/semanticReadbackAnalyzer'
 
 type CorpusType = 'APP/DEP' | 'GND' | 'RAMP' | null
@@ -83,6 +84,19 @@ export default function AnalysisPage() {
       averageCompleteness: number
       criticalErrors: number
       phaseBreakdown: Record<FlightPhase, number>
+    }
+  } | null>(null)
+
+  const [groundAnalysisResults, setGroundAnalysisResults] = useState<{
+    exchanges: GroundMLResult[]
+    summary: {
+      totalExchanges: number
+      taxiCount: number
+      holdingCount: number
+      crossingCount: number
+      averageCompleteness: number
+      criticalErrors: number
+      phaseBreakdown: Record<GroundPhase, number>
     }
   } | null>(null)
 
@@ -228,7 +242,7 @@ export default function AnalysisPage() {
               undefined, // callsign extracted automatically
               exchanges.slice(-3).map(e => ({
                 type: e.errors[0]?.type || 'unknown',
-                severity: e.contextualSeverity,
+                weight: e.contextualWeight,
                 timestamp: Date.now()
               }))
             )
@@ -242,7 +256,7 @@ export default function AnalysisPage() {
             totalCompleteness += exchangeResult.multiPartAnalysis.readbackCompleteness
 
             // Track critical errors
-            if (exchangeResult.contextualSeverity === 'critical') {
+            if (exchangeResult.contextualWeight === 'critical') {
               criticalErrors++
             }
 
@@ -268,8 +282,62 @@ export default function AnalysisPage() {
             phaseBreakdown,
           },
         })
+        setGroundAnalysisResults(null)
+      } else if (selectedCorpus === 'GND') {
+        const parsedLines = parseLines(uploadedText)
+        const exchanges: GroundMLResult[] = []
+        const phaseBreakdown: Record<GroundPhase, number> = {} as Record<GroundPhase, number>
+        let totalCompleteness = 0
+        let criticalErrors = 0
+        let taxiCount = 0
+        let holdingCount = 0
+        let crossingCount = 0
+
+        for (let i = 0; i < parsedLines.length - 1; i++) {
+          const current = parsedLines[i]
+          const next = parsedLines[i + 1]
+
+          if (current.speaker === 'ATC' && next.speaker === 'PILOT') {
+            const exchangeResult = analyzeGround(
+              current.text,
+              next.text,
+              undefined,
+              exchanges.slice(-3).map(e => ({
+                type: e.errors[0]?.type || 'unknown',
+                weight: e.contextualWeight,
+                timestamp: Date.now(),
+              }))
+            )
+
+            exchanges.push(exchangeResult)
+            phaseBreakdown[exchangeResult.phase] = (phaseBreakdown[exchangeResult.phase] || 0) + 1
+            totalCompleteness += exchangeResult.multiPartAnalysis.readbackCompleteness
+            if (exchangeResult.contextualWeight === 'critical') criticalErrors++
+            if (['taxi', 'ground', 'pushback'].includes(exchangeResult.phase)) taxiCount++
+            if (exchangeResult.phase === 'holding') holdingCount++
+            if (exchangeResult.phase === 'crossing') crossingCount++
+            i++
+          }
+        }
+
+        setGroundAnalysisResults({
+          exchanges,
+          summary: {
+            totalExchanges: exchanges.length,
+            taxiCount,
+            holdingCount,
+            crossingCount,
+            averageCompleteness: exchanges.length > 0
+              ? Math.round(totalCompleteness / exchanges.length)
+              : 100,
+            criticalErrors,
+            phaseBreakdown,
+          },
+        })
+        setMlAnalysisResults(null)
       } else {
         setMlAnalysisResults(null)
+        setGroundAnalysisResults(null)
       }
 
       setAnalysisResult(result)
@@ -322,6 +390,7 @@ export default function AnalysisPage() {
     setShowFullTranscript(false)
     setExpandedLines(new Set())
     setMlAnalysisResults(null)
+    setGroundAnalysisResults(null)
   }
 
   // Build annotated transcript with error highlighting
@@ -349,44 +418,28 @@ export default function AnalysisPage() {
         conversationGroup: parsed.conversationGroup ?? 0,
         errors,
         hasErrors: errors.length > 0,
-        highestSeverity: errors.reduce((max, e) => {
-          const severityOrder = { high: 3, medium: 2, low: 1 }
-          return severityOrder[e.severity as keyof typeof severityOrder] > severityOrder[max as keyof typeof severityOrder] ? e.severity : max
+        highestWeight: errors.reduce((max, e) => {
+          const weightOrder = { high: 3, medium: 2, low: 1 }
+          return weightOrder[e.weight as keyof typeof weightOrder] > weightOrder[max as keyof typeof weightOrder] ? e.weight : max
         }, 'low' as string)
       }
     })
   }, [uploadedText, analysisResult])
 
-  const getSeverityStyles = (severity: string) => {
-    switch (severity) {
-      case 'high':
-        return {
-          bg: 'bg-red-50 hover:bg-red-100',
-          border: 'border-l-red-500',
-          highlight: 'bg-red-100',
-          text: 'text-red-700'
-        }
-      case 'medium':
-        return {
-          bg: 'bg-amber-50 hover:bg-amber-100',
-          border: 'border-l-amber-500',
-          highlight: 'bg-amber-100',
-          text: 'text-amber-700'
-        }
-      case 'low':
-        return {
-          bg: 'bg-blue-50 hover:bg-blue-100',
-          border: 'border-l-blue-500',
-          highlight: 'bg-blue-100',
-          text: 'text-blue-700'
-        }
-      default:
-        return {
-          bg: 'bg-white hover:bg-gray-50',
-          border: 'border-l-gray-200',
-          highlight: 'bg-gray-100',
-          text: 'text-gray-700'
-        }
+  const getErrorStyles = (weight: string) => {
+    if (weight !== 'none') {
+      return {
+        bg: 'bg-amber-50 hover:bg-amber-100',
+        border: 'border-l-amber-400',
+        highlight: 'bg-amber-100',
+        text: 'text-amber-800'
+      }
+    }
+    return {
+      bg: 'bg-white hover:bg-gray-50',
+      border: 'border-l-gray-200',
+      highlight: 'bg-gray-100',
+      text: 'text-gray-700'
     }
   }
 
@@ -857,7 +910,7 @@ Pilot: Left heading 180, PAL456."
             </div>
 
             {/* Score ring + key stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {/* ICAO Compliance — big circle */}
               <div className="col-span-2 sm:col-span-1 flex flex-col items-center justify-center py-2">
                 <div className="relative w-24 h-24">
@@ -892,24 +945,12 @@ Pilot: Left heading 180, PAL456."
                 <div className="text-2xl font-bold text-amber-700">{analysisResult.nonStandardFreq}</div>
                 <div className="text-xs text-amber-600 font-medium">Non-std / 1k</div>
               </div>
-              <div className={`rounded-xl p-4 border ${
-                analysisResult.riskLevel === 'low' ? 'bg-green-50 border-green-100' :
-                analysisResult.riskLevel === 'medium' ? 'bg-amber-50 border-amber-100' :
-                'bg-red-50 border-red-100'
-              }`}>
-                <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${
-                  analysisResult.riskLevel === 'low' ? 'bg-green-100 text-green-700' :
-                  analysisResult.riskLevel === 'medium' ? 'bg-amber-100 text-amber-700' :
-                  'bg-red-100 text-red-700'
-                }`}>{analysisResult.riskLevel.toUpperCase()}</span>
-                <div className="text-xs text-gray-500 font-medium mt-1.5">Risk Level</div>
-              </div>
             </div>
           </div>
 
-          {/* Safety + Readback side-by-side compact strip */}
+          {/* Readback + Error Breakdown side-by-side */}
           <div className="grid sm:grid-cols-2 gap-4">
-            {/* Readback */}
+            {/* Readback Analysis */}
             {analysisResult.readbackAnalysis && (
               <div className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-center justify-between mb-4">
@@ -949,49 +990,39 @@ Pilot: Left heading 180, PAL456."
               </div>
             )}
 
-            {/* Safety */}
-            {analysisResult.safetyMetrics && (
-              <div className="rounded-xl border border-gray-200 bg-white p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                      <Shield className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <h3 className="font-semibold text-gray-900 text-sm">Safety Score</h3>
-                  </div>
-                  <span className={`text-lg font-bold ${
-                    analysisResult.safetyMetrics.overallSafetyScore >= 80 ? 'text-green-600' :
-                    analysisResult.safetyMetrics.overallSafetyScore >= 60 ? 'text-amber-600' : 'text-red-600'
-                  }`}>
-                    {analysisResult.safetyMetrics.overallSafetyScore}%
-                  </span>
+            {/* Error Breakdown by Category */}
+            <div className="rounded-xl border border-gray-200 bg-white p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                  <BarChart3 className="w-4 h-4 text-violet-600" />
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-4">
-                  <div className={`h-full rounded-full transition-all duration-700 ${
-                    analysisResult.safetyMetrics.overallSafetyScore >= 80 ? 'bg-emerald-500' :
-                    analysisResult.safetyMetrics.overallSafetyScore >= 60 ? 'bg-amber-500' : 'bg-red-500'
-                  }`} style={{ width: `${analysisResult.safetyMetrics.overallSafetyScore}%` }} />
-                </div>
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  <div className="py-2 rounded-lg bg-red-50">
-                    <div className="text-lg font-bold text-red-600">{analysisResult.safetyMetrics.criticalIssues}</div>
-                    <div className="text-[10px] text-red-500 uppercase tracking-wide">Critical</div>
-                  </div>
-                  <div className="py-2 rounded-lg bg-orange-50">
-                    <div className="text-lg font-bold text-orange-600">{analysisResult.safetyMetrics.highSeverityIssues}</div>
-                    <div className="text-[10px] text-orange-500 uppercase tracking-wide">High</div>
-                  </div>
-                  <div className="py-2 rounded-lg bg-amber-50">
-                    <div className="text-lg font-bold text-amber-600">{analysisResult.safetyMetrics.mediumSeverityIssues}</div>
-                    <div className="text-[10px] text-amber-500 uppercase tracking-wide">Medium</div>
-                  </div>
-                  <div className="py-2 rounded-lg bg-blue-50">
-                    <div className="text-lg font-bold text-blue-600">{analysisResult.safetyMetrics.lowSeverityIssues}</div>
-                    <div className="text-[10px] text-blue-500 uppercase tracking-wide">Low</div>
-                  </div>
-                </div>
+                <h3 className="font-semibold text-gray-900 text-sm">Error Breakdown</h3>
               </div>
-            )}
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { cat: 'language',  bg: 'bg-blue-50',  text: 'text-blue-600',  bar: 'bg-blue-400'  },
+                  { cat: 'number',    bg: 'bg-amber-50', text: 'text-amber-600', bar: 'bg-amber-400' },
+                  { cat: 'procedure', bg: 'bg-green-50', text: 'text-green-600', bar: 'bg-green-400' },
+                  { cat: 'structure', bg: 'bg-slate-50', text: 'text-slate-600', bar: 'bg-slate-400' },
+                ] as const).map(({ cat, bg, text, bar }) => {
+                  const count = analysisResult.phraseologyErrors.filter(e => e.category === cat).length
+                  const total = analysisResult.phraseologyErrors.length
+                  const pct   = total > 0 ? Math.round(count / total * 100) : 0
+                  return (
+                    <div key={cat} className={`p-3 rounded-lg ${bg}`}>
+                      <div className={`text-xl font-bold ${text}`}>{count}</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">{cat}</div>
+                      <div className="h-1 bg-white/70 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-3 text-right">
+                {analysisResult.phraseologyErrors.length} total errors
+              </p>
+            </div>
           </div>
 
           {/* Annotated Transcript — main panel */}
@@ -1043,7 +1074,7 @@ Pilot: Left heading 180, PAL456."
               {/* Transcript body */}
               <div className={`overflow-y-auto transition-all duration-300 ${showFullTranscript ? 'max-h-[700px]' : 'max-h-96'}`}>
                 {annotatedLines.map((line, idx) => {
-                  const styles = line.hasErrors ? getSeverityStyles(line.highestSeverity) : getSeverityStyles('none')
+                  const styles = line.hasErrors ? getErrorStyles(line.highestWeight) : getErrorStyles('none')
                   const isExpanded = expandedLines.has(line.lineNum)
                   const prevGroup = idx > 0 ? annotatedLines[idx - 1].conversationGroup : line.conversationGroup
                   const isNewConversation = idx > 0 && line.conversationGroup !== prevGroup
@@ -1087,8 +1118,8 @@ Pilot: Left heading 180, PAL456."
                             <p className={`text-[13px] leading-relaxed ${line.hasErrors ? styles.text : 'text-gray-700'} font-mono break-words`}>
                               {line.hasErrors ? (
                                 (() => {
-                                  const highlights: { phrase: string; severity: string }[] = []
-                                  line.errors.forEach(err => { if (err.incorrectPhrase) highlights.push({ phrase: err.incorrectPhrase, severity: err.severity }) })
+                                  const highlights: { phrase: string }[] = []
+                                  line.errors.forEach(err => { if (err.incorrectPhrase) highlights.push({ phrase: err.incorrectPhrase }) })
                                   if (highlights.length === 0) return line.text
                                   const escapedPhrases = highlights.map(h => h.phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
                                   const regex = new RegExp(`(\\b(?:${escapedPhrases.join('|')})\\b)`, 'gi')
@@ -1096,8 +1127,7 @@ Pilot: Left heading 180, PAL456."
                                   return parts.map((part, i) => {
                                     const matched = highlights.find(h => h.phrase.toLowerCase() === part.toLowerCase())
                                     if (matched) {
-                                      const bg = matched.severity === 'high' ? 'bg-red-500' : matched.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
-                                      return <span key={i} className={`${bg} text-white px-1 py-0.5 rounded text-[12px] font-bold`}>{part}</span>
+                                      return <span key={i} className="bg-amber-400 text-white px-1 py-0.5 rounded text-[12px] font-bold">{part}</span>
                                     }
                                     return part
                                   })
@@ -1108,10 +1138,7 @@ Pilot: Left heading 180, PAL456."
 
                           {line.hasErrors && (
                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-full ${
-                                line.highestSeverity === 'high' ? 'bg-red-100 text-red-700' :
-                                line.highestSeverity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                              }`}>
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">
                                 {line.errors.length}
                               </span>
                               <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
@@ -1124,20 +1151,12 @@ Pilot: Left heading 180, PAL456."
                           <div className="px-4 pb-3 pl-[4.5rem]">
                             <div className="space-y-2">
                               {line.errors.map((error, errIdx) => (
-                                <div key={errIdx} className={`rounded-lg overflow-hidden border ${
-                                  error.severity === 'high' ? 'border-red-200' : error.severity === 'medium' ? 'border-amber-200' : 'border-blue-200'
-                                }`}>
-                                  <div className={`px-3 py-1.5 flex items-center justify-between ${
-                                    error.severity === 'high' ? 'bg-red-50' : error.severity === 'medium' ? 'bg-amber-50' : 'bg-blue-50'
-                                  }`}>
+                                <div key={errIdx} className="rounded-lg overflow-hidden border border-amber-200">
+                                  <div className="px-3 py-1.5 flex items-center justify-between bg-amber-50">
                                     <div className="flex items-center gap-2">
-                                      <AlertTriangle className={`w-3.5 h-3.5 ${
-                                        error.severity === 'high' ? 'text-red-500' : error.severity === 'medium' ? 'text-amber-500' : 'text-blue-500'
-                                      }`} />
-                                      <span className={`text-[11px] font-bold uppercase ${
-                                        error.severity === 'high' ? 'text-red-700' : error.severity === 'medium' ? 'text-amber-700' : 'text-blue-700'
-                                      }`}>
-                                        {error.severity} - {error.category}
+                                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                      <span className="text-[11px] font-bold uppercase text-amber-700">
+                                        {error.category}
                                       </span>
                                     </div>
                                     {error.icaoReference && (
@@ -1168,9 +1187,7 @@ Pilot: Left heading 180, PAL456."
                                       <p className="text-[11px] text-gray-500"><BookOpen className="w-3 h-3 inline mr-1" />{error.explanation}</p>
                                     )}
                                     {error.whyItMatters && (
-                                      <p className={`text-[11px] p-1.5 rounded ${
-                                        error.severity === 'high' ? 'bg-red-50 text-red-600' : error.severity === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
-                                      }`}><strong>Why it matters:</strong> {error.whyItMatters}</p>
+                                      <p className="text-[11px] p-1.5 rounded bg-amber-50 text-amber-700"><strong>Why it matters:</strong> {error.whyItMatters}</p>
                                     )}
                                   </div>
                                 </div>
@@ -1193,11 +1210,7 @@ Pilot: Left heading 180, PAL456."
                     return gc > 1 ? ` / ${gc} conversations` : ''
                   })()}
                 </span>
-                <div className="flex items-center gap-3">
-                  <span className="text-red-600 font-medium">{annotatedLines.filter(l => l.highestSeverity === 'high').length} high</span>
-                  <span className="text-amber-600 font-medium">{annotatedLines.filter(l => l.highestSeverity === 'medium').length} med</span>
-                  <span className="text-blue-600 font-medium">{annotatedLines.filter(l => l.highestSeverity === 'low' && l.hasErrors).length} low</span>
-                </div>
+                <span className="text-amber-600 font-medium">{annotatedLines.filter(l => l.hasErrors).length} lines with errors</span>
               </div>
             </div>
           )}
@@ -1257,9 +1270,9 @@ Pilot: Left heading 180, PAL456."
               {/* Exchange list */}
               <div className="max-h-[500px] overflow-y-auto divide-y divide-indigo-50">
                 {mlAnalysisResults.exchanges.map((exchange, idx) => {
-                  const sevClasses = exchange.contextualSeverity === 'critical' ? 'bg-red-100 text-red-700' :
-                    exchange.contextualSeverity === 'high' ? 'bg-orange-100 text-orange-700' :
-                    exchange.contextualSeverity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                  const sevClasses = exchange.contextualWeight === 'critical' ? 'bg-red-100 text-red-700' :
+                    exchange.contextualWeight === 'high' ? 'bg-orange-100 text-orange-700' :
+                    exchange.contextualWeight === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
 
                   return (
                     <div key={idx} className="px-5 py-3 hover:bg-white/60 transition-colors">
@@ -1299,7 +1312,118 @@ Pilot: Left heading 180, PAL456."
                         </div>
                       ))}
 
-                      {exchange.isCorrect && exchange.contextualSeverity === 'low' && (
+                      {exchange.isCorrect && exchange.contextualWeight === 'low' && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-green-600">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Correct and complete
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* GND Exchange Analysis Panel */}
+          {groundAnalysisResults && groundAnalysisResults.exchanges.length > 0 && (
+            <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 overflow-hidden">
+
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-emerald-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <Radio className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-sm">Ground Operations Analysis</h3>
+                    <p className="text-[11px] text-gray-500">{groundAnalysisResults.summary.totalExchanges} exchanges analyzed</p>
+                  </div>
+                </div>
+                <span className={`text-lg font-bold ${
+                  groundAnalysisResults.summary.averageCompleteness >= 80 ? 'text-green-600' :
+                  groundAnalysisResults.summary.averageCompleteness >= 60 ? 'text-amber-600' : 'text-red-600'
+                }`}>
+                  {groundAnalysisResults.summary.averageCompleteness}%
+                </span>
+              </div>
+
+              {/* Stat row */}
+              <div className="grid grid-cols-4 divide-x divide-emerald-100 border-b border-emerald-100 bg-white/50">
+                {[
+                  { value: groundAnalysisResults.summary.totalExchanges, label: 'Total',      color: 'text-emerald-600' },
+                  { value: groundAnalysisResults.summary.taxiCount,      label: 'Taxi',       color: 'text-teal-600'    },
+                  { value: groundAnalysisResults.summary.holdingCount,   label: 'Hold Short', color: 'text-amber-600'   },
+                  { value: groundAnalysisResults.summary.criticalErrors, label: 'Critical',   color: 'text-red-600'     },
+                ].map((s) => (
+                  <div key={s.label} className="text-center py-3">
+                    <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Phase chips */}
+              <div className="px-5 py-3 border-b border-emerald-100 bg-white/30">
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(groundAnalysisResults.summary.phaseBreakdown)
+                    .filter(([, count]) => count > 0)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([phase, count]) => (
+                      <span key={phase} className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        ['taxi', 'ground', 'pushback'].includes(phase) ? 'bg-emerald-100 text-emerald-700' :
+                        phase === 'holding' ? 'bg-amber-100 text-amber-700' :
+                        ['crossing', 'lineup'].includes(phase) ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>{phase.replace(/_/g, ' ')} ({count})</span>
+                    ))}
+                </div>
+              </div>
+
+              {/* Exchange list */}
+              <div className="max-h-[500px] overflow-y-auto divide-y divide-emerald-50">
+                {groundAnalysisResults.exchanges.map((exchange, idx) => {
+                  const sevClasses = exchange.contextualWeight === 'critical' ? 'bg-red-100 text-red-700' :
+                    exchange.contextualWeight === 'high'   ? 'bg-orange-100 text-orange-700' :
+                    exchange.contextualWeight === 'medium' ? 'bg-amber-100 text-amber-700'  : 'bg-green-100 text-green-700'
+
+                  return (
+                    <div key={idx} className="px-5 py-3 hover:bg-white/60 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500">{idx + 1}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                            ['taxi', 'ground', 'pushback'].includes(exchange.phase) ? 'bg-emerald-100 text-emerald-700' :
+                            exchange.phase === 'holding' ? 'bg-amber-100 text-amber-700' : 'bg-orange-100 text-orange-700'
+                          }`}>{exchange.phase.replace(/_/g, ' ')}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sevClasses}`}>
+                          {exchange.multiPartAnalysis.readbackCompleteness}%
+                        </span>
+                      </div>
+
+                      {/* Multi-part component chips */}
+                      {exchange.multiPartAnalysis.isMultiPart && exchange.multiPartAnalysis.parts.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {exchange.multiPartAnalysis.parts.map((part, pIdx) => (
+                            <span key={pIdx} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              part.isPresent ? 'bg-green-50 text-green-700 border border-green-200' :
+                              part.isCritical ? 'bg-red-50 text-red-700 border border-red-200' :
+                              'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>{part.isPresent ? '✓' : '✗'} {part.type.replace(/_/g, ' ')}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* GND-specific errors */}
+                      {exchange.groundSpecificErrors.map((err, eIdx) => (
+                        <div key={eIdx} className="text-[11px] text-gray-600 flex items-start gap-1.5 mb-1">
+                          <ArrowRight className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <span><strong className="text-gray-800">{err.description}</strong> — {err.correction}</span>
+                        </div>
+                      ))}
+
+                      {exchange.isCorrect && exchange.contextualWeight === 'low' && (
                         <div className="flex items-center gap-1.5 text-[11px] text-green-600">
                           <CheckCircle className="w-3.5 h-3.5" />
                           Correct and complete
