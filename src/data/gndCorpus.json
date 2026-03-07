@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "version": "3.1",
+    "version": "3.2",
     "lastUpdated": "2026-03-07",
-    "description": "PAEC GND corpus — Ground control training pairs. Phases: ground, taxi, pushback, holding, crossing, lineup. v3.1 adds 60 real PAEC12 examples from GROUND.pdf corpus."
+    "description": "PAEC GND corpus — Ground control training pairs. Phases: ground, taxi, pushback, holding, crossing, lineup. v3.1 adds 60 real PAEC12 examples from GROUND.pdf corpus. v3.2 adds holdShortTaxiwayPattern, startupPattern, improved frequencyPattern."
   },
   "corpus": [
     {
@@ -4809,14 +4809,16 @@
   ],
   "checks": {
     "holdShortEquivalents": ["hold\\s+short", "holding\\s+short"],
+    "holdShortTaxiwayPattern": "hold\\s+short\\s+(?:of\\s+)?(?!runway\\b)([a-zA-Z][a-zA-Z0-9\\s\\-]*?)(?=\\s*,|\\s+and\\b|\\s*$)",
     "lineUpAndWaitPattern": "line\\s*up\\s*(and\\s*)?wait",
     "takeoffClearancePattern": "cleared\\s+(for\\s+)?take\\s*off",
     "runwayPattern": "runway\\s+([0-9]{1,2}[LRC]?)",
     "taxiwayViaPattern": "via\\s+([a-z][a-z,\\s0-9]*)",
     "pushbackPattern": "push\\s*back|pushback",
+    "startupPattern": "start\\s*up\\s+approved|startup\\s+approved|start\\s+approved",
     "backtrackPattern": "back-?track|line\\s*up.*runway.*in\\s*use",
     "intersectionPattern": "intersection\\s+(?:departure|take\\s*off)|[a-z]\\d?\\s+intersection",
     "atisPattern": "(?:information|info)\\s+([a-z])|atis\\s+([a-z])",
-    "frequencyPattern": "(?:contact\\s+)?(?:tower|approach|ground)(?:\\s+on)?\\s+([0-9]{3}\\.[0-9]{1,3})"
+    "frequencyPattern": "(?:contact|monitor)\\s+(?:tower|approach|ground|departure|ramp|delivery)(?:\\s+on)?\\s+([0-9]{3}[\\. ][0-9]{1,3})"
   }
 }

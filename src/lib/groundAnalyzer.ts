@@ -52,17 +52,79 @@ const GND_CORPUS: GndCorpusEntry[] = (gndCorpus as unknown as { corpus: GndCorpu
 const CHECKS = (gndCorpus as unknown as {
   checks: {
     holdShortEquivalents: string[]
+    holdShortTaxiwayPattern: string
     lineUpAndWaitPattern: string
     takeoffClearancePattern: string
     runwayPattern: string
     taxiwayViaPattern: string
     pushbackPattern: string
+    startupPattern: string
     backtrackPattern: string
     intersectionPattern: string
     atisPattern: string
     frequencyPattern: string
   }
 }).checks
+
+// ============================================================================
+// PHONETIC TAXIWAY UTILITIES
+// ============================================================================
+
+const PHONETIC_TO_LETTER: Record<string, string> = {
+  alpha: 'A', bravo: 'B', charlie: 'C', delta: 'D', echo: 'E',
+  foxtrot: 'F', golf: 'G', hotel: 'H', india: 'I', juliet: 'J',
+  kilo: 'K', lima: 'L', mike: 'M', november: 'N', oscar: 'O',
+  papa: 'P', quebec: 'Q', romeo: 'R', sierra: 'S', tango: 'T',
+  uniform: 'U', victor: 'V', whiskey: 'W', xray: 'X', yankee: 'Y',
+  zulu: 'Z',
+}
+
+const SPOKEN_DIGIT: Record<string, string> = {
+  zero: '0', one: '1', two: '2', three: '3', four: '4',
+  five: '5', six: '6', seven: '7', eight: '8', nine: '9', niner: '9',
+}
+
+/**
+ * Extracts taxiway designators from text using ICAO phonetic alphabet names.
+ * "Golf one one" → "G11", "Delta" → "D", "Foxtrot four" → "F4"
+ * Also handles bare single-letter designators (e.g. "via A, B, C").
+ */
+function extractTaxiwayDesignators(text: string): string[] {
+  const lower = text.toLowerCase()
+  const result: string[] = []
+  const seen = new Set<string>()
+
+  // 1. Match phonetic name optionally followed by number words/digits
+  const phoneticRe =
+    /\b(alpha|bravo|charlie|delta|echo|foxtrot|golf|hotel|india|juliet|kilo|lima|mike|november|oscar|papa|quebec|romeo|sierra|tango|uniform|victor|whiskey|xray|yankee|zulu)\b((?:\s+(?:one|two|three|four|five|six|seven|eight|nine|zero|niner|\d))+)?/gi
+
+  let m: RegExpExecArray | null
+  while ((m = phoneticRe.exec(lower)) !== null) {
+    const letter = PHONETIC_TO_LETTER[m[1].toLowerCase()]
+    if (!letter) continue
+    const numPart = (m[2] || '').trim()
+    const digits = numPart
+      .split(/\s+/)
+      .map(w => SPOKEN_DIGIT[w] ?? (/^\d$/.test(w) ? w : null))
+      .filter(Boolean)
+      .join('')
+    const designator = letter + digits
+    if (!seen.has(designator)) { seen.add(designator); result.push(designator) }
+  }
+
+  // 2. Bare single-letter taxiways mentioned after "via" (e.g. "via A, B")
+  const viaRe = /\bvia\s+((?:[a-z](?:\s*,\s*|\s+and\s+|\s+)){1,10})/gi
+  while ((m = viaRe.exec(lower)) !== null) {
+    for (const part of m[1].split(/[\s,]+/)) {
+      const letter = part.trim().toUpperCase()
+      if (letter.length === 1 && /[A-Z]/.test(letter) && !seen.has(letter)) {
+        seen.add(letter); result.push(letter)
+      }
+    }
+  }
+
+  return result
+}
 
 // ============================================================================
 // WEIGHT NORMALIZATION
@@ -127,6 +189,7 @@ export type GndErrorType =
   | 'taxiway_designator_wrong'
   | 'callsign_not_included'
   | 'pushback_direction_missing'
+  | 'startup_runway_missing'
   | 'backtrack_not_confirmed'
   | 'frequency_not_confirmed'
   | 'atis_not_confirmed'
@@ -177,15 +240,18 @@ const GROUND_PHASE_PATTERNS: GroundPhasePattern[] = [
   },
   {
     phase: 'pushback',
-    patterns: [/push\s*back/i, /pushback\s+approved/i, /engine\s+start/i, /start\s+up/i],
+    patterns: [
+      /push\s*back/i, /pushback\s+approved/i, /engine\s+start/i,
+      /start\s*up\s+approved/i, /startup\s+approved/i, /start\s+approved/i,
+    ],
     weight: 10,
-    contextClues: ['pushback', 'start'],
+    contextClues: ['pushback', 'startup', 'start'],
   },
   {
     phase: 'taxi',
-    patterns: [/taxi\s+(to|via)/i, /continue\s+taxi/i],
+    patterns: [/\btaxi\b/i, /continue\s+taxi/i, /tow\s+\w/i],
     weight: 8,
-    contextClues: ['taxi', 'via', 'taxiway'],
+    contextClues: ['taxi', 'via', 'taxiway', 'tow'],
   },
   {
     phase: 'ground',
@@ -254,20 +320,42 @@ export function detectGndErrors(
     })
   }
 
-  // 2. hold_short_not_confirmed (critical)
-  // ATC said "hold short of runway X" but pilot did not echo "hold short"
-  const hsMatch = atcLower.match(/hold\s+short\s+(?:of\s+)?runway\s+(\w+)/i)
-  if (hsMatch) {
+  // 2. hold_short_not_confirmed
+  // 2a. Critical: ATC said "hold short of runway X" — pilot must echo "hold short"
+  const hsRunwayCheck = atcLower.match(/hold\s+short\s+(?:of\s+)?runway\s+(\w+)/i)
+  if (hsRunwayCheck) {
     const hsRe = new RegExp(CHECKS.holdShortEquivalents.join('|'), 'i')
     if (!hsRe.test(pilotLower)) {
       errors.push({
         type: 'hold_short_not_confirmed',
-        description: `Hold short of runway ${hsMatch[1].toUpperCase()} not confirmed in readback`,
+        description: `Hold short of runway ${hsRunwayCheck[1].toUpperCase()} not confirmed in readback`,
         weight: 'critical',
-        correction: `Read back: "Hold short runway ${hsMatch[1].toUpperCase()}, [callsign]"`,
+        correction: `Read back: "Hold short runway ${hsRunwayCheck[1].toUpperCase()}, [callsign]"`,
         icaoReference: 'ICAO Doc 4444 §7.11.2',
         safetyImpact: 'ATC cannot confirm aircraft will stop before runway — runway incursion risk',
       })
+    }
+  }
+
+  // 2b. High: ATC said "hold short of <taxiway>" — pilot must echo "hold short"
+  // Uses holdShortTaxiwayPattern from checks; skips when 2a already matched (runway hold short).
+  if (!hsRunwayCheck && CHECKS.holdShortTaxiwayPattern) {
+    const hsTwRe  = new RegExp(CHECKS.holdShortTaxiwayPattern, 'i')
+    const hsTwAtc = atcLower.match(hsTwRe)
+    if (hsTwAtc) {
+      const hsRe = new RegExp(CHECKS.holdShortEquivalents.join('|'), 'i')
+      if (!hsRe.test(pilotLower)) {
+        // Extract the taxiway name for the description (first capture group)
+        const point = (hsTwAtc[1] || hsTwAtc[0]).trim()
+        errors.push({
+          type: 'hold_short_not_confirmed',
+          description: `Hold short of ${point} not confirmed in readback`,
+          weight: 'high',
+          correction: `Read back: "Hold short ${point}, [callsign]"`,
+          icaoReference: 'ICAO Doc 4444 §7.11.2',
+          safetyImpact: 'Unconfirmed taxiway hold short may cause ground traffic conflict',
+        })
+      }
     }
   }
 
@@ -275,6 +363,7 @@ export function detectGndErrors(
   const runwayRe        = new RegExp(CHECKS.runwayPattern, 'i')
   const taxiwayViaRe    = new RegExp(CHECKS.taxiwayViaPattern, 'i')
   const pushbackRe      = new RegExp(CHECKS.pushbackPattern, 'i')
+  const startupRe       = new RegExp(CHECKS.startupPattern || 'start\\s*up\\s+approved|startup\\s+approved|start\\s+approved', 'i')
   const backtrackRe     = new RegExp(CHECKS.backtrackPattern, 'i')
   const intersectionRe  = new RegExp(CHECKS.intersectionPattern, 'i')
   const atisRe          = new RegExp(CHECKS.atisPattern, 'i')
@@ -314,18 +403,24 @@ export function detectGndErrors(
     }
   }
 
-  // 5. taxi_route_incomplete (medium) — uses CHECKS.taxiwayViaPattern
-  const viaMatch = atcLower.match(taxiwayViaRe)
-  let atcTaxiways: string[] = []
-  if (viaMatch) {
-    atcTaxiways = viaMatch[1].split(/[,\s]+/).filter(t => /^[a-z]$/i.test(t.trim())).map(t => t.toLowerCase())
-    const missingTaxiways = atcTaxiways.filter(tw => !pilotLower.includes(tw))
-    if (missingTaxiways.length > 0) {
+  // 5. taxi_route_incomplete (medium)
+  // Extract taxiway designators from ATC instruction using phonetic names
+  // (e.g. "taxi Golf one one, Delta" → ["G11","D"]) — handles both "via X" and bare phonetics.
+  // Falls back to single-letter "via" parsing for non-PAEC corpora.
+  const atcTaxiways = extractTaxiwayDesignators(atcInstruction)
+  const pilotTaxiways = extractTaxiwayDesignators(pilotReadback)
+
+  // Only flag when ATC specified a taxi route (≥1 designator found)
+  const isTaxiInstruction = /\btaxi\b/i.test(atcInstruction) || taxiwayViaRe.test(atcLower)
+  if (isTaxiInstruction && atcTaxiways.length > 0) {
+    const pilotSet = new Set(pilotTaxiways)
+    const missing = atcTaxiways.filter(tw => !pilotSet.has(tw))
+    if (missing.length > 0) {
       errors.push({
         type: 'taxi_route_incomplete',
-        description: `Taxiway(s) ${missingTaxiways.map(t => t.toUpperCase()).join(', ')} missing from readback`,
+        description: `Taxiway(s) ${missing.join(', ')} missing from readback`,
         weight: 'medium',
-        correction: `Include all taxiway designators: "via ${viaMatch[1].trim()}"`,
+        correction: `Include all taxiway designators from ATC: ${atcTaxiways.join(', ')}`,
         icaoReference: 'ICAO Doc 4444 §7.11.1',
         safetyImpact: 'Aircraft may take incorrect taxi route, causing delay or conflict',
       })
@@ -333,15 +428,16 @@ export function detectGndErrors(
   }
 
   // 6. taxiway_designator_wrong (medium)
-  if (atcTaxiways.length > 0) {
-    const pilotLetters = (pilotLower.match(/\b([a-z])\b/g) || []).filter(l => l !== 'a')
-    const wrongTaxiways = pilotLetters.filter(tw => !atcTaxiways.includes(tw))
-    if (wrongTaxiways.length > 0) {
+  // Pilot echoed a taxiway that was NOT in the ATC instruction
+  if (isTaxiInstruction && atcTaxiways.length > 0 && pilotTaxiways.length > 0) {
+    const atcSet = new Set(atcTaxiways)
+    const wrong = pilotTaxiways.filter(tw => !atcSet.has(tw))
+    if (wrong.length > 0) {
       errors.push({
         type: 'taxiway_designator_wrong',
-        description: `Pilot used taxiway(s) ${wrongTaxiways.map(t => t.toUpperCase()).join(', ')} not in ATC instruction`,
+        description: `Pilot used taxiway(s) ${wrong.join(', ')} not in ATC instruction`,
         weight: 'medium',
-        correction: `Use taxiways from ATC instruction: ${atcTaxiways.map(t => t.toUpperCase()).join(', ')}`,
+        correction: `Use only taxiways from ATC instruction: ${atcTaxiways.join(', ')}`,
         icaoReference: 'ICAO Doc 4444 §7.11.1',
         safetyImpact: 'Wrong taxi routing may cause runway incursion or conflict',
       })
@@ -368,10 +464,15 @@ export function detectGndErrors(
     }
   }
 
-  // ── New checks 8–15 ──────────────────────────────────────────────────────
+  // ── New checks 8–18 ──────────────────────────────────────────────────────
 
-  // 8. pushback_direction_missing (medium, ATC only) — uses CHECKS.pushbackPattern
-  if (pushbackRe.test(atcLower) && !/\b(north|south|east|west|tail|nose|facing)\b/i.test(atcLower)) {
+  // 8. pushback_direction_missing (medium, ATC only)
+  // Only fires for direct pushback movement orders — NOT for "for pushback contact [freq]"
+  // which is a frequency handoff, not a direction instruction.
+  const isDirectPushback =
+    pushbackRe.test(atcLower) &&
+    !/for\s+push(?:back)?/i.test(atcLower)      // skip "startup approved, for pushback contact X"
+  if (isDirectPushback && !/\b(north|south|east|west|tail|nose|facing)\b/i.test(atcLower)) {
     errors.push({
       type: 'pushback_direction_missing',
       description: 'Pushback direction not specified',
@@ -380,6 +481,25 @@ export function detectGndErrors(
       icaoReference: 'ICAO Doc 9432 §7.4.2',
       safetyImpact: 'Ambiguous pushback direction may conflict with adjacent traffic',
     })
+  }
+
+  // 8b. startup_runway_missing (high)
+  // ATC stated a runway in startup approval but pilot omitted it in readback.
+  if (startupRe.test(atcLower)) {
+    const atcRwStartup = atcLower.match(runwayRe)
+    if (atcRwStartup) {
+      const pilotRwStartup = pilotLower.match(runwayRe)
+      if (!pilotRwStartup) {
+        errors.push({
+          type: 'startup_runway_missing',
+          description: `Runway ${atcRwStartup[1].toUpperCase()} omitted from startup approval readback`,
+          weight: 'high',
+          correction: `Include runway in readback: "Startup approved runway ${atcRwStartup[1].toUpperCase()}, [callsign]"`,
+          icaoReference: 'ICAO Doc 9432 §7.4',
+          safetyImpact: 'Departure runway must be confirmed — wrong runway assignment is a safety hazard',
+        })
+      }
+    }
   }
 
   // 9. backtrack_not_confirmed (medium)
@@ -395,23 +515,26 @@ export function detectGndErrors(
   }
 
   // 10. frequency_not_confirmed (low)
-  const freqAtcMatch = atcLower.match(frequencyRe)
+  // Normalize spoken numbers to digits first so "one one eight decimal one" → "118.1"
+  // before running the frequencyPattern match, which expects digit-format frequencies.
+  const extractFullFreq = (text: string): string | null => {
+    const norm = normalizeToDigits(text)
+    const m = norm.match(/(\d{3})\s*(?:decimal|point|\.)\s*(\d{1,3})/i)
+    if (m) return `${m[1]}.${m[2]}`
+    const bare = norm.match(/\b(1[123]\d)\b/)
+    return bare ? bare[1] : null
+  }
+  const atcNormalized    = normalizeToDigits(atcLower)
+  const freqAtcMatch     = atcNormalized.match(frequencyRe)
   if (freqAtcMatch) {
-    const extractFullFreq = (text: string): string | null => {
-      const norm = normalizeToDigits(text)
-      const m = norm.match(/(\d{3})\s*(?:decimal|point|\.)\s*(\d{1,3})/i)
-      if (m) return `${m[1]}.${m[2]}`
-      const bare = norm.match(/\b(1[123]\d)\b/)
-      return bare ? bare[1] : null
-    }
-    const atcFreq   = extractFullFreq(freqAtcMatch[0])
+    const atcFreq   = extractFullFreq(atcNormalized)
     const pilotFreq = extractFullFreq(pilotLower)
     if (atcFreq && atcFreq !== pilotFreq) {
       errors.push({
         type: 'frequency_not_confirmed',
-        description: 'Frequency change not read back',
+        description: `Frequency ${atcFreq} not confirmed in readback`,
         weight: 'low',
-        correction: `Read back the frequency: "${freqAtcMatch[0].trim()}"`,
+        correction: `Read back the frequency: "${atcFreq}"`,
         icaoReference: 'ICAO Doc 4444 §7.5',
         safetyImpact: 'Missed frequency change may cause loss of communication',
       })
@@ -683,6 +806,8 @@ function generateGroundRecommendations(
       recs.push('Always confirm the runway number when reading back a crossing clearance')
     if (e.type === 'pushback_direction_missing')
       recs.push('Include pushback direction or facing in readback to prevent ramp conflicts')
+    if (e.type === 'startup_runway_missing')
+      recs.push('Confirm the departure runway in startup approval readback — it is safety-critical')
     if (e.type === 'backtrack_not_confirmed')
       recs.push('Confirm "backtrack runway XX" explicitly — backtrack requires full readback')
     if (e.type === 'frequency_not_confirmed')

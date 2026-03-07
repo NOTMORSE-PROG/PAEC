@@ -47,3 +47,7 @@ APP-DEP/
 
 # References file (links to paid ICAO documents — kept local only)
 references.json
+
+# PAEC source corpus PDFs — large binary files, kept local only
+GROUND.pdf
+*.corpus.pdf
