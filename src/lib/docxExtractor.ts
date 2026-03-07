@@ -54,51 +54,49 @@ function parseDocumentXml(xml: string): string {
   }
 
   const NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-  const paragraphs = doc.getElementsByTagNameNS(NS, 'p')
   const lines: string[] = []
 
-  for (const para of Array.from(paragraphs)) {
+  // Helper: extract text from a single <w:p> element and push split lines.
+  function extractPara(para: Element): void {
     const runs = para.getElementsByTagNameNS(NS, 'r')
     let line = ''
     for (const run of Array.from(runs)) {
       const tNodes = run.getElementsByTagNameNS(NS, 't')
-      for (const t of Array.from(tNodes)) {
-        line += t.textContent ?? ''
-      }
-      // <w:br> inside run → treat as space
-      const brNodes = run.getElementsByTagNameNS(NS, 'br')
-      if (brNodes.length > 0) line += ' '
+      for (const t of Array.from(tNodes)) line += t.textContent ?? ''
+      if (run.getElementsByTagNameNS(NS, 'br').length > 0) line += ' '
     }
-    const trimmedLine = line.trim()
-    if (!trimmedLine) continue
-    // Split multi-exchange paragraphs into individual exchange lines
-    const subLines = trimmedLine.split(PARA_SPEAKER_SPLIT_RE)
-    subLines.forEach(sub => { if (sub.trim()) lines.push(sub.trim()) })
+    const trimmed = line.trim()
+    if (!trimmed) return
+    trimmed.split(PARA_SPEAKER_SPLIT_RE).forEach(sub => { if (sub.trim()) lines.push(sub.trim()) })
   }
 
-  // ── Table cell extraction ──────────────────────────────────────────────────
-  // getElementsByTagNameNS('p') on the document root can miss paragraphs inside
-  // table cells (<w:tbl>→<w:tr>→<w:tc>→<w:p>) in some browser DOMParser
-  // implementations. Explicitly walk table cells so table-formatted transcripts
-  // (two-column ATC/Pilot layout) are not silently dropped.
+  // Build a Set of all <w:p> nodes that live inside table cells so the main
+  // paragraph pass can skip them, avoiding double-extraction.
+  // (In most browsers doc.getElementsByTagNameNS('p') already includes table
+  // paragraphs, so without this guard each table paragraph would appear twice.)
+  const tableParagraphs = new Set<Element>()
   const tables = doc.getElementsByTagNameNS(NS, 'tbl')
+  for (const table of Array.from(tables)) {
+    for (const p of Array.from(table.getElementsByTagNameNS(NS, 'p'))) {
+      tableParagraphs.add(p)
+    }
+  }
+
+  // ── Pass 1: body-level paragraphs (not inside tables) ──────────────────────
+  const allParas = doc.getElementsByTagNameNS(NS, 'p')
+  for (const para of Array.from(allParas)) {
+    if (!tableParagraphs.has(para)) extractPara(para)
+  }
+
+  // ── Pass 2: table cell paragraphs ──────────────────────────────────────────
+  // Explicit walk ensures table-formatted transcripts (two-column ATC/Pilot
+  // layout) are captured even in DOMParser implementations that exclude table
+  // paragraphs from the root getElementsByTagNameNS result.
   for (const table of Array.from(tables)) {
     const cells = table.getElementsByTagNameNS(NS, 'tc')
     for (const cell of Array.from(cells)) {
-      const cellParas = cell.getElementsByTagNameNS(NS, 'p')
-      for (const para of Array.from(cellParas)) {
-        const runs = para.getElementsByTagNameNS(NS, 'r')
-        let cellLine = ''
-        for (const run of Array.from(runs)) {
-          const tNodes = run.getElementsByTagNameNS(NS, 't')
-          for (const t of Array.from(tNodes)) cellLine += t.textContent ?? ''
-          if (run.getElementsByTagNameNS(NS, 'br').length > 0) cellLine += ' '
-        }
-        const trimmedCell = cellLine.trim()
-        if (!trimmedCell) continue
-        trimmedCell.split(PARA_SPEAKER_SPLIT_RE).forEach(sub => {
-          if (sub.trim()) lines.push(sub.trim())
-        })
+      for (const para of Array.from(cell.getElementsByTagNameNS(NS, 'p'))) {
+        extractPara(para)
       }
     }
   }
@@ -164,6 +162,17 @@ export async function extractTextFromDOCX(file: File): Promise<FileExtractionRes
 
     // Reassemble clean text from the filtered lines
     const text = lines.join('\n')
+
+    if (!text.trim()) {
+      return {
+        success: false,
+        text: '',
+        rawText,
+        metadata: { pageCount: 0, extractedLines: 0, wordCount: 0, formatQuality: 'poor', fileType: 'docx' },
+        errors: ['No dialogue text could be extracted from the DOCX file. The file may contain only metadata or unsupported content.'],
+      }
+    }
+
     const wordCount = text.split(/\s+/).filter(Boolean).length
 
     // Approximate "pages" as every ~50 non-blank lines (Word default ~50 lines/page)

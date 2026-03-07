@@ -153,6 +153,8 @@ export default function AnalysisPage() {
     setIsExtracting(true)
     setPdfError(null)
     setPdfData(null)
+    // Set method early so the loading message shows the correct file type
+    setUploadMethod(isPDF ? 'pdf' : 'docx')
 
     try {
       // Route to the right extractor based on file type
@@ -162,6 +164,8 @@ export default function AnalysisPage() {
 
       if (!result.success) {
         setPdfError(result.errors.join(', ') || `Failed to extract text from ${isPDF ? 'PDF' : 'DOCX'}`)
+        setUploadedText('')
+        setUploadMethod(null)
         setIsExtracting(false)
         return
       }
@@ -175,7 +179,6 @@ export default function AnalysisPage() {
       })
 
       setUploadedText(result.text)
-      setUploadMethod(isPDF ? 'pdf' : 'docx')
     } catch (error) {
       setPdfError(error instanceof Error ? error.message : 'Failed to process file')
     } finally {
@@ -635,7 +638,7 @@ export default function AnalysisPage() {
             </div>
 
             <div className="p-6">
-              {uploadMethod === 'pdf' ? (
+              {(uploadMethod === 'pdf' || uploadMethod === 'docx') ? (
                 <>
                   {/* PDF Upload Area */}
                   <div
@@ -665,7 +668,9 @@ export default function AnalysisPage() {
                     {isExtracting ? (
                       <>
                         <Loader2 className="w-12 h-12 text-primary-500 animate-spin mx-auto mb-4" />
-                        <p className="text-gray-600 font-medium">Extracting text from PDF...</p>
+                        <p className="text-gray-600 font-medium">
+                          Extracting text from {uploadMethod === 'docx' ? 'DOCX' : 'PDF'}...
+                        </p>
                         <p className="text-sm text-gray-500 mt-2">
                           Processing and normalizing document format
                         </p>
@@ -673,7 +678,9 @@ export default function AnalysisPage() {
                     ) : pdfData ? (
                       <>
                         <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                        <p className="text-green-600 font-medium">PDF Processed Successfully</p>
+                        <p className="text-green-600 font-medium">
+                          {uploadMethod === 'docx' ? 'DOCX' : 'PDF'} Processed Successfully
+                        </p>
                         <p className="text-sm text-gray-500 mt-2">
                           Extracted {pdfData.metadata.wordCount} words from {pdfData.metadata.pageCount} page(s)
                         </p>
@@ -886,7 +893,7 @@ Pilot: Left heading 180, PAL456."
                         onClick={async () => {
                           setShowExportMenu(false)
                           setIsExporting(true)
-                          try { await exportAnalysisToPDF(analysisResult) }
+                          try { await exportAnalysisToPDF(analysisResult, undefined, groundAnalysisResults ?? undefined) }
                           finally { setIsExporting(false) }
                         }}
                       >
@@ -897,7 +904,7 @@ Pilot: Left heading 180, PAL456."
                         className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors border-t border-gray-100"
                         onClick={() => {
                           setShowExportMenu(false)
-                          exportAnalysisToCSV(analysisResult)
+                          exportAnalysisToCSV(analysisResult, undefined, groundAnalysisResults ?? undefined)
                         }}
                       >
                         <BarChart3 className="w-4 h-4 text-green-500" />
@@ -1046,11 +1053,6 @@ Pilot: Left heading 180, PAL456."
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="hidden sm:flex items-center gap-3 mr-3 text-[10px] font-medium">
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>High</span>
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>Med</span>
-                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>Low</span>
-                  </div>
                   {annotatedLines.filter(l => l.hasErrors).length > 0 && (
                     <button
                       onClick={() => {
@@ -1242,7 +1244,7 @@ Pilot: Left heading 180, PAL456."
                   { value: mlAnalysisResults.summary.totalExchanges, label: 'Total', color: 'text-indigo-600' },
                   { value: mlAnalysisResults.summary.departureCount, label: 'Departure', color: 'text-blue-600' },
                   { value: mlAnalysisResults.summary.approachCount, label: 'Approach', color: 'text-purple-600' },
-                  { value: mlAnalysisResults.summary.criticalErrors, label: 'Critical', color: 'text-red-600' },
+                  { value: mlAnalysisResults.summary.criticalErrors, label: 'High-Weight', color: 'text-amber-600' },
                 ].map((s) => (
                   <div key={s.label} className="text-center py-3">
                     <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
@@ -1270,9 +1272,8 @@ Pilot: Left heading 180, PAL456."
               {/* Exchange list */}
               <div className="max-h-[500px] overflow-y-auto divide-y divide-indigo-50">
                 {mlAnalysisResults.exchanges.map((exchange, idx) => {
-                  const sevClasses = exchange.contextualWeight === 'critical' ? 'bg-red-100 text-red-700' :
-                    exchange.contextualWeight === 'high' ? 'bg-orange-100 text-orange-700' :
-                    exchange.contextualWeight === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                  const sevClasses = (exchange.contextualWeight === 'critical' || exchange.contextualWeight === 'high') ? 'bg-amber-100 text-amber-700' :
+                    exchange.contextualWeight === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-green-100 text-green-700'
 
                   return (
                     <div key={idx} className="px-5 py-3 hover:bg-white/60 transition-colors">
@@ -1298,7 +1299,7 @@ Pilot: Left heading 180, PAL456."
                           {exchange.multiPartAnalysis.parts.map((part, pIdx) => (
                             <span key={pIdx} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                               part.isPresent ? 'bg-green-50 text-green-700 border border-green-200' :
-                              part.isCritical ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}>{part.isPresent ? '✓' : '✗'} {part.type.replace(/_/g, ' ')}</span>
                           ))}
                         </div>
@@ -1354,7 +1355,7 @@ Pilot: Left heading 180, PAL456."
                   { value: groundAnalysisResults.summary.totalExchanges, label: 'Total',      color: 'text-emerald-600' },
                   { value: groundAnalysisResults.summary.taxiCount,      label: 'Taxi',       color: 'text-teal-600'    },
                   { value: groundAnalysisResults.summary.holdingCount,   label: 'Hold Short', color: 'text-amber-600'   },
-                  { value: groundAnalysisResults.summary.criticalErrors, label: 'Critical',   color: 'text-red-600'     },
+                  { value: groundAnalysisResults.summary.criticalErrors, label: 'High-Weight', color: 'text-amber-600'    },
                 ].map((s) => (
                   <div key={s.label} className="text-center py-3">
                     <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
@@ -1383,9 +1384,8 @@ Pilot: Left heading 180, PAL456."
               {/* Exchange list */}
               <div className="max-h-[500px] overflow-y-auto divide-y divide-emerald-50">
                 {groundAnalysisResults.exchanges.map((exchange, idx) => {
-                  const sevClasses = exchange.contextualWeight === 'critical' ? 'bg-red-100 text-red-700' :
-                    exchange.contextualWeight === 'high'   ? 'bg-orange-100 text-orange-700' :
-                    exchange.contextualWeight === 'medium' ? 'bg-amber-100 text-amber-700'  : 'bg-green-100 text-green-700'
+                  const sevClasses = (exchange.contextualWeight === 'critical' || exchange.contextualWeight === 'high') ? 'bg-amber-100 text-amber-700' :
+                    exchange.contextualWeight === 'medium' ? 'bg-amber-50 text-amber-600'  : 'bg-green-100 text-green-700'
 
                   return (
                     <div key={idx} className="px-5 py-3 hover:bg-white/60 transition-colors">
@@ -1397,9 +1397,20 @@ Pilot: Left heading 180, PAL456."
                             exchange.phase === 'holding' ? 'bg-amber-100 text-amber-700' : 'bg-orange-100 text-orange-700'
                           }`}>{exchange.phase.replace(/_/g, ' ')}</span>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sevClasses}`}>
-                          {exchange.multiPartAnalysis.readbackCompleteness}%
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sevClasses}`}>
+                            {exchange.multiPartAnalysis.readbackCompleteness}%
+                          </span>
+                          {exchange.sequenceAnalysis?.errorTrend !== 'stable' && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              exchange.sequenceAnalysis.errorTrend === 'improving'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              {exchange.sequenceAnalysis.errorTrend === 'improving' ? '↑ improving' : '↓ declining'}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Multi-part component chips */}
@@ -1408,7 +1419,6 @@ Pilot: Left heading 180, PAL456."
                           {exchange.multiPartAnalysis.parts.map((part, pIdx) => (
                             <span key={pIdx} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                               part.isPresent ? 'bg-green-50 text-green-700 border border-green-200' :
-                              part.isCritical ? 'bg-red-50 text-red-700 border border-red-200' :
                               'bg-amber-50 text-amber-700 border border-amber-200'
                             }`}>{part.isPresent ? '✓' : '✗'} {part.type.replace(/_/g, ' ')}</span>
                           ))}
@@ -1433,6 +1443,74 @@ Pilot: Left heading 180, PAL456."
                   )
                 })}
               </div>
+
+              {/* 2B — Readback Vectors */}
+              <div className="px-5 py-4 border-t border-emerald-100 bg-white/30">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-3">Readback Vectors</p>
+                <div className="space-y-2.5">
+                  {['Parameter Readback Accuracy', 'Hold Short Compliance', 'Readback Completeness', 'Callsign Compliance'].map(name => {
+                    const avg = Math.round(
+                      groundAnalysisResults.exchanges.reduce((sum, ex) => {
+                        const v = ex.safetyVectors.find(sv => sv.factor === name)
+                        return sum + (v?.score ?? 100)
+                      }, 0) / groundAnalysisResults.exchanges.length
+                    )
+                    return (
+                      <div key={name}>
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span className="text-gray-600">{name}</span>
+                          <span className={`font-medium ${avg >= 80 ? 'text-green-600' : avg >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{avg}</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${avg >= 80 ? 'bg-emerald-400' : avg >= 60 ? 'bg-amber-400' : 'bg-red-400'}`}
+                               style={{ width: `${avg}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 2C — Confidence Scores */}
+              <div className="px-5 py-3 border-t border-emerald-100 bg-white/20">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Avg. Confidence</p>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  {[
+                    { key: 'phaseDetection',            label: 'Phase' },
+                    { key: 'instructionClassification', label: 'Instruction' },
+                    { key: 'errorDetection',            label: 'Error Det.' },
+                    { key: 'weightAssessment',          label: 'Weight' },
+                  ].map(({ key, label }) => {
+                    const avg = Math.round(
+                      groundAnalysisResults.exchanges.reduce(
+                        (s, e) => s + ((e.groundConfidenceScores[key as keyof typeof e.groundConfidenceScores] as number) * 100),
+                        0
+                      ) / groundAnalysisResults.exchanges.length
+                    )
+                    return (
+                      <div key={key}>
+                        <div className={`text-sm font-bold ${avg >= 80 ? 'text-emerald-700' : avg >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{avg}%</div>
+                        <div className="text-[9px] text-gray-400 leading-tight">{label}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* 2D — Training Recommendations */}
+              {groundAnalysisResults.exchanges.some(e => e.trainingRecommendations.length > 0) && (
+                <div className="px-5 py-4 border-t border-emerald-100">
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Training Recommendations</p>
+                  <ul className="space-y-1.5">
+                    {[...new Set(groundAnalysisResults.exchanges.flatMap(e => e.trainingRecommendations))].slice(0, 5).map((r, i) => (
+                      <li key={i} className="text-[11px] text-gray-600 flex items-start gap-1.5">
+                        <ArrowRight className="w-3 h-3 text-emerald-500 mt-0.5 flex-shrink-0" />
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
@@ -1495,10 +1573,10 @@ Pilot: Left heading 180, PAL456."
                 ))}
               </ul>
               {analysisResult.summary.criticalIssues.length > 0 && (
-                <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-100">
-                  <h5 className="text-[11px] font-bold text-red-700 uppercase mb-1.5">Critical Issues</h5>
+                <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                  <h5 className="text-[11px] font-bold text-amber-700 uppercase mb-1.5">Issues Detected</h5>
                   {analysisResult.summary.criticalIssues.map((issue, i) => (
-                    <p key={i} className="text-xs text-red-600 flex items-start gap-1.5 mb-1">
+                    <p key={i} className="text-xs text-amber-700 flex items-start gap-1.5 mb-1">
                       <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
                       {issue}
                     </p>

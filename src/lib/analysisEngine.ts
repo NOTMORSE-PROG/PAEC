@@ -59,6 +59,7 @@ export interface AnalysisOutput {
   riskLevel: 'low' | 'medium' | 'high'
   summary: AnalysisSummary
   detailedFindings: DetailedFinding[]
+  parsedLines: ParsedLine[]
   // Dynamic context information
   contextInfo: ContextInfo
 }
@@ -464,8 +465,10 @@ function detectInstructionType(text: string): string {
     { type: 'approach', pattern: /cleared\s+(?:for\s+)?(?:the\s+)?(ils|rnav|vor|visual|ndb)\s+approach/i },
     { type: 'takeoff', pattern: /cleared\s+(for\s+)?take\s*off/i },
     { type: 'landing', pattern: /cleared\s+to\s+land/i },
-    { type: 'taxi', pattern: /taxi\s+(to|via)/i },
+    // GND taxi: "taxi Golf one one, delta" — no "to/via" needed
+    { type: 'taxi', pattern: /\btaxi\b/i },
     // Holding — match any form: "hold over", "hold at", "hold short", "holding pattern"
+    // Must come AFTER taxi so "taxi … and hold short" doesn't become 'hold'
     { type: 'hold', pattern: /\bhold\b/i },
     { type: 'lineup', pattern: /line\s+up\s+and\s+wait/i },
     { type: 'direct', pattern: /proceed\s+direct|direct\s+(to\s+)?\w+/i },
@@ -1127,14 +1130,22 @@ function evaluateReadbackQualityDetailed(
     case 'landing':
     case 'lineup':
     case 'hold': {
-      // These require specific phraseology readback
-      const requiredPhrases: Record<string, RegExp> = {
-        takeoff: /cleared\s+(for\s+)?take\s*off/i,
-        landing: /cleared\s+(to\s+)?land/i,
-        lineup: /line\s*up\s*(and\s+)?wait/i,
-        hold: /hold\s*short/i,
+      // Derive required pilot phrase from what ATC actually instructed.
+      // "hold short of runway X"  → pilot must echo "hold short"
+      // "hold at <taxiway>"       → pilot must echo "hold at" or "holding"
+      // "hold position"           → pilot must echo "hold position" or "holding"
+      // Fallback: any "hold" word in pilot response is accepted.
+      let holdPattern: RegExp
+      if (/hold\s+short/i.test(atcText)) {
+        holdPattern = /hold\s*short/i
+      } else if (/hold\s+at\b/i.test(atcText)) {
+        holdPattern = /\bhold(?:ing)?\s+(at\b|position)?/i
+      } else if (/hold\s+position/i.test(atcText)) {
+        holdPattern = /\bhold(?:ing)?\s*position/i
+      } else {
+        holdPattern = /\bhold/i
       }
-      if (!requiredPhrases[instructionType]?.test(pilotText)) {
+      if (!holdPattern.test(pilotText)) {
         mismatchDetails.push({
           type: 'missing_element',
           parameter: instructionType,
@@ -1404,6 +1415,7 @@ export function analyzeDialogue(input: AnalysisInput): AnalysisOutput {
     riskLevel,
     summary,
     detailedFindings,
+    parsedLines,
     contextInfo,
   }
 }
@@ -1440,16 +1452,16 @@ function buildContextInfo(context: ConversationContext): ContextInfo {
   const situationalFactors: string[] = []
 
   if (context.emergencyDeclared) {
-    situationalFactors.push('⚠️ EMERGENCY DECLARED - All communications are safety-critical')
+    situationalFactors.push('⚠️ EMERGENCY DECLARED - All communications require heightened accuracy')
   }
   if (context.tcasActive) {
     situationalFactors.push('⚠️ TCAS RA Active - Pilot must follow TCAS, not ATC')
   }
   if (context.flightPhase === 'approach' || context.flightPhase === 'landing') {
-    situationalFactors.push('📍 Critical flight phase - Extra attention to readbacks required')
+    situationalFactors.push('📍 Approach/Landing phase - Extra attention to readbacks required')
   }
   if (context.flightPhase === 'departure') {
-    situationalFactors.push('📍 Departure phase - Altitude and heading readbacks are critical')
+    situationalFactors.push('📍 Departure phase - Altitude and heading readbacks require full accuracy')
   }
   if (context.detectedCallsigns.size > 1) {
     situationalFactors.push(`📻 Multiple callsigns detected (${context.detectedCallsigns.size}) - Watch for callsign confusion`)
@@ -1510,7 +1522,7 @@ function getExchangeIssue(pair: ExchangePair): string | null {
     case 'partial':
       return `Incomplete readback - missing elements for ${pair.instructionType}`
     case 'incorrect':
-      return `CRITICAL: Incorrect readback for ${pair.instructionType} - values don't match`
+      return `Incorrect readback for ${pair.instructionType} - values don't match`
     default:
       return null
   }
@@ -1544,13 +1556,13 @@ function generateDynamicFeedback(pair: ExchangePair, flightPhase: FlightPhase): 
       feedback += 'heading assignments must be read back with the turn direction. Missing direction can lead to 180° heading errors.'
       break
     case 'takeoff':
-      feedback += 'takeoff clearances MUST be read back verbatim with runway. This is one of the most critical communications in aviation.'
+      feedback += 'takeoff clearances MUST be read back verbatim with runway. This instruction requires verbatim readback per ICAO Doc 4444.'
       break
     case 'landing':
       feedback += 'landing clearances require full readback with runway. Runway confusion is a leading cause of runway incursions.'
       break
     case 'hold':
-      feedback += 'hold short instructions are safety-critical. Failure to properly acknowledge can result in runway incursions.'
+      feedback += 'hold short instructions require full readback. Failure to properly acknowledge can result in runway incursions.'
       break
     case 'squawk':
       feedback += 'squawk codes must be read back to ensure correct radar identification.'
@@ -1559,12 +1571,12 @@ function generateDynamicFeedback(pair: ExchangePair, flightPhase: FlightPhase): 
       feedback += 'frequency changes must be read back to prevent loss of communication.'
       break
     default:
-      feedback += 'this instruction requires proper acknowledgment for safety.'
+      feedback += 'this instruction requires proper acknowledgment.'
   }
 
   // Severity-specific addition
   if (contextualWeight === 'critical') {
-    feedback += ' ⚠️ This is a CRITICAL issue in the current context.'
+    feedback += ' ⚠️ This requires careful attention in the current context.'
   } else if (contextualWeight === 'high') {
     feedback += ' This requires immediate attention.'
   }
@@ -2031,6 +2043,18 @@ function stripAnonTags(text: string): string {
     (_m, val: string) => val.trim().toUpperCase().replace(/\s+/g, '') + ' ',
   )
 
+  // Step 2.4 — PAEC12/GND corpus: unclosed <anon type=... tags where the type=
+  //            field IS the actual utterance text with no closing > or />.
+  //            Format: "<anon type=Cebu seven zero three, hold short Golf four"
+  //            Replace with just the content after "type=" so the dialogue is preserved.
+  //            Must run before Step 2.5 which would otherwise strip everything.
+  //            Special sub-tags like <no_reply/> and <unclear/> in the type= field
+  //            are passed through and cleaned up by Step 3.
+  result = result.replace(
+    /<anon\s+type\s*=\s*([^>\n]+)/gi,
+    (_m, content: string) => content.trim(),
+  )
+
   // Step 2.5 — strip malformed anon tags where the type= value contains
   //            actual dialogue text (corpus annotation errors), e.g.:
   //              <anon type=Roger.          (no proper closing, no quotes)
@@ -2405,14 +2429,14 @@ function adjustErrorSeverity(
   if (context.emergencyDeclared) {
     if (adjusted.weight === 'low') adjusted.weight = 'medium'
     if (adjusted.weight === 'medium') adjusted.weight = 'high'
-    adjusted.whyItMatters = `⚠️ EMERGENCY CONTEXT: ${adjusted.whyItMatters || 'Critical attention required during emergency.'}`
+    adjusted.whyItMatters = `⚠️ EMERGENCY CONTEXT: ${adjusted.whyItMatters || 'Heightened accuracy required during emergency.'}`
   }
 
   // TCAS active - altitude errors are critical
   if (context.tcasActive && error.category === 'number') {
     if (/altitude|flight\s+level|FL/i.test(error.issue)) {
       adjusted.weight = 'high'
-      adjusted.whyItMatters = `⚠️ TCAS ACTIVE: ${adjusted.whyItMatters || 'Altitude accuracy is critical during TCAS RA.'}`
+      adjusted.whyItMatters = `⚠️ TCAS ACTIVE: ${adjusted.whyItMatters || 'Altitude accuracy is essential during TCAS RA.'}`
     }
   }
 
@@ -2495,7 +2519,7 @@ function generateExchangePairErrors(context: ConversationContext, corpusType: st
         category: 'safety',
         safetyImpact: 'safety',
         icaoReference: semanticResult.errors[0]?.icaoReference || 'ICAO Doc 4444 Section 12.3.1.5',
-        explanation: errorDetails || `The pilot's readback contained incorrect values for ${pair.instructionType}. This is a critical error that could lead to the pilot executing the wrong instruction.`,
+        explanation: errorDetails || `The pilot's readback contained incorrect values for ${pair.instructionType}. This could lead to the pilot executing the wrong instruction.`,
         whyItMatters: trainingMatch
           ? `${dynamicFeedback}\n\n📚 Training Note: ${trainingMatch.explanation}`
           : dynamicFeedback,
@@ -2526,7 +2550,7 @@ function generateExchangePairErrors(context: ConversationContext, corpusType: st
         correctExample: `Should be: "${expectedReadback}"`,
         whyItMatters: trainingMatch
           ? `${trainingMatch.explanation}`
-          : `In the current ${context.flightPhase} phase, proper readback of ${pair.instructionType} is essential for flight safety.`,
+          : `In the current ${context.flightPhase} phase, proper readback of ${pair.instructionType} is essential for accurate communication.`,
       })
     } else if (pair.readbackQuality === 'partial') {
       const expectedReadback = semanticResult.expectedResponse
@@ -2585,7 +2609,7 @@ function findMatchingTrainingExample(atcInstruction: string, pilotReadback: stri
         const atcHasLUAW = /line\s*up\s*(and\s*)?wait/i.test(atcLower)
         const pilotHasTO = /cleared\s+(for\s+)?take\s*off/i.test(pilotLower)
         if (atcHasLUAW && pilotHasTO) {
-          return { explanation: example.explanation || 'CRITICAL: Confused line up and wait with takeoff clearance' }
+          return { explanation: example.explanation || 'Confused line up and wait with takeoff clearance' }
         }
       }
     }
@@ -2692,17 +2716,28 @@ function getDetailedExplanation(phrase: PhraseCorrection): string {
 }
 
 function generateCorrectExample(phrase: PhraseCorrection, originalText: string): string {
-  // Replace the non-standard phrase with the standard one in context
-  return originalText.replace(phrase.nonStandard, phrase.standard)
+  const std = phrase.standard.trim()
+  // Strip the non-standard word when:
+  //   • standard is a format template with [...] placeholders (e.g. "[frequency] [callsign]")
+  //   • standard starts with "(omit" (e.g. "(omit)" or "(omit — use no social pleasantry)")
+  // In both cases we simply remove the offending word/phrase and tidy up extra spaces/commas.
+  if (/\[.+?\]/.test(std) || /^\(omit/i.test(std)) {
+    return originalText
+      .replace(phrase.nonStandard, '')
+      .replace(/,\s*,/g, ',')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  }
+  return originalText.replace(phrase.nonStandard, std)
 }
 
 function getWhyItMatters(impact?: string, category?: string): string {
   if (impact === 'safety') {
     // Add incident context for safety-critical issues
     if (category === 'instruction') {
-      return 'This directly impacts flight safety. The 1977 Tenerife disaster (583 deaths) was partly caused by non-standard phraseology and miscommunication. Clear, standard language saves lives.'
+      return 'Non-standard phraseology contributes to miscommunication. The 1977 Tenerife disaster (583 deaths) was partly caused by non-standard phraseology and miscommunication. Clear, standard language saves lives.'
     }
-    return 'This directly impacts flight safety. Miscommunication could lead to loss of separation, runway incursions, or altitude deviations.'
+    return 'Precise phraseology prevents miscommunication. could lead to loss of separation, runway incursions, or altitude deviations.'
   } else if (impact === 'clarity') {
     return 'Clear communication prevents misunderstandings that could require additional clarification, wasting valuable radio time and potentially causing confusion.'
   } else if (impact === 'efficiency') {
@@ -2909,7 +2944,7 @@ function detectSafetyCriticalIssues(line: ParsedLine): PhraseologyError[] {
         line: line.lineNumber,
         original: line.rawText,
         issue: pattern.description,
-        suggestion: 'Safety-critical phrase detected - verify proper handling',
+        suggestion: 'Verify proper handling of this phrase',
         weight: pattern.weight === 'critical' ? 'high' : 'medium',
         category: 'safety',
         safetyImpact: 'safety',
@@ -3225,7 +3260,7 @@ function detectGndSpecificErrors(line: ParsedLine): PhraseologyError[] {
       errors.push({
         line: line.lineNumber,
         original: line.rawText,
-        issue: '"Roger/Wilco" alone is insufficient for GND safety-critical readbacks',
+        issue: '"Roger/Wilco" alone is insufficient for GND readbacks',
         suggestion: 'Read back the full instruction including runway, taxiway, and callsign',
         weight: 'medium',
         category: 'procedure',
@@ -3496,7 +3531,14 @@ function categorizeNumberErrors(errors: PhraseologyError[], _text: string): Erro
         categories['Speed discrepancy']++
       } else if (error.issue.toLowerCase().includes('squawk')) {
         categories['Squawk errors']++
-      } else if (error.issue.toLowerCase().includes('pronunciation')) {
+      } else if (
+        error.issue.toLowerCase().includes('pronunciation') ||
+        error.issue.toLowerCase().includes('pronounced') ||
+        error.issue.toLowerCase().includes('niner') ||
+        error.issue.toLowerCase().includes('tree') ||
+        error.issue.toLowerCase().includes('fife') ||
+        error.issue.toLowerCase().includes('fow-er')
+      ) {
         categories['Pronunciation notes']++
       }
     }
@@ -3528,11 +3570,19 @@ function generateComprehensiveSummary(
   const criticalIssues: string[] = []
   const strengthAreas: string[] = []
 
-  // Analyze safety-critical issues
+  // Analyze high-weight issues
   if (safetyMetrics.criticalIssues > 0) {
-    keyFindings.push(`${safetyMetrics.criticalIssues} critical safety issues detected requiring immediate attention`)
+    keyFindings.push(`${safetyMetrics.criticalIssues} high-weight phraseology issue${safetyMetrics.criticalIssues === 1 ? '' : 's'} detected`)
+    // GND corpus: the ground analyzer handles hold/taxi readback checking with higher
+    // accuracy than the base engine's generic READBACK_REQUIREMENTS matching.
+    // Suppress base-engine hold/taxi structure errors from Issues Detected to prevent
+    // contradictions with "Hold Short Compliance: 100" from the ground analyzer.
+    const issueFilter = (e: PhraseologyError) =>
+      e.weight === 'high' && e.safetyImpact === 'safety' &&
+      !(corpusType === 'GND' && e.category === 'structure' &&
+        /hold|taxi/i.test(e.issue))
     criticalIssues.push(...errors
-      .filter(e => e.weight === 'high' && e.safetyImpact === 'safety')
+      .filter(issueFilter)
       .slice(0, 3)
       .map(e => e.issue))
   }

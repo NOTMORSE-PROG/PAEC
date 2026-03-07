@@ -80,8 +80,15 @@ const AVIATION_KEYWORD_RES: RegExp[] = [
 
 // ── Speaker detection helpers ───────────────────────────────────────────────
 // Built dynamically from atcData constants — add new airlines/facilities there.
+
+// PAEC corpus speaker-label prefixes (e.g. GND_PAEC12_C001_Phi_MNL, Pilot_PAEC12_...)
+// These never appear in the role-label regexes because the role abbreviation is
+// immediately followed by an underscore + corpus ID, not a colon or space.
+const PAEC_ATC_LABEL_RE   = /^(?:APP[-/]?DEP|APPDEP|DEP|TWR|GND|RAMP)_PAEC\d/i
+const PAEC_PILOT_LABEL_RE = /^PILOT_PAEC\d/i
+
 function isATCLine(text: string): boolean {
-  return ATC_ROLE_LABEL_RE.test(text) || FACILITY_LABEL_RE.test(text)
+  return ATC_ROLE_LABEL_RE.test(text) || FACILITY_LABEL_RE.test(text) || PAEC_ATC_LABEL_RE.test(text)
 }
 
 function isPilotLine(text: string): boolean {
@@ -90,7 +97,8 @@ function isPilotLine(text: string): boolean {
     /^P[:\s]/i.test(text) ||
     CALLSIGN_LABEL_RE.test(text) ||
     /^[A-Z]{2,3}\d{2,4}[:\s]/i.test(text) ||
-    PH_REGISTRATION_RE.test(text)
+    PH_REGISTRATION_RE.test(text) ||
+    PAEC_PILOT_LABEL_RE.test(text)
   )
 }
 
@@ -311,8 +319,10 @@ function reconstructText(lines: ExtractedLine[]): {
   const processed: string[] = []
   let speakerLabels = 0
 
-  // Normalise all lines, then apply the shared non-dialogue filter.
+  // Normalise all lines, capture rawText before the metadata filter, then apply
+  // the shared non-dialogue filter to get clean dialogue-only lines.
   const normalized = lines.map(l => normalizeText(l.text)).filter(Boolean)
+  const rawText    = normalized.join('\n')
   const dialogue   = filterNonDialogueLines(normalized)
 
   for (const text of dialogue) {
@@ -326,7 +336,7 @@ function reconstructText(lines: ExtractedLine[]): {
 
   return {
     formattedText: processed.join('\n'),
-    rawText: processed.join('\n'),
+    rawText,
     quality,
   }
 }
@@ -377,9 +387,14 @@ function parseDialogues(text: string): DialogueEntry[] {
 /**
  * Validate whether extracted text looks like an ATC dialogue.
  *
- * Keywords are derived entirely from atcData constants (READBACK_REQUIREMENTS,
- * SAFETY_CRITICAL_PATTERNS, ALTITUDE_FORMATS, HEADING_FORMAT) so this function
- * stays in sync with the analysis engine's vocabulary without any hardcoded lists.
+ * Scoring (0–100, continuous — not coarse step jumps):
+ *   • Speaker label ratio   0–40 pts  proportional to how labelled the file is
+ *   • Dialogue balance      0–10 pts  penalises files with only ATC or only pilot turns
+ *   • Aviation vocabulary   0–35 pts  unique keyword-pattern matches from atcData
+ *   • Philippine callsigns  0–15 pts  presence of PAL/CEB/RP-registration marks
+ *
+ * isValid requires BOTH structural labels AND aviation vocabulary — a file with
+ * speaker labels but no aviation terms (or vice-versa) is treated as invalid.
  */
 export function validateATCDialogue(text: string): {
   isValid: boolean
@@ -387,7 +402,6 @@ export function validateATCDialogue(text: string): {
   issues: string[]
 } {
   const issues: string[] = []
-  let score = 0
 
   const lines = text.split('\n').filter(l => l.trim())
 
@@ -395,42 +409,62 @@ export function validateATCDialogue(text: string): {
     return { isValid: false, confidence: 0, issues: ['No text content found'] }
   }
 
-  // ── Speaker label ratio ──
-  const linesWithSpeakers = lines.filter(l => hasSpeakerLabel(l))
-  const speakerRatio = linesWithSpeakers.length / lines.length
+  // ── Speaker label ratio (0–40 pts, continuous) ───────────────────────────
+  const atcLines   = lines.filter(l => isATCLine(l)).length
+  const pilotLines = lines.filter(l => isPilotLine(l)).length
+  const labelledLines = atcLines + pilotLines
+  const speakerRatio  = labelledLines / lines.length
 
-  if (speakerRatio > 0.5) {
-    score += 40
-  } else if (speakerRatio > 0.2) {
-    score += 20
-    issues.push('Some lines are missing speaker labels')
-  } else {
+  // Proportional: 0% → 0 pts, ≥50% labelled → full 40 pts.
+  // Most valid PAEC transcripts sit in the 50–80% range.
+  const speakerScore = Math.round(Math.min(speakerRatio / 0.5, 1) * 40)
+
+  if (speakerRatio < 0.15) {
     issues.push('Most lines are missing speaker labels (ATC/Pilot)')
+  } else if (speakerRatio < 0.35) {
+    issues.push('Some lines are missing speaker labels')
   }
 
-  // ── Aviation keyword count (dynamic — from atcData) ──
-  const keywordsFound = AVIATION_KEYWORD_RES.filter(kw => kw.test(text)).length
+  // ── Dialogue balance (0–10 pts) ──────────────────────────────────────────
+  // A valid transcript needs BOTH ATC and pilot turns.
+  // Score = ratio of the smaller count to the larger count.
+  const balanceScore = atcLines > 0 && pilotLines > 0
+    ? Math.round((Math.min(atcLines, pilotLines) / Math.max(atcLines, pilotLines)) * 10)
+    : 0
 
-  if (keywordsFound >= 5) {
-    score += 40
-  } else if (keywordsFound >= 2) {
-    score += 20
-  } else {
+  if (atcLines === 0) {
+    issues.push('No ATC speaker turns detected')
+  } else if (pilotLines === 0) {
+    issues.push('No pilot speaker turns detected')
+  }
+
+  // ── Aviation keyword density (0–35 pts, continuous) ──────────────────────
+  // Count how many distinct keyword patterns from atcData match the document.
+  // ≥8 unique pattern matches → full 35 pts.
+  const keywordsFound = AVIATION_KEYWORD_RES.filter(kw => kw.test(text)).length
+  const keywordScore  = Math.round(Math.min(keywordsFound / 8, 1) * 35)
+
+  if (keywordsFound === 0) {
+    issues.push('No aviation-specific terms detected')
+  } else if (keywordsFound < 3) {
     issues.push('Few aviation-specific terms detected')
   }
 
-  // ── Philippine callsign presence ──
-  if (CALLSIGN_IN_TEXT_RE.test(text) || PH_REGISTRATION_RE.test(text)) {
-    score += 20
-  } else {
+  // ── Philippine callsign presence (0–15 pts) ──────────────────────────────
+  const hasCallsign = CALLSIGN_IN_TEXT_RE.test(text) || PH_REGISTRATION_RE.test(text)
+  const callsignScore = hasCallsign ? 15 : 0
+
+  if (!hasCallsign) {
     issues.push('No Philippine callsigns detected (PAL, CEB, etc.)')
   }
 
-  return {
-    isValid: score >= 40,
-    confidence: Math.min(score, 100),
-    issues,
-  }
+  const confidence = Math.min(speakerScore + balanceScore + keywordScore + callsignScore, 100)
+
+  // Valid = has meaningful speaker structure AND aviation content.
+  // Neither alone is sufficient — prevents false positives on generic documents.
+  const isValid = speakerRatio >= 0.15 && keywordsFound >= 2
+
+  return { isValid, confidence, issues }
 }
 
 // Re-export parseDialogues so tests/callers can use it if needed

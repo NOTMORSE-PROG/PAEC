@@ -1538,7 +1538,7 @@ export function validateReadbackAgainstCommand(
       expectedValue: atcCommand.value.toString(),
       actualValue: pilotReadback,
       weight: 'critical',
-      explanation: `"${hasRogerWilco ? pilotReadback.match(/\b(roger|wilco|copied|copy)\b/i)?.[0] : 'Roger'}" cannot substitute for readback of safety-critical items. Full readback required for verification.`,
+      explanation: `"${hasRogerWilco ? pilotReadback.match(/\b(roger|wilco|copied|copy)\b/i)?.[0] : 'Roger'}" cannot substitute for readback of mandatory readback items. Full readback required for verification.`,
       icaoReference: 'ICAO Doc 9432 §4.5.7 - Readback/Hearback Requirements'
     })
   }
@@ -1630,7 +1630,7 @@ export function validateReadbackAgainstCommand(
         expectedValue: atcCommand.constraint.phrase,
         actualValue: null,
         weight: 'high',
-        explanation: `Altitude constraint "${atcCommand.constraint.phrase}" not read back. This is a critical restriction.`,
+        explanation: `Altitude constraint "${atcCommand.constraint.phrase}" not read back. This is a required readback element.`,
         icaoReference: 'FAA 7110.65 §4-5-7 - Altitude restrictions'
       })
     }
@@ -2343,7 +2343,7 @@ function detectParameterConfusion(
         actualValue: pilotText,
         weight: 'critical',
         explanation: `Parameter confusion: ATC instructed HEADING ${atcHeading}, but pilot read back as ALTITUDE/FLIGHT LEVEL. This changes the meaning entirely.`,
-        icaoReference: 'ICAO Doc 4444 - Critical parameter confusion'
+        icaoReference: 'ICAO Doc 4444 - Section 12.3.1'
       }
     }
   }
@@ -2364,7 +2364,7 @@ function detectParameterConfusion(
         actualValue: pilotText,
         weight: 'critical',
         explanation: `Parameter confusion: ATC instructed ALTITUDE ${atcAlt}, but pilot read back as HEADING.`,
-        icaoReference: 'ICAO Doc 4444 - Critical parameter confusion'
+        icaoReference: 'ICAO Doc 4444 - Section 12.3.1'
       }
     }
   }
@@ -2400,7 +2400,7 @@ function detectParameterConfusion(
         actualValue: pilotText,
         weight: 'critical',
         explanation: `Parameter confusion: ATC instructed SPEED ${atcSpeed} knots, but pilot read back as HEADING. Speed instruction was incorrectly interpreted as a heading change.`,
-        icaoReference: 'ICAO Doc 4444 - Critical parameter confusion'
+        icaoReference: 'ICAO Doc 4444 - Section 12.3.1'
       }
     }
   }
@@ -2468,7 +2468,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       expectedValue: atcAlt,
       actualValue: null,
       weight: 'critical',
-      explanation: 'Missing altitude in multi-part instruction readback. Altitude is safety-critical.',
+      explanation: 'Missing altitude in multi-part instruction readback. Altitude readback is required per ICAO Doc 4444.',
       icaoReference: 'ICAO Doc 4444 Section 12.3.1.2'
     })
   }
@@ -2507,7 +2507,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       expectedValue: atcAltim,
       actualValue: null,
       weight: 'critical',
-      explanation: 'Missing altimeter setting (QNH) readback. This is safety-critical for approach.',
+      explanation: 'Missing altimeter setting (QNH) readback. This readback is required for approach.',
       icaoReference: 'ICAO Doc 9432'
     })
   }
@@ -2539,7 +2539,7 @@ function checkMultiPartInstruction(atcText: string, pilotText: string): Readback
       expectedValue: constraintMatch ? constraintMatch[0] : 'altitude/position constraint',
       actualValue: null,
       weight: 'critical',
-      explanation: `Missing constraint in readback. ATC instructed "${constraintMatch?.[0] || 'constraint'}" which is a critical restriction that must be read back.`,
+      explanation: `Missing constraint in readback. ATC instructed "${constraintMatch?.[0] || 'constraint'}" which must be read back.`,
       icaoReference: 'ICAO Doc 4444 - Conditional clearance constraints must be read back'
     })
   }
@@ -2678,7 +2678,7 @@ function checkValueMatch(
 
         let errorExplanation: string
         if (isMagnitudeError) {
-          errorExplanation = `CRITICAL MAGNITUDE ERROR: ATC instructed ${formatValueForDisplay(atcAlt, 'altitude')}, pilot read back ${formatValueForDisplay(pilotAlt, 'altitude')}. This is a 10x or 100x altitude error - extremely dangerous!`
+          errorExplanation = `Magnitude error: ATC instructed ${formatValueForDisplay(atcAlt, 'altitude')}, pilot read back ${formatValueForDisplay(pilotAlt, 'altitude')}. This is a 10x or 100x altitude error - extremely dangerous!`
         } else if (isTransposed) {
           errorExplanation = `Altitude digit transposition. ATC instructed ${formatValueForDisplay(atcAlt, 'altitude')}, pilot read back ${formatValueForDisplay(pilotAlt, 'altitude')}. Digits appear swapped.`
         } else {
@@ -2729,8 +2729,8 @@ function checkValueMatch(
           expectedValue: atcDir[1],
           actualValue: pilotDir[1],
           weight: 'critical',
-          explanation: `CRITICAL: Wrong turn direction. ATC instructed turn ${atcDir[1].toUpperCase()}, pilot read back turn ${pilotDir[1].toUpperCase()}. Turn direction errors can cause immediate conflict.`,
-          icaoReference: 'ICAO Doc 4444 - Turn direction critical'
+          explanation: `Wrong turn direction. ATC instructed turn ${atcDir[1].toUpperCase()}, pilot read back turn ${pilotDir[1].toUpperCase()}. Turn direction errors can cause immediate conflict.`,
+          icaoReference: 'ICAO Doc 4444 - Turn direction'
         }
       } else if (atcDir && !pilotDir) {
         // Turn direction was specified by ATC but omitted entirely from readback
@@ -2779,7 +2779,7 @@ function checkValueMatch(
           expectedValue: atcAltim,
           actualValue: pilotAltim,
           weight: 'critical',
-          explanation: `Wrong altimeter readback (${isTransposition ? 'digit transposition' : 'incorrect value'}). ATC instructed ${atcAltim}, pilot read back ${pilotAltim}. Altimeter errors are safety-critical.`,
+          explanation: `Wrong altimeter readback (${isTransposition ? 'digit transposition' : 'incorrect value'}). ATC instructed ${atcAltim}, pilot read back ${pilotAltim}. Altimeter readback must be exact.`,
           icaoReference: 'ICAO Doc 4444 - Altimeter setting mandatory readback'
         }
       }
@@ -2866,7 +2866,7 @@ function checkValueMatch(
             expectedValue: atcRunway,
             actualValue: pilotRunway,
             weight: 'critical',
-            explanation: `CRITICAL: Wrong runway. ATC cleared for runway ${atcRunway}, pilot read back runway ${pilotRunway}. Runway confusion is a major safety hazard.`,
+            explanation: `Wrong runway. ATC cleared for runway ${atcRunway}, pilot read back runway ${pilotRunway}. Runway confusion is a significant readback error.`,
             icaoReference: 'ICAO Doc 4444 - Runway mandatory readback'
           }
         }
@@ -3627,7 +3627,7 @@ export function analyzeWithPhaseContext(
       phaseSpecificIssues.push('Radar contact acknowledgment missing - should confirm radar contact')
     }
     if (/runway\s+heading/i.test(atcInstruction) && !/runway\s*heading/i.test(pilotReadback)) {
-      phaseSpecificIssues.push('Runway heading not confirmed - critical for initial departure')
+      phaseSpecificIssues.push('Runway heading not confirmed - required for initial departure')
     }
     if (/expedite/i.test(atcInstruction) && !/expedite/i.test(pilotReadback)) {
       phaseSpecificIssues.push('Expedite instruction not acknowledged - traffic separation concern')
@@ -3643,7 +3643,7 @@ export function analyzeWithPhaseContext(
   if (detectedPhase === 'approach') {
     // Check approach-specific issues
     if (/qnh|altimeter/i.test(atcInstruction) && !/qnh|altimeter/i.test(pilotReadback)) {
-      phaseSpecificIssues.push('QNH/Altimeter not confirmed - critical for approach altitude')
+      phaseSpecificIssues.push('QNH/Altimeter not confirmed - required for approach accuracy')
     }
     if (/cross\s+\w+\s+at/i.test(atcInstruction)) {
       const crossingMatch = atcInstruction.match(/cross\s+(\w+)\s+at/i)

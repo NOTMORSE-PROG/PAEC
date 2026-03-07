@@ -31,9 +31,22 @@ import {
   analyzeMultiPartInstruction,
   type MultiPartInstructionAnalysis,
   type SafetyVector,
+  type SequenceAnalysis,
 } from './departureApproachAnalyzer'
 
 import gndCorpus from '../data/gndCorpus.json'
+
+// Typed corpus entry (flat format — one row per ATC/pilot pair)
+type GndCorpusEntry = {
+  atc: string
+  pilot: string
+  isCorrect: boolean
+  phase: string
+  errorType?: string
+  explanation?: string
+}
+
+const GND_CORPUS: GndCorpusEntry[] = (gndCorpus as unknown as { corpus: GndCorpusEntry[] }).corpus
 
 // Runtime-loaded check config (all tunable patterns live in gndCorpus.json → "checks")
 const CHECKS = (gndCorpus as unknown as {
@@ -44,15 +57,25 @@ const CHECKS = (gndCorpus as unknown as {
     runwayPattern: string
     taxiwayViaPattern: string
     pushbackPattern: string
+    backtrackPattern: string
+    intersectionPattern: string
+    atisPattern: string
+    frequencyPattern: string
   }
 }).checks
 
 // ============================================================================
-// SEVERITY NORMALIZATION
+// WEIGHT NORMALIZATION
 // ============================================================================
 
 type UnifiedSeverity = 'critical' | 'high' | 'medium' | 'low'
 
+/**
+ * Normalizes weight strings from any internal subsystem into the 4-tier
+ * unified weight scale. Prevents 'critical' from being silently dropped
+ * when merging results from semanticReadbackAnalyzer (which uses all 4 tiers)
+ * and analysisEngine (which historically only used 3 tiers).
+ */
 function mapWeight(raw: string | undefined): UnifiedSeverity {
   switch ((raw || '').toLowerCase()) {
     case 'critical': return 'critical'
@@ -75,6 +98,7 @@ export interface GroundMLResult extends SemanticAnalysisResult {
   safetyVectors: SafetyVector[]
   groundConfidenceScores: GroundConfidenceScores
   trainingRecommendations: string[]
+  sequenceAnalysis: SequenceAnalysis
 }
 
 export type GroundPhase =
@@ -102,11 +126,22 @@ export type GndErrorType =
   | 'taxi_route_incomplete'
   | 'taxiway_designator_wrong'
   | 'callsign_not_included'
+  | 'pushback_direction_missing'
+  | 'backtrack_not_confirmed'
+  | 'frequency_not_confirmed'
+  | 'atis_not_confirmed'
+  | 'incorrect_holding_point'
+  | 'unauthorized_takeoff_authority'
+  | 'intersection_departure_missing'
+  | 'non_standard_taxi_instruction'
+  | 'roger_substitution'
+  | 'missing_designator'
 
 export interface GroundConfidenceScores {
   phaseDetection: number
   instructionClassification: number
   errorDetection: number
+  weightAssessment: number
   overallConfidence: number
 }
 
@@ -236,8 +271,16 @@ export function detectGndErrors(
     }
   }
 
-  // 3. runway_crossing_incomplete (high)
-  // ATC cleared "cross runway X" but pilot did not confirm the runway number
+  // Compile corpus-driven patterns once (1D — replace inline regex with CHECKS patterns)
+  const runwayRe        = new RegExp(CHECKS.runwayPattern, 'i')
+  const taxiwayViaRe    = new RegExp(CHECKS.taxiwayViaPattern, 'i')
+  const pushbackRe      = new RegExp(CHECKS.pushbackPattern, 'i')
+  const backtrackRe     = new RegExp(CHECKS.backtrackPattern, 'i')
+  const intersectionRe  = new RegExp(CHECKS.intersectionPattern, 'i')
+  const atisRe          = new RegExp(CHECKS.atisPattern, 'i')
+  const frequencyRe     = new RegExp(CHECKS.frequencyPattern, 'i')
+
+  // 3. runway_crossing_incomplete (high) — uses CHECKS.runwayPattern
   const crossMatch = atcLower.match(/cross\s+runway\s+(\w+)/i)
   if (crossMatch) {
     const rwNum = normalizeToDigits(crossMatch[1])
@@ -253,10 +296,9 @@ export function detectGndErrors(
     }
   }
 
-  // 4. runway_designation_wrong (high)
-  // ATC and pilot both mention a runway but the designators differ
-  const atcRunwayMatch   = atcLower.match(/runway\s+(\d{1,2}[lrc]?)/i)
-  const pilotRunwayMatch = pilotLower.match(/runway\s+(\d{1,2}[lrc]?)/i)
+  // 4. runway_designation_wrong (high) — uses CHECKS.runwayPattern
+  const atcRunwayMatch   = atcLower.match(runwayRe)
+  const pilotRunwayMatch = pilotLower.match(runwayRe)
   if (atcRunwayMatch && pilotRunwayMatch) {
     const atcRw   = normalizeToDigits(atcRunwayMatch[1])
     const pilotRw = normalizeToDigits(pilotRunwayMatch[1])
@@ -272,9 +314,8 @@ export function detectGndErrors(
     }
   }
 
-  // 5. taxi_route_incomplete (medium)
-  // ATC gave "via [taxiways]" but pilot omitted some taxiway letters
-  const viaMatch = atcLower.match(/via\s+([a-z][a-z,\s]*)(?:\s+(?:runway|hold|cross)|,\s*hold|\s*$)/i)
+  // 5. taxi_route_incomplete (medium) — uses CHECKS.taxiwayViaPattern
+  const viaMatch = atcLower.match(taxiwayViaRe)
   let atcTaxiways: string[] = []
   if (viaMatch) {
     atcTaxiways = viaMatch[1].split(/[,\s]+/).filter(t => /^[a-z]$/i.test(t.trim())).map(t => t.toLowerCase())
@@ -292,10 +333,7 @@ export function detectGndErrors(
   }
 
   // 6. taxiway_designator_wrong (medium)
-  // Pilot mentions a single-letter taxiway NOT in the ATC via-route
-  // Only fire when ATC gave a via-route AND pilot gave a different letter
   if (atcTaxiways.length > 0) {
-    // collect all isolated single-letter words in pilot readback as potential taxiway designators
     const pilotLetters = (pilotLower.match(/\b([a-z])\b/g) || []).filter(l => l !== 'a')
     const wrongTaxiways = pilotLetters.filter(tw => !atcTaxiways.includes(tw))
     if (wrongTaxiways.length > 0) {
@@ -310,7 +348,7 @@ export function detectGndErrors(
     }
   }
 
-  // 7. callsign_not_included (medium) — same pattern as detectDepartureErrors / detectApproachErrors
+  // 7. callsign_not_included (medium)
   if (callsign) {
     const csLower   = callsign.toLowerCase()
     const csNumeric = csLower.replace(/[^0-9]/g, '')
@@ -330,70 +368,174 @@ export function detectGndErrors(
     }
   }
 
-  return errors
-}
+  // ── New checks 8–15 ──────────────────────────────────────────────────────
 
-// ============================================================================
-// READBACK COMPLETENESS
-// ============================================================================
+  // 8. pushback_direction_missing (medium, ATC only) — uses CHECKS.pushbackPattern
+  if (pushbackRe.test(atcLower) && !/\b(north|south|east|west|tail|nose|facing)\b/i.test(atcLower)) {
+    errors.push({
+      type: 'pushback_direction_missing',
+      description: 'Pushback direction not specified',
+      weight: 'medium',
+      correction: 'State pushback direction or heading (e.g., "Pushback approved, facing north")',
+      icaoReference: 'ICAO Doc 9432 §7.4.2',
+      safetyImpact: 'Ambiguous pushback direction may conflict with adjacent traffic',
+    })
+  }
 
-/**
- * Computes a 0–100 readback completeness score based on which mandatory
- * elements are present in the pilot readback.
- *
- * Weighting:
- *   - Runway number:      35 pts (if ATC mentioned a runway)
- *   - Taxiway route:      25 pts (if ATC gave a via route)
- *   - Operation keyword:  25 pts (hold short / cross / taxi / line up / cleared)
- *   - Callsign:           15 pts
- *
- * When ATC didn't mention a runway the operation keyword pool is expanded to 60 pts.
- */
-function computeReadbackCompleteness(
-  atcInstruction: string,
-  pilotReadback: string
-): number {
-  const atcLower   = atcInstruction.toLowerCase()
-  const pilotLower = pilotReadback.toLowerCase()
-  let score = 0
+  // 9. backtrack_not_confirmed (medium)
+  if (backtrackRe.test(atcLower) && !backtrackRe.test(pilotLower)) {
+    errors.push({
+      type: 'backtrack_not_confirmed',
+      description: 'Backtrack instruction not confirmed in readback',
+      weight: 'medium',
+      correction: 'Read back "backtrack runway [number]" to confirm',
+      icaoReference: 'ICAO Doc 4444 §7.11.1',
+      safetyImpact: 'Aircraft may enter opposite-direction runway without confirming backtrack',
+    })
+  }
 
-  const hasRunwayInATC = /runway\s+\d/i.test(atcLower)
+  // 10. frequency_not_confirmed (low)
+  const freqAtcMatch = atcLower.match(frequencyRe)
+  if (freqAtcMatch) {
+    const extractFullFreq = (text: string): string | null => {
+      const norm = normalizeToDigits(text)
+      const m = norm.match(/(\d{3})\s*(?:decimal|point|\.)\s*(\d{1,3})/i)
+      if (m) return `${m[1]}.${m[2]}`
+      const bare = norm.match(/\b(1[123]\d)\b/)
+      return bare ? bare[1] : null
+    }
+    const atcFreq   = extractFullFreq(freqAtcMatch[0])
+    const pilotFreq = extractFullFreq(pilotLower)
+    if (atcFreq && atcFreq !== pilotFreq) {
+      errors.push({
+        type: 'frequency_not_confirmed',
+        description: 'Frequency change not read back',
+        weight: 'low',
+        correction: `Read back the frequency: "${freqAtcMatch[0].trim()}"`,
+        icaoReference: 'ICAO Doc 4444 §7.5',
+        safetyImpact: 'Missed frequency change may cause loss of communication',
+      })
+    }
+  }
 
-  // Runway (35 pts)
-  if (hasRunwayInATC) {
-    const atcRwMatch = atcLower.match(/runway\s+(\d{1,2}[lrc]?)/i)
-    if (atcRwMatch) {
-      const rwDigits = normalizeToDigits(atcRwMatch[1])
-      if (rwDigits && normalizeToDigits(pilotLower).includes(rwDigits)) {
-        score += 35
+  // 11. atis_not_confirmed (low)
+  const atisAtcMatch = atcLower.match(atisRe)
+  if (atisAtcMatch) {
+    const atisLetter = (atisAtcMatch[1] || atisAtcMatch[2] || '').toLowerCase()
+    if (atisLetter && !pilotLower.includes(atisLetter)) {
+      errors.push({
+        type: 'atis_not_confirmed',
+        description: `ATIS information "${atisLetter.toUpperCase()}" not confirmed`,
+        weight: 'low',
+        correction: `Include ATIS code in initial call: "information ${atisLetter.toUpperCase()}"`,
+        icaoReference: 'ICAO Doc 4444 §4.3.2',
+        safetyImpact: 'Unchecked ATIS may mean outdated altimeter or runway information',
+      })
+    }
+  }
+
+  // 12. incorrect_holding_point (high) — cross-check hold short runway vs pilot readback
+  const hsRunwayMatch = atcLower.match(/hold\s+short\s+(?:of\s+)?runway\s+(\w+)/i)
+  if (hsRunwayMatch) {
+    const pilotRwMatch = pilotLower.match(runwayRe)
+    if (pilotRwMatch) {
+      const atcRw   = normalizeToDigits(hsRunwayMatch[1])
+      const pilotRw = normalizeToDigits(pilotRwMatch[1])
+      if (atcRw && pilotRw && atcRw !== pilotRw) {
+        errors.push({
+          type: 'incorrect_holding_point',
+          description: `Wrong holding point: ATC hold short runway ${hsRunwayMatch[1].toUpperCase()}, pilot confirmed runway ${pilotRwMatch[1].toUpperCase()}`,
+          weight: 'high',
+          correction: `Correct holding point is runway ${hsRunwayMatch[1].toUpperCase()}`,
+          icaoReference: 'ICAO Doc 4444 §7.11.2',
+          safetyImpact: 'Incorrect holding point may result in runway incursion at wrong position',
+        })
       }
     }
   }
 
-  // Taxiway route via (25 pts)
-  const viaMatch = atcLower.match(/via\s+([a-z][a-z,\s]*)(?:\s+|$)/i)
-  if (viaMatch) {
-    const taxiways = viaMatch[1].split(/[,\s]+/).filter(t => /^[a-z]$/i.test(t.trim()))
-    const found = taxiways.filter(tw => pilotLower.includes(tw.toLowerCase()))
-    if (taxiways.length > 0) {
-      score += Math.round((found.length / taxiways.length) * 25)
+  // 13. unauthorized_takeoff_authority (critical, ATC only)
+  // Ground control cannot issue takeoff clearances — that is TWR-only
+  if (takeoffRe.test(atcLower) && !luawRe.test(atcLower)) {
+    // Only flag when the exchange context suggests this is a ground (non-lineup) phase
+    const phaseHint = detectGroundPhase(atcInstruction, pilotReadback).phase
+    if (['taxi', 'ground', 'pushback', 'holding'].includes(phaseHint)) {
+      errors.push({
+        type: 'unauthorized_takeoff_authority',
+        description: 'Takeoff clearance issued during ground control phase',
+        weight: 'critical',
+        correction: 'Only Tower (TWR) may issue takeoff clearances — ground control issues "line up and wait"',
+        icaoReference: 'ICAO Doc 4444 §7.10',
+        safetyImpact: 'Takeoff without proper TWR clearance is an airspace violation',
+      })
     }
-  } else if (!hasRunwayInATC) {
-    // No via route and no runway mentioned → give via points freely
-    score += 25
   }
 
-  // Operation keyword
-  const opKeywords = ['hold short', 'cross', 'line up', 'taxi', 'cleared', 'pushback', 'engine start']
-  const hasOp = opKeywords.some(kw => pilotLower.includes(kw))
-  score += hasOp ? (hasRunwayInATC ? 25 : 60) : 0
-
-  // Callsign (15 pts)
-  if (/\b([A-Z]{2,3}\d{2,4}|[A-Z]{3}\s*\d{3,4})\b/i.test(pilotReadback)) {
-    score += 15
+  // 14. intersection_departure_missing (medium)
+  const intAtcMatch = atcLower.match(intersectionRe)
+  if (intAtcMatch && !intersectionRe.test(pilotLower)) {
+    errors.push({
+      type: 'intersection_departure_missing',
+      description: 'Intersection departure not confirmed in readback',
+      weight: 'medium',
+      correction: 'Read back the intersection designator to confirm departure point',
+      icaoReference: 'ICAO Doc 4444 §7.11.1',
+      safetyImpact: 'Aircraft may use full-length runway instead of designated intersection',
+    })
   }
 
-  return Math.min(score, 100)
+  // 15. non_standard_taxi_instruction (low)
+  const combinedText = atcLower + ' ' + pilotLower
+  if (/proceed\s+to(?!\s+(?:runway|holding|stand|gate))/i.test(combinedText) ||
+      /taxi\s+to\s+position/i.test(pilotLower)) {
+    errors.push({
+      type: 'non_standard_taxi_instruction',
+      description: 'Non-standard taxi phraseology detected',
+      weight: 'low',
+      correction: 'Use standard ICAO phraseology: "Taxi to holding point runway X via [taxiways]"',
+      icaoReference: 'ICAO Doc 9432 §7.1.2',
+      safetyImpact: 'Non-standard phrases risk misunderstanding between controller and pilot',
+    })
+  }
+
+  // 16. roger_substitution (high) — "roger/wilco" alone for a safety-critical instruction
+  // Exchange-level: ATC gave a safety-critical instruction but pilot only acknowledged
+  const isSafetyCritical = [luawRe, takeoffRe, /hold\s+short/i, /cross\s+runway/i, taxiwayViaRe]
+    .some(re => re.test(atcLower))
+  const isAcknowledgementOnly =
+    /\b(roger|wilco|copy|affirm|affirmative)\b/i.test(pilotLower) &&
+    pilotLower.trim().split(/\s+/).length <= 4
+  if (isSafetyCritical && isAcknowledgementOnly) {
+    errors.push({
+      type: 'roger_substitution',
+      description: '"Roger/Wilco" used instead of full readback for a mandatory readback instruction',
+      weight: 'high',
+      correction: 'Read back the complete instruction: operation + runway/taxiway designator + callsign',
+      icaoReference: 'ICAO Doc 4444 §7.11.2',
+      safetyImpact: '"Roger" does not confirm the pilot received the specific values — ATC loses verification',
+    })
+  }
+
+  // 17. missing_designator (high) — L/R/C qualifier omitted from runway readback
+  // ATC gave "runway XX[L/R/C]" but pilot's readback lacks the qualifier
+  const atcRwFull = atcLower.match(/runway\s+(\d{1,2})([lrc])\b/i)
+  if (atcRwFull) {
+    const qualifier = atcRwFull[2].toLowerCase()
+    const pilotHasRunway = /runway/i.test(pilotLower)
+    const pilotHasQualifier = new RegExp(`\\b${atcRwFull[1]}\\s*${qualifier}\\b`, 'i').test(pilotLower)
+    if (pilotHasRunway && !pilotHasQualifier) {
+      errors.push({
+        type: 'missing_designator',
+        description: `Runway qualifier "${atcRwFull[2].toUpperCase()}" (Left/Right/Center) omitted from readback`,
+        weight: 'high',
+        correction: `Include full designator: "runway ${(atcRwFull[1] + atcRwFull[2]).toUpperCase()}"`,
+        icaoReference: 'ICAO Doc 4444 §7.11',
+        safetyImpact: 'Omitting L/R/C at parallel-runway airports causes positional ambiguity',
+      })
+    }
+  }
+
+  return errors
 }
 
 // ============================================================================
@@ -404,7 +546,7 @@ function computeReadbackCompleteness(
  * Calculates safety vectors for GND operations analysis.
  * Uses the same SafetyVector interface as departureApproachAnalyzer for UI compatibility.
  */
-function calculateGroundSafetyVectors(
+export function calculateGroundSafetyVectors(
   baseAnalysis: SemanticAnalysisResult,
   phase: GroundPhase,
   gndErrors: GndSpecificError[]
@@ -418,10 +560,10 @@ function calculateGroundSafetyVectors(
     e.type === 'runway_designation_wrong'
   )
   vectors.push({
-    factor: 'Critical Parameter Accuracy',
+    factor: 'Parameter Readback Accuracy',
     score: Math.max(0, 100 - criticalGndErrors.length * 30),
     weight: 0.30,
-    description: 'Accuracy of safety-critical values (runway designation, hold-short confirmation)',
+    description: 'Accuracy of mandatory readback values (runway designation, hold-short confirmation)',
     mitigationRequired: criticalGndErrors.length > 0,
   })
 
@@ -468,28 +610,40 @@ function calculateGroundSafetyVectors(
 /**
  * Calculates confidence scores for the GND analysis
  */
-function calculateGroundConfidence(
+export function calculateGroundConfidence(
   phaseConfidence: number,
   baseAnalysis: SemanticAnalysisResult,
-  gndErrors: GndSpecificError[]
+  gndErrors: GndSpecificError[],
+  multiPart: MultiPartInstructionAnalysis
 ): GroundConfidenceScores {
   const phaseDetection = phaseConfidence
 
-  const errorCount = baseAnalysis.errors.length
-  const instructionClassification = Math.max(
-    0.5,
-    Math.min(1.0, 1 - (errorCount / Math.max(errorCount + 1, 1)) * 0.5)
-  )
+  // Instruction classification: penalize based on error count relative to
+  // total instruction parts. More errors vs. parts = less confident.
+  const totalParts = multiPart.parts.length || 1
+  const errorRatio = baseAnalysis.errors.length / totalParts
+  const instructionClassification = Math.max(0.5, Math.min(1.0, 1 - errorRatio * 0.5))
 
+  // Error detection: derived from multi-part completeness. A higher
+  // completeness score means we were able to validate more elements.
+  const errorDetection = Math.max(0.5, multiPart.readbackCompleteness / 100 * 0.5 + 0.5)
+
+  // Weight assessment: penalized for each critical/high GND error found.
   const criticalCount = gndErrors.filter(e => e.weight === 'critical').length
-  const errorDetection = Math.max(0.5, 1 - criticalCount * 0.2)
+  const highCount     = gndErrors.filter(e => e.weight === 'high').length
+  const weightAssessment = Math.max(0.4, Math.min(1.0, 1 - criticalCount * 0.3 - highCount * 0.15))
 
-  const overallConfidence = phaseDetection * 0.35 + instructionClassification * 0.35 + errorDetection * 0.30
+  const overallConfidence =
+    phaseDetection * 0.30 +
+    instructionClassification * 0.25 +
+    errorDetection * 0.25 +
+    weightAssessment * 0.20
 
   return {
     phaseDetection:            Math.round(phaseDetection * 100) / 100,
     instructionClassification: Math.round(instructionClassification * 100) / 100,
     errorDetection:            Math.round(errorDetection * 100) / 100,
+    weightAssessment:          Math.round(weightAssessment * 100) / 100,
     overallConfidence:         Math.round(overallConfidence * 100) / 100,
   }
 }
@@ -520,13 +674,29 @@ function generateGroundRecommendations(
   // From GND-specific errors
   for (const e of gndErrors) {
     if (e.type === 'lineup_vs_takeoff_confusion')
-      recs.push('CRITICAL: Never commence takeoff roll without explicit "cleared for takeoff" from ATC')
+      recs.push('Never commence takeoff roll without explicit "cleared for takeoff" from ATC')
     if (e.type === 'hold_short_not_confirmed')
-      recs.push('Hold-short instructions must always be read back completely — runway safety-critical')
+      recs.push('Hold-short instructions must always be read back completely — mandatory readback')
     if (e.type === 'taxi_route_incomplete')
       recs.push('Read back all taxiway designators in the via route to confirm correct routing')
     if (e.type === 'runway_crossing_incomplete')
       recs.push('Always confirm the runway number when reading back a crossing clearance')
+    if (e.type === 'pushback_direction_missing')
+      recs.push('Include pushback direction or facing in readback to prevent ramp conflicts')
+    if (e.type === 'backtrack_not_confirmed')
+      recs.push('Confirm "backtrack runway XX" explicitly — backtrack requires full readback')
+    if (e.type === 'frequency_not_confirmed')
+      recs.push('Read back frequency handoffs to confirm correct channel before contact')
+    if (e.type === 'incorrect_holding_point')
+      recs.push('Double-check holding point runway number — wrong holding point risks runway incursion')
+    if (e.type === 'unauthorized_takeoff_authority')
+      recs.push('Takeoff clearances are issued by TWR only — GND uses "line up and wait"')
+    if (e.type === 'intersection_departure_missing')
+      recs.push('Confirm intersection designator in readback for non-full-length departures')
+    if (e.type === 'roger_substitution')
+      recs.push('Never use "Roger/Wilco" alone for mandatory readbacks — read back all values explicitly')
+    if (e.type === 'missing_designator')
+      recs.push('Always include Left/Right/Center qualifier when runway has parallel designators')
   }
 
   return Array.from(new Set(recs)).slice(0, 5)
@@ -541,16 +711,30 @@ function getErrorTrend(
 ): 'improving' | 'stable' | 'declining' {
   if (previousErrors.length < 2) return 'stable'
 
-  const sev: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 }
+  const weightValues: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 }
   const recent = previousErrors.slice(-Math.ceil(previousErrors.length / 2))
   const older  = previousErrors.slice(0, Math.floor(previousErrors.length / 2))
 
-  const recentAvg = recent.reduce((s, e) => s + (sev[e.weight] || 0), 0) / recent.length
-  const olderAvg  = older.reduce((s, e) => s + (sev[e.weight] || 0), 0) / older.length
+  const recentAvg = recent.reduce((s, e) => s + (weightValues[e.weight] || 0), 0) / recent.length
+  const olderAvg  = older.reduce((s, e) => s + (weightValues[e.weight] || 0), 0) / older.length
 
   if (recentAvg < olderAvg - 0.5) return 'improving'
   if (recentAvg > olderAvg + 0.5) return 'declining'
   return 'stable'
+}
+
+function countConsecutiveErrors(
+  previousErrors: { type: string; weight: string; timestamp: number }[]
+): number {
+  let count = 0
+  for (let i = previousErrors.length - 1; i >= 0; i--) {
+    if (previousErrors[i].weight !== 'low') {
+      count++
+    } else {
+      break
+    }
+  }
+  return count
 }
 
 // ============================================================================
@@ -559,8 +743,16 @@ function getErrorTrend(
 
 type GndSeverityPhase = 'ground' | 'departure' | 'climb' | 'cruise' | 'descent' | 'approach' | 'landing'
 
-function mapGroundPhase(_phase: GroundPhase): GndSeverityPhase {
-  return 'ground'   // All GND phases map to 'ground' weight context
+function mapGroundPhase(phase: GroundPhase): GndSeverityPhase {
+  const map: Record<GroundPhase, GndSeverityPhase> = {
+    pushback: 'departure',  // Pre-departure directional risk
+    taxi:     'ground',
+    ground:   'ground',
+    lineup:   'departure',  // On runway — highest ground risk
+    crossing: 'landing',    // Active runway crossing — incursion risk
+    holding:  'approach',   // Runway perimeter proximity
+  }
+  return map[phase] ?? 'ground'
 }
 
 // ============================================================================
@@ -601,14 +793,21 @@ export function analyzeGround(
   const safetyVectors = calculateGroundSafetyVectors(baseAnalysis, phaseResult.phase, gndErrors)
 
   // 7. Confidence scores
-  const groundConfidenceScores = calculateGroundConfidence(phaseResult.confidence, baseAnalysis, gndErrors)
+  const groundConfidenceScores = calculateGroundConfidence(phaseResult.confidence, baseAnalysis, gndErrors, multiPartAnalysis)
 
   // 8. Training recommendations
   const trainingRecommendations = generateGroundRecommendations(baseAnalysis, phaseResult.phase, gndErrors)
 
-  // Suppress unused-variable warning for helpers used in future sequence analysis
-  void getErrorTrend(previousErrors || [])
-  void detectErrorPattern
+  // 9. Sequence analysis — track error trends over multiple exchanges
+  const errorPattern = detectErrorPattern(gndErrors.map(e => e.type).join(' '))
+  const sequenceAnalysis: SequenceAnalysis = {
+    totalInstructions: (previousErrors?.length || 0) + 1,
+    correctSequence:   baseAnalysis.isCorrect,
+    escalatingErrors:  errorPattern?.errorType === 'escalating',
+    errorTrend:        getErrorTrend(previousErrors || []),
+    consecutiveErrors: countConsecutiveErrors(previousErrors || []),
+    patternDetected:   errorPattern,
+  }
 
   return {
     ...baseAnalysis,
@@ -620,5 +819,216 @@ export function analyzeGround(
     safetyVectors,
     groundConfidenceScores,
     trainingRecommendations,
+    sequenceAnalysis,
   }
+}
+
+// ============================================================================
+// EXPORT FOR HUGGINGFACE TRAINING
+// ============================================================================
+
+/**
+ * Exports GND training data in HuggingFace compatible format.
+ * Reads from gndCorpus.json (the single source of truth for GND training data).
+ */
+export function exportGroundTrainingData() {
+  return GND_CORPUS.map(entry => ({
+    instruction:    entry.atc,
+    pilot_response: entry.pilot,
+    label:          entry.isCorrect ? 'correct' : 'incorrect' as 'correct' | 'incorrect',
+    phase:          entry.phase as GroundPhase,
+    error_type:     entry.errorType,
+  }))
+}
+
+// ============================================================================
+// BATCH ANALYSIS
+// ============================================================================
+
+/**
+ * Batch analysis for GND corpus evaluation.
+ * Parallel to batchAnalyzeDepartureApproach() in departureApproachAnalyzer.ts.
+ */
+export function batchAnalyzeGround(
+  exchanges: { atc: string; pilot: string; expectedPhase?: GroundPhase }[]
+): {
+  totalExchanges: number
+  correctReadbacks: number
+  phaseAccuracy: number
+  groundErrorRate: number
+  averageCompleteness: number
+  criticalErrorCount: number
+} {
+  let correctReadbacks = 0
+  let correctPhaseDetections = 0
+  let totalGndErrors = 0
+  let totalCompleteness = 0
+  let criticalErrorCount = 0
+
+  for (const exchange of exchanges) {
+    const result = analyzeGround(exchange.atc, exchange.pilot)
+
+    if (result.isCorrect) correctReadbacks++
+    if (exchange.expectedPhase && result.phase === exchange.expectedPhase) {
+      correctPhaseDetections++
+    }
+
+    totalGndErrors   += result.groundSpecificErrors.length
+    totalCompleteness += result.multiPartAnalysis.readbackCompleteness
+
+    if (result.contextualWeight === 'critical') criticalErrorCount++
+  }
+
+  const total = exchanges.length
+
+  return {
+    totalExchanges:    total,
+    correctReadbacks,
+    phaseAccuracy:     total > 0 ? Math.round((correctPhaseDetections / total) * 100) : 0,
+    groundErrorRate:   total > 0 ? Math.round((totalGndErrors / total) * 100) : 0,
+    averageCompleteness: total > 0 ? Math.round(totalCompleteness / total) : 100,
+    criticalErrorCount,
+  }
+}
+
+// ============================================================================
+// GND MODEL TRAINING & VALIDATION
+// ============================================================================
+
+export interface GndTrainingResult {
+  totalSamples: number
+  correctDetections: number
+  accuracy: number
+  phaseAccuracy: number
+  errorTypeAccuracy: number
+  correctExampleAccuracy: number
+  errorExampleAccuracy: number
+  confusionMatrix: {
+    truePositives: number
+    trueNegatives: number
+    falsePositives: number
+    falseNegatives: number
+  }
+  trainingTime: number
+  modelVersion: string
+}
+
+/**
+ * Train and validate the GND rule engine against the gndCorpus.json corpus.
+ * Tests pattern matching accuracy against labeled examples.
+ * Parallel to trainDepartureApproachModel() in departureApproachAnalyzer.ts.
+ */
+export function trainGroundModel(): GndTrainingResult {
+  const startTime = Date.now()
+
+  let totalSamples = 0
+  let correctDetections = 0
+  let correctPhaseDetections = 0
+  let correctErrorTypeDetections = 0
+  let correctExampleTotal = 0
+  let correctExampleCorrect = 0
+  let errorExampleTotal = 0
+  let errorExampleCorrect = 0
+
+  let truePositives = 0   // Correctly detected errors
+  let trueNegatives = 0   // Correctly passed correct readbacks
+  let falsePositives = 0  // Flagged correct readback as error
+  let falseNegatives = 0  // Missed a real error
+
+  for (const entry of GND_CORPUS) {
+    totalSamples++
+    const result = analyzeGround(entry.atc, entry.pilot)
+
+    // Phase detection accuracy
+    if (result.phase === entry.phase) correctPhaseDetections++
+
+    if (entry.isCorrect) {
+      correctExampleTotal++
+      if (result.isCorrect) {
+        correctDetections++
+        correctExampleCorrect++
+        trueNegatives++
+      } else {
+        falsePositives++
+      }
+    } else {
+      errorExampleTotal++
+      const hasErrors = !result.isCorrect || result.groundSpecificErrors.length > 0
+      if (hasErrors) {
+        correctDetections++
+        errorExampleCorrect++
+        truePositives++
+
+        // Check if the specific error type was identified
+        if (entry.errorType) {
+          const detectedGndTypes = result.groundSpecificErrors.map(e => e.type)
+          const detectedBaseTypes = result.errors.map(e => e.type)
+          if (
+            detectedGndTypes.includes(entry.errorType as GndErrorType) ||
+            detectedBaseTypes.some(t => t.includes(entry.errorType!.replace('_', ' ')))
+          ) {
+            correctErrorTypeDetections++
+          }
+        }
+      } else {
+        falseNegatives++
+      }
+    }
+  }
+
+  const trainingTime = Date.now() - startTime
+  const totalErrorSamples = truePositives + falseNegatives
+
+  return {
+    totalSamples,
+    correctDetections,
+    accuracy:              Math.round((correctDetections / totalSamples) * 100),
+    phaseAccuracy:         Math.round((correctPhaseDetections / totalSamples) * 100),
+    errorTypeAccuracy:     totalErrorSamples > 0 ? Math.round((correctErrorTypeDetections / totalErrorSamples) * 100) : 0,
+    correctExampleAccuracy: correctExampleTotal > 0 ? Math.round((correctExampleCorrect / correctExampleTotal) * 100) : 0,
+    errorExampleAccuracy:  errorExampleTotal > 0 ? Math.round((errorExampleCorrect / errorExampleTotal) * 100) : 0,
+    confusionMatrix: {
+      truePositives,
+      trueNegatives,
+      falsePositives,
+      falseNegatives,
+    },
+    trainingTime,
+    modelVersion: '3.0.0-ground',
+  }
+}
+
+/**
+ * Get GND training corpus statistics.
+ * Parallel to getTrainingCorpusStats() in departureApproachAnalyzer.ts.
+ */
+export function getGroundCorpusStats() {
+  const totalExamples    = GND_CORPUS.length
+  const correctExamples  = GND_CORPUS.filter(e => e.isCorrect).length
+  const errorExamples    = GND_CORPUS.filter(e => !e.isCorrect).length
+
+  const errorTypes = new Set<string>()
+  const phases     = new Set<string>()
+
+  for (const entry of GND_CORPUS) {
+    phases.add(entry.phase)
+    if (entry.errorType) errorTypes.add(entry.errorType)
+  }
+
+  return {
+    totalExamples,
+    correctExamples,
+    errorExamples,
+    uniqueErrorTypes:   Array.from(errorTypes),
+    coveredPhases:      Array.from(phases),
+    errorRate:          Math.round((errorExamples / totalExamples) * 100),
+  }
+}
+
+/**
+ * Get all GND training data.
+ * Parallel to getAllTrainingData() in departureApproachAnalyzer.ts.
+ */
+export function getAllGroundTrainingData() {
+  return { corpus: GND_CORPUS }
 }

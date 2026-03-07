@@ -9,6 +9,20 @@
  */
 
 import type { AnalysisOutput } from './analysisEngine'
+import type { GroundMLResult, GroundPhase } from './groundAnalyzer'
+
+interface GroundExportData {
+  exchanges: GroundMLResult[]
+  summary: {
+    totalExchanges: number
+    taxiCount: number
+    holdingCount: number
+    crossingCount: number
+    averageCompleteness: number
+    criticalErrors: number
+    phaseBreakdown: Record<GroundPhase, number>
+  }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,6 +50,7 @@ function slug(): string {
 export async function exportAnalysisToPDF(
   result: AnalysisOutput,
   filename?: string,
+  groundResults?: GroundExportData,
 ): Promise<void> {
   const { jsPDF } = await import('jspdf')
 
@@ -52,6 +67,7 @@ export async function exportAnalysisToPDF(
   const GREEN:  RGB = [22,  163, 74]
   const AMBER:  RGB = [217, 119, 6]
   const RED:    RGB = [220, 38,  38]
+  const TEAL:   RGB = [13,  148, 136]
   const GRAY:   RGB = [100, 116, 139]
   const LIGHT:  RGB = [248, 250, 252]
   const DARK:   RGB = [15,  23,  42]
@@ -160,15 +176,13 @@ export async function exportAnalysisToPDF(
   // ── Score cards ───────────────────────────────────────────────────────────
   const compliance  = result.summary.overallCompliance
   const rbScore     = result.readbackAnalysis?.completenessScore ?? 0
-  const safetyScore = result.safetyMetrics?.overallSafetyScore  ?? 0
-  const CARD_W      = 50
+  const CARD_W      = 82
   const CARD_H      = 28
-  const CARD_GAP    = 4
+  const CARD_GAP    = 8
 
   ;[
-    { score: compliance,  label: 'ICAO COMPLIANCE', x: M },
-    { score: rbScore,     label: 'READBACK SCORE',  x: M + CARD_W + CARD_GAP },
-    { score: safetyScore, label: 'SAFETY SCORE',    x: M + (CARD_W + CARD_GAP) * 2 },
+    { score: compliance, label: 'ICAO COMPLIANCE', x: M },
+    { score: rbScore,    label: 'READBACK SCORE',  x: M + CARD_W + CARD_GAP },
   ].forEach(({ score, label, x }) => {
     doc.setFillColor(...LIGHT)
     doc.roundedRect(x, y, CARD_W, CARD_H, 3, 3, 'F')
@@ -218,20 +232,19 @@ export async function exportAnalysisToPDF(
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // SECTION — CRITICAL ISSUES
+  // SECTION — ISSUES DETECTED
   // ════════════════════════════════════════════════════════════════════════════
   const criticals = result.summary?.criticalIssues ?? []
   if (criticals.length > 0) {
-    sectionHeader('Critical Issues')
-    criticals.forEach(c => bullet(c, RED))
+    sectionHeader('Issues Detected')
+    criticals.forEach(c => bullet(c, AMBER))
     y += 3
   }
 
   // ════════════════════════════════════════════════════════════════════════════
   // SECTION — ERROR TABLE
   // Redesigned with proper column proportions and dynamic row heights.
-  // No more text overflow — issue text wraps within its column, weight
-  // is a coloured pill badge so it never bleeds into adjacent cells.
+  // No more text overflow — issue text wraps within its column.
   // ════════════════════════════════════════════════════════════════════════════
   const allErrors = result.phraseologyErrors ?? []
   if (allErrors.length > 0) {
@@ -329,6 +342,69 @@ export async function exportAnalysisToPDF(
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // SECTION — ANNOTATED TRANSCRIPT
+  // ════════════════════════════════════════════════════════════════════════════
+  const transcriptLines = result.parsedLines ?? []
+  if (transcriptLines.length > 0) {
+    sectionHeader('Annotated Transcript')
+
+    // Build a lookup: lineNumber → errors
+    const errorsByLine = new Map<number, typeof allErrors>()
+    allErrors.forEach(err => {
+      const ln = err.line ?? 0
+      if (!errorsByLine.has(ln)) errorsByLine.set(ln, [])
+      errorsByLine.get(ln)!.push(err)
+    })
+
+    const SPEAKER_W = 14   // mm for "ATC" / "PILOT" label
+    const TEXT_X    = M + SPEAKER_W + 2
+
+    transcriptLines.forEach(pl => {
+      const errs = errorsByLine.get(pl.lineNumber) ?? []
+      const speakerLabel = pl.speaker === 'ATC' ? 'ATC' : pl.speaker === 'PILOT' ? 'PILOT' : '?'
+      const speakerColour: RGB = pl.speaker === 'ATC' ? INDIGO : pl.speaker === 'PILOT' ? GREEN : GRAY
+
+      // Wrap transcript text
+      const textLines = doc.splitTextToSize(pl.text, cW - SPEAKER_W - 4) as string[]
+      const rowH = Math.max(7, textLines.length * 4.5 + 2)
+      checkPage(rowH + errs.length * 6 + 2)
+
+      // Speaker badge
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...speakerColour)
+      doc.text(speakerLabel, M, y + 4.5)
+
+      // Transcript text
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...DARK)
+      doc.text(textLines, TEXT_X, y + 4.5)
+
+      y += rowH
+
+      // Errors indented below the line
+      errs.forEach(err => {
+        checkPage(7)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'italic')
+        doc.setTextColor(...AMBER)
+        const errText = `⚠ [${err.category}] ${err.issue}`
+        const errLines = doc.splitTextToSize(errText, cW - SPEAKER_W - 6) as string[]
+        doc.text(errLines, TEXT_X + 2, y + 4)
+        y += errLines.length * 4 + 1
+      })
+
+      // Light divider between lines
+      doc.setDrawColor(226, 232, 240)
+      doc.setLineWidth(0.15)
+      doc.line(M, y, M + cW, y)
+      y += 1.5
+    })
+    y += 3
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
   // SECTION — RECOMMENDATIONS
   // ════════════════════════════════════════════════════════════════════════════
   const recs = result.summary?.recommendations ?? []
@@ -349,6 +425,184 @@ export async function exportAnalysisToPDF(
     })
   }
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // SECTION — GROUND OPERATIONS ANALYSIS
+  // ════════════════════════════════════════════════════════════════════════════
+  if (groundResults && groundResults.exchanges.length > 0) {
+    const gExchanges  = groundResults.exchanges
+    const total       = gExchanges.length
+    const maneuvering = gExchanges.filter(e => ['taxi', 'ground', 'pushback'].includes(e.phase)).length
+    const holdingCnt  = gExchanges.filter(e => e.phase === 'holding').length
+    const criticalCnt = gExchanges.filter(e => e.contextualWeight === 'high').length
+
+    sectionHeader(`Ground Operations Analysis  (${total} exchanges)`)
+
+    // ── Phase stat grid ──────────────────────────────────────────────────
+    metricRow([
+      { label: 'Total Exchanges',    value: String(total) },
+      { label: 'Maneuvering',        value: String(maneuvering), colour: GREEN },
+      { label: 'Hold Short',         value: String(holdingCnt),  colour: AMBER },
+      { label: 'High-Weight Errors', value: String(criticalCnt), colour: criticalCnt > 0 ? AMBER : GREEN },
+    ])
+
+    // ── Safety vectors — avg across exchanges ────────────────────────────
+    const withVectors = gExchanges.filter(e => e.safetyVectors?.length)
+    if (withVectors.length > 0) {
+      const vectorFactors = [
+        { factor: 'Parameter Readback Accuracy', label: 'Parameter Readback Accuracy' },
+        { factor: 'Hold Short Compliance',        label: 'Hold Short Compliance' },
+        { factor: 'Readback Completeness',        label: 'Readback Completeness' },
+        { factor: 'Callsign Compliance',          label: 'Callsign Compliance' },
+      ]
+
+      checkPage(12)
+      doc.setFontSize(9.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...DARK)
+      doc.text('Readback Vectors (average across all exchanges)', M, y)
+      y += 6
+
+      const BAR_LABEL_W = 60
+      const BAR_W       = cW - BAR_LABEL_W - 12
+
+      vectorFactors.forEach(({ factor, label }) => {
+        const exWithFactor = withVectors.filter(e => e.safetyVectors.some(v => v.factor === factor))
+        const avg = exWithFactor.length === 0 ? 0 : Math.round(
+          exWithFactor.reduce((sum, e) => {
+            const vec = e.safetyVectors.find(v => v.factor === factor)
+            return sum + (vec?.score ?? 0)
+          }, 0) / exWithFactor.length
+        )
+        const barColour: RGB = avg >= 80 ? GREEN : avg >= 60 ? AMBER : RED
+        const BAR_H = 4.5
+
+        checkPage(10)
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...DARK)
+        doc.text(label, M, y + 3.5)
+
+        doc.setFillColor(226, 232, 240)
+        doc.roundedRect(M + BAR_LABEL_W, y, BAR_W, BAR_H, 1, 1, 'F')
+        doc.setFillColor(...barColour)
+        doc.roundedRect(M + BAR_LABEL_W, y, Math.max(2, (BAR_W * avg) / 100), BAR_H, 1, 1, 'F')
+        doc.setFontSize(7.5)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...barColour)
+        doc.text(`${avg}%`, M + cW, y + 3.5, { align: 'right' })
+
+        y += 8
+      })
+      y += 3
+    }
+
+    // ── Ground-specific errors table ─────────────────────────────────────
+    type GndErrRow = { exchangeIdx: number; phase: string; description: string; correction: string }
+    const allGndErrors: GndErrRow[] = []
+    gExchanges.forEach((ex, idx) => {
+      ;(ex.groundSpecificErrors ?? []).forEach(ge => {
+        allGndErrors.push({
+          exchangeIdx: idx + 1,
+          phase:       ex.phase,
+          description: ge.description,
+          correction:  ge.correction ?? '',
+        })
+      })
+    })
+
+    if (allGndErrors.length > 0) {
+      sectionHeader(`GND Error Summary  (${allGndErrors.length} issues detected)`)
+
+      const GTC = {
+        num:   { x: 0,   w: 12 },
+        phase: { x: 12,  w: 22 },
+        desc:  { x: 34,  w: 88 },
+        fix:   { x: 122, w: 52 },
+      }
+
+      checkPage(9)
+      doc.setFillColor(226, 232, 240)
+      doc.roundedRect(M, y, cW, 7, 1, 1, 'F')
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...DARK)
+      doc.text('#',           M + GTC.num.x   + 2, y + 4.5)
+      doc.text('Phase',       M + GTC.phase.x + 2, y + 4.5)
+      doc.text('Description', M + GTC.desc.x  + 2, y + 4.5)
+      doc.text('Correction',  M + GTC.fix.x   + 2, y + 4.5)
+      y += 8
+
+      allGndErrors.slice(0, 15).forEach((ge, idx) => {
+        const descLines = doc.splitTextToSize(ge.description, GTC.desc.w - 4) as string[]
+        const fixLines  = doc.splitTextToSize(ge.correction,  GTC.fix.w  - 4) as string[]
+        const ROW_H = Math.max(9, Math.max(descLines.length, fixLines.length) * 4.5 + 4)
+
+        checkPage(ROW_H + 2)
+        if (idx % 2 === 0) {
+          doc.setFillColor(...STRIPE)
+          doc.rect(M, y, cW, ROW_H, 'F')
+        }
+        doc.setDrawColor(203, 213, 225)
+        doc.setLineWidth(0.2)
+        ;[GTC.phase.x, GTC.desc.x, GTC.fix.x].forEach(cx => {
+          doc.line(M + cx, y, M + cx, y + ROW_H)
+        })
+
+        const midY = y + ROW_H / 2 + 1.5
+        doc.setFontSize(7.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...DARK)
+        doc.text(String(ge.exchangeIdx), M + GTC.num.x   + 2, midY)
+        doc.text(ge.phase.toUpperCase(), M + GTC.phase.x + 2, midY)
+        doc.text(descLines,              M + GTC.desc.x  + 2, y + 4)
+        doc.setTextColor(...GRAY)
+        doc.text(fixLines,               M + GTC.fix.x   + 2, y + 4)
+
+        y += ROW_H
+      })
+
+      doc.setDrawColor(203, 213, 225)
+      doc.setLineWidth(0.3)
+      doc.line(M, y, M + cW, y)
+      y += 3
+
+      if (allGndErrors.length > 15) {
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'italic')
+        doc.setTextColor(...GRAY)
+        doc.text(`…and ${allGndErrors.length - 15} more GND errors. Export CSV for full list.`, M + 2, y + 4)
+        y += 8
+      }
+      y += 3
+    }
+
+    // ── GND training recommendations ─────────────────────────────────────
+    const seen = new Set<string>()
+    const gndRecs: string[] = []
+    gExchanges.forEach(ex => {
+      ;(ex.trainingRecommendations ?? []).forEach(r => {
+        if (!seen.has(r)) { seen.add(r); gndRecs.push(r) }
+      })
+    })
+
+    if (gndRecs.length > 0) {
+      sectionHeader('GND Recommendations')
+      const NUM_W = 8
+      gndRecs.slice(0, 5).forEach((r, i) => {
+        const lines = doc.splitTextToSize(r, cW - NUM_W - 2) as string[]
+        checkPage(lines.length * 5 + 4)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...INDIGO)
+        doc.text(`${i + 1}.`, M, y)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...DARK)
+        doc.text(lines, M + NUM_W, y)
+        y += lines.length * 5 + 3
+      })
+    }
+  }
+
   // ── Final footer ──────────────────────────────────────────────────────────
   addFooter()
 
@@ -361,6 +615,7 @@ export async function exportAnalysisToPDF(
 export function exportAnalysisToCSV(
   result: AnalysisOutput,
   filename?: string,
+  groundResults?: GroundExportData,
 ): void {
   const esc = (s: string) => `"${String(s ?? '').replace(/"/g, '""')}"`
 
@@ -371,13 +626,12 @@ export function exportAnalysisToCSV(
   rows.push(`Date,${esc(today())}`)
   rows.push(`ICAO Compliance,${result.summary.overallCompliance}%`)
   rows.push(`Readback Score,${result.readbackAnalysis?.completenessScore ?? 0}%`)
-  rows.push(`Safety Score,${result.safetyMetrics?.overallSafetyScore ?? 0}%`)
   rows.push(`Total Words,${result.totalWords}`)
   rows.push(`Total Exchanges,${result.totalExchanges}`)
   rows.push(`Non-Standard Uses,${result.nonStandardFreq}`)
   rows.push('')
 
-  rows.push(['Line', 'Issue', 'Original Text', 'Suggestion', 'Weight', 'Category', 'Safety Impact', 'Explanation'].map(esc).join(','))
+  rows.push(['Line', 'Issue', 'Original Text', 'Suggestion', 'Weight', 'Category', 'Impact Type', 'Explanation'].map(esc).join(','))
 
   ;(result.phraseologyErrors ?? []).forEach(err => {
     rows.push([
@@ -399,6 +653,90 @@ export function exportAnalysisToCSV(
   rows.push('')
   rows.push('Recommendations')
   ;(result.summary?.recommendations ?? []).forEach(r => rows.push(esc(r)))
+
+  // Annotated transcript
+  const csvLines = result.parsedLines ?? []
+  if (csvLines.length > 0) {
+    // Build error lookup
+    const csvErrorsByLine = new Map<number, typeof csvErrors>()
+    const csvErrors = result.phraseologyErrors ?? []
+    csvErrors.forEach(err => {
+      const ln = err.line ?? 0
+      if (!csvErrorsByLine.has(ln)) csvErrorsByLine.set(ln, [])
+      csvErrorsByLine.get(ln)!.push(err)
+    })
+
+    rows.push('')
+    rows.push('ANNOTATED TRANSCRIPT')
+    rows.push(['Line', 'Speaker', 'Text', 'Error Count', 'Errors'].map(esc).join(','))
+    csvLines.forEach(pl => {
+      const errs = csvErrorsByLine.get(pl.lineNumber) ?? []
+      const errSummary = errs.map(e => `[${e.category}] ${e.issue}`).join(' | ')
+      rows.push([
+        String(pl.lineNumber),
+        pl.speaker,
+        pl.text,
+        String(errs.length),
+        errSummary,
+      ].map(esc).join(','))
+    })
+  }
+
+  // Ground Operations Analysis block
+  if (groundResults && groundResults.exchanges.length > 0) {
+    const gEx = groundResults.exchanges
+
+    rows.push('')
+    rows.push('GROUND OPERATIONS ANALYSIS')
+    rows.push(`Total GND Exchanges,${gEx.length}`)
+    rows.push(`Maneuvering Exchanges,${gEx.filter(e => ['taxi','ground','pushback'].includes(e.phase)).length}`)
+    rows.push(`Hold Short Exchanges,${gEx.filter(e => e.phase === 'holding').length}`)
+    rows.push(`High-Weight Errors,${gEx.filter(e => e.contextualWeight === 'high').length}`)
+    rows.push('')
+
+    // GND error rows — same column style as phraseology error table
+    rows.push(['Exchange #', 'Phase', 'Error Type', 'Description', 'Weight', 'Correction', 'ICAO Reference', 'Safety Impact'].map(esc).join(','))
+    gEx.forEach((ex, idx) => {
+      ;(ex.groundSpecificErrors ?? []).forEach(ge => {
+        rows.push([
+          String(idx + 1),
+          ex.phase,
+          ge.type ?? '',
+          ge.description ?? '',
+          ge.weight ?? '',
+          ge.correction ?? '',
+          ge.icaoReference ?? '',
+          ge.safetyImpact ?? '',
+        ].map(esc).join(','))
+      })
+    })
+
+    rows.push('')
+    rows.push('GND Readback Vectors')
+    rows.push(['Exchange #', 'Phase', 'Completeness %', 'Param Readback Accuracy', 'Hold Short Compliance', 'Readback Completeness', 'Callsign Compliance'].map(esc).join(','))
+    gEx.forEach((ex, idx) => {
+      const vec = ex.safetyVectors ?? []
+      const fv  = (factor: string) => String(vec.find(v => v.factor === factor)?.score ?? 0)
+      rows.push([
+        String(idx + 1),
+        ex.phase,
+        String(ex.multiPartAnalysis?.readbackCompleteness ?? 0),
+        fv('Parameter Readback Accuracy'),
+        fv('Hold Short Compliance'),
+        fv('Readback Completeness'),
+        fv('Callsign Compliance'),
+      ].map(esc).join(','))
+    })
+
+    rows.push('')
+    rows.push('GND Recommendations')
+    const gndSeen = new Set<string>()
+    gEx.forEach(ex => {
+      ;(ex.trainingRecommendations ?? []).forEach(r => {
+        if (!gndSeen.has(r)) { gndSeen.add(r); rows.push(esc(r)) }
+      })
+    })
+  }
 
   const csv  = rows.join('\r\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })

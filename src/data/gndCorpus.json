@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "version": "3.0",
-    "lastUpdated": "2026-02-28",
-    "description": "PAEC GND corpus — Ground control training pairs. Phases: ground, taxi."
+    "version": "3.1",
+    "lastUpdated": "2026-03-07",
+    "description": "PAEC GND corpus — Ground control training pairs. Phases: ground, taxi, pushback, holding, crossing, lineup. v3.1 adds 60 real PAEC12 examples from GROUND.pdf corpus."
   },
   "corpus": [
     {
@@ -3874,6 +3874,937 @@
       "isCorrect": true,
       "phase": "ground",
       "explanation": "Correct hold-short readback with runway. Traffic sequence info (number two) does not need readback."
+    },
+    {
+      "atc": "PAL123, pushback approved facing east, stand 12",
+      "pilot": "Pushback facing east, stand 12, PAL123",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "Correct: direction and stand confirmed with callsign."
+    },
+    {
+      "atc": "CEB210, pushback approved facing north",
+      "pilot": "Facing north, CEB210",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "Correct: direction confirmed with callsign."
+    },
+    {
+      "atc": "UAE456, pushback approved facing west, stand 5",
+      "pilot": "Pushback facing west, stand 5, UAE456",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "Correct readback including direction and stand number."
+    },
+    {
+      "atc": "SIA789, pushback approved facing south",
+      "pilot": "Facing south, SIA789",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "Correct: direction and callsign confirmed."
+    },
+    {
+      "atc": "PAL001, pushback approved facing east, gate 3",
+      "pilot": "Pushback approved facing east, gate 3, PAL001",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "Correct readback with direction and gate."
+    },
+    {
+      "atc": "PAL456, pushback approved",
+      "pilot": "Pushback, PAL456",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "pushback_direction_missing",
+      "explanation": "Pushback direction not included — ambiguous on congested apron."
+    },
+    {
+      "atc": "CEB321, pushback approved facing west, stand 8",
+      "pilot": "Pushback approved, CEB321",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "pushback_direction_missing",
+      "explanation": "Direction 'facing west' and stand omitted — ATC cannot verify crew intent."
+    },
+    {
+      "atc": "UAE111, pushback approved facing north",
+      "pilot": "Pushback, UAE111",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "pushback_direction_missing",
+      "explanation": "Facing direction must be included in pushback readback per ICAO Doc 4444."
+    },
+    {
+      "atc": "PAL456, pushback approved facing east, stand 12",
+      "pilot": "Roger, PAL456",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "roger_substitution",
+      "explanation": "'Roger' not sufficient for pushback — must confirm direction and stand."
+    },
+    {
+      "atc": "SIA234, pushback approved facing south, bay 7",
+      "pilot": "Wilco, SIA234",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "roger_substitution",
+      "explanation": "'Wilco' alone for pushback instruction is unacceptable — all specifics must be confirmed."
+    },
+    {
+      "atc": "CEB900, pushback approved facing west",
+      "pilot": "Roger, copy",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "roger_substitution",
+      "explanation": "Both 'roger' and callsign omitted — unacceptable pushback readback."
+    },
+    {
+      "atc": "PAL789, pushback approved facing north",
+      "pilot": "Facing north",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "callsign_not_included",
+      "explanation": "Callsign omitted — ATC cannot confirm which aircraft is reading back."
+    },
+    {
+      "atc": "UAE333, pushback approved facing east, stand 4",
+      "pilot": "Pushback facing east",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "callsign_not_included",
+      "explanation": "Callsign missing from pushback readback — required for ATC identification."
+    },
+    {
+      "atc": "CEB777, pushback approved facing south",
+      "pilot": "Pushback",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "callsign_not_included",
+      "explanation": "Both callsign and direction omitted — incomplete readback."
+    },
+    {
+      "atc": "PAL111, pushback approved facing west, stand 9",
+      "pilot": "Pushback facing west, PAL111",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "Stand number omitted — partial readback may cause apron confusion."
+    },
+    {
+      "atc": "SIA456, pushback approved facing east, gate 2",
+      "pilot": "Facing east, SIA456",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "Gate not confirmed — incomplete readback."
+    },
+    {
+      "atc": "CEB555, pushback approved facing north, bay 11",
+      "pilot": "Pushback approved, facing north, CEB555",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "Bay number omitted — full readback requires all instruction elements."
+    },
+    {
+      "atc": "UAE321, hold short of runway two four right",
+      "pilot": "Holding short runway two four right, UAE321",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "Correct: full runway designator including R qualifier confirmed with callsign."
+    },
+    {
+      "atc": "PAL789, hold short of runway zero six",
+      "pilot": "Holding short runway zero six, PAL789",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "Correct hold-short readback with runway and callsign."
+    },
+    {
+      "atc": "CEB333, hold short of runway two four",
+      "pilot": "Hold short runway two four, CEB333",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "Correct: full readback with runway and callsign."
+    },
+    {
+      "atc": "SIA100, hold short of runway one three left",
+      "pilot": "Holding short runway one three left, SIA100",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "Correct readback including L qualifier — required at parallel runway airports."
+    },
+    {
+      "atc": "UAE999, hold short of runway two nine",
+      "pilot": "Hold short runway two nine, UAE999",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "Correct readback with runway and callsign."
+    },
+    {
+      "atc": "PAL444, hold short of runway zero six",
+      "pilot": "Roger, PAL444",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "roger_substitution",
+      "explanation": "ICAO 4444 §7.11.2: hold short requires explicit runway confirmation, not 'roger'."
+    },
+    {
+      "atc": "CEB222, hold short of runway two four right",
+      "pilot": "Wilco, CEB222",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "roger_substitution",
+      "explanation": "'Wilco' alone for hold short is unsafe — runway must be confirmed explicitly."
+    },
+    {
+      "atc": "UAE555, hold short of runway one three",
+      "pilot": "Affirm, UAE555",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "roger_substitution",
+      "explanation": "'Affirm' without runway readback does not confirm crew received the specific runway."
+    },
+    {
+      "atc": "SIA678, hold short of runway two four right",
+      "pilot": "Hold short two four, SIA678",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "missing_designator",
+      "explanation": "L/R designator omitted — at parallel runways this is safety-critical."
+    },
+    {
+      "atc": "PAL888, hold short of runway one three left",
+      "pilot": "Holding short runway one three, PAL888",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "missing_designator",
+      "explanation": "'Left' qualifier omitted — ambiguous at parallel-runway airports."
+    },
+    {
+      "atc": "CEB101, hold short of runway two four left",
+      "pilot": "Hold short two four, CEB101",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "missing_designator",
+      "explanation": "Both 'runway' word and L/R designator omitted — incomplete and ambiguous readback."
+    },
+    {
+      "atc": "UAE777, hold short of runway zero six",
+      "pilot": "Holding short",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "hold_short_not_confirmed",
+      "explanation": "Runway not confirmed and callsign missing — completely inadequate hold-short readback."
+    },
+    {
+      "atc": "PAL321, hold short of runway two four",
+      "pilot": "Hold short, PAL321",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "hold_short_not_confirmed",
+      "explanation": "Runway omitted — ATC cannot verify crew confirmed correct holding point."
+    },
+    {
+      "atc": "SIA555, hold short of runway one three right",
+      "pilot": "Holding, SIA555",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "hold_short_not_confirmed",
+      "explanation": "Neither runway nor 'short' keyword confirmed — inadequate readback."
+    },
+    {
+      "atc": "CEB400, hold short of runway two four",
+      "pilot": "Hold short runway two nine, CEB400",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "incorrect_holding_point",
+      "explanation": "Wrong runway read back — crew confirmed different runway from instruction."
+    },
+    {
+      "atc": "UAE600, hold short of runway zero six",
+      "pilot": "Hold short runway one three, UAE600",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "incorrect_holding_point",
+      "explanation": "Incorrect runway in readback — safety hazard requiring immediate correction."
+    },
+    {
+      "atc": "PAL234, cross runway one three left, expedite",
+      "pilot": "Cross runway one three left, expediting, PAL234",
+      "isCorrect": true,
+      "phase": "crossing",
+      "explanation": "Correct: runway with qualifier confirmed and expedite acknowledged."
+    },
+    {
+      "atc": "CEB567, cross runway two four, hold short of runway two nine",
+      "pilot": "Cross runway two four, hold short runway two nine, CEB567",
+      "isCorrect": true,
+      "phase": "crossing",
+      "explanation": "Correct: both runways confirmed with callsign."
+    },
+    {
+      "atc": "UAE888, cross runway zero six",
+      "pilot": "Cross runway zero six, UAE888",
+      "isCorrect": true,
+      "phase": "crossing",
+      "explanation": "Correct readback with runway and callsign."
+    },
+    {
+      "atc": "SIA321, cross runway two four right",
+      "pilot": "Crossing runway two four right, SIA321",
+      "isCorrect": true,
+      "phase": "crossing",
+      "explanation": "Correct: qualifier R confirmed with callsign."
+    },
+    {
+      "atc": "PAL111, cross runway one three",
+      "pilot": "Cross runway one three, PAL111",
+      "isCorrect": true,
+      "phase": "crossing",
+      "explanation": "Correct crossing readback with runway and callsign."
+    },
+    {
+      "atc": "UAE111, cross runway zero six",
+      "pilot": "Wilco, UAE111",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "roger_substitution",
+      "explanation": "'Wilco' alone for runway crossing is unacceptable — runway number must be confirmed."
+    },
+    {
+      "atc": "CEB444, cross runway two four",
+      "pilot": "Roger, CEB444",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "roger_substitution",
+      "explanation": "'Roger' does not confirm which runway is being crossed — full readback required."
+    },
+    {
+      "atc": "SIA777, cross runway one three right",
+      "pilot": "Affirm, SIA777",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "roger_substitution",
+      "explanation": "Acknowledgement only — crossing clearance requires runway confirmation."
+    },
+    {
+      "atc": "PAL678, cross runway one three left, expedite",
+      "pilot": "Crossing runway one three, PAL678",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "missing_designator",
+      "explanation": "'Left' designator omitted when crossing parallel runway — could indicate wrong runway."
+    },
+    {
+      "atc": "UAE222, cross runway two four right",
+      "pilot": "Cross runway two four, UAE222",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "missing_designator",
+      "explanation": "'Right' qualifier omitted — parallel runway ambiguity creates safety hazard."
+    },
+    {
+      "atc": "CEB999, cross runway one three left",
+      "pilot": "Crossing runway one three, CEB999",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "missing_designator",
+      "explanation": "L/R designator missing — ATC cannot confirm crew will cross correct parallel runway."
+    },
+    {
+      "atc": "SIA123, cross runway two four",
+      "pilot": "Crossing runway two four",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "callsign_not_included",
+      "explanation": "Callsign omitted — ATC cannot identify which aircraft is crossing."
+    },
+    {
+      "atc": "PAL999, cross runway zero six",
+      "pilot": "Cross runway zero six",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "callsign_not_included",
+      "explanation": "No callsign in readback — required for ATC identification."
+    },
+    {
+      "atc": "UAE777, cross runway one three",
+      "pilot": "Crossing",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "runway_crossing_incomplete",
+      "explanation": "Neither runway nor callsign confirmed — critically incomplete readback for runway crossing."
+    },
+    {
+      "atc": "CEB123, cross runway two four, hold short of runway two nine",
+      "pilot": "Cross runway two four, CEB123",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "runway_crossing_incomplete",
+      "explanation": "Second hold-short instruction omitted — crew may proceed beyond holding point."
+    },
+    {
+      "atc": "SIA456, cross runway zero six, expedite",
+      "pilot": "Cross, SIA456",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "runway_crossing_incomplete",
+      "explanation": "Runway number omitted — incomplete crossing readback."
+    },
+    {
+      "atc": "PAL555, line up and wait runway zero six",
+      "pilot": "Line up and wait runway zero six, PAL555",
+      "isCorrect": true,
+      "phase": "lineup",
+      "explanation": "Correct LUAW readback with runway and callsign."
+    },
+    {
+      "atc": "CEB900, line up and wait runway two four",
+      "pilot": "Line up and wait runway two four, CEB900",
+      "isCorrect": true,
+      "phase": "lineup",
+      "explanation": "Correct readback confirming LUAW instruction with runway."
+    },
+    {
+      "atc": "UAE333, line up and wait runway one three",
+      "pilot": "Line up and wait runway one three, UAE333",
+      "isCorrect": true,
+      "phase": "lineup",
+      "explanation": "Correct LUAW readback."
+    },
+    {
+      "atc": "SIA666, runway two four, line up and wait, traffic on final",
+      "pilot": "Line up and wait runway two four, SIA666",
+      "isCorrect": true,
+      "phase": "lineup",
+      "explanation": "Correct: LUAW confirmed with runway. Traffic info does not require readback."
+    },
+    {
+      "atc": "PAL777, line up and wait runway zero six",
+      "pilot": "Line up and wait, PAL777",
+      "isCorrect": true,
+      "phase": "lineup",
+      "explanation": "Acceptable: LUAW confirmed with callsign. Runway readback is best practice but not always mandatory."
+    },
+    {
+      "atc": "PAL001, line up and wait runway two four",
+      "pilot": "Cleared for takeoff runway two four, PAL001",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "lineup_vs_takeoff_confusion",
+      "explanation": "CRITICAL: Pilot read takeoff clearance instead of LUAW — must not commence takeoff roll."
+    },
+    {
+      "atc": "CEB555, runway zero six, line up and wait",
+      "pilot": "Cleared for takeoff runway zero six, CEB555",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "lineup_vs_takeoff_confusion",
+      "explanation": "Crew read back takeoff clearance for a LUAW — may cause premature departure."
+    },
+    {
+      "atc": "UAE888, line up and wait runway one three",
+      "pilot": "Taking off runway one three, UAE888",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "lineup_vs_takeoff_confusion",
+      "explanation": "Crew responded as if cleared for departure — LUAW does not authorize takeoff."
+    },
+    {
+      "atc": "SIA100, line up and wait runway two four, behind landing traffic",
+      "pilot": "Cleared to take off two four, behind traffic, SIA100",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "lineup_vs_takeoff_confusion",
+      "explanation": "LUAW instruction misread as takeoff clearance — critical readback error."
+    },
+    {
+      "atc": "CEB900, line up and wait runway zero six, behind landing traffic",
+      "pilot": "Roger, CEB900",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "roger_substitution",
+      "explanation": "LUAW requires full readback with runway — 'Roger' gives ATC no confirmation."
+    },
+    {
+      "atc": "PAL333, line up and wait runway two four",
+      "pilot": "Wilco, PAL333",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "roger_substitution",
+      "explanation": "'Wilco' alone for LUAW is insufficient — runway must be confirmed explicitly."
+    },
+    {
+      "atc": "UAE444, runway one three, line up and wait",
+      "pilot": "Affirm, UAE444",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "roger_substitution",
+      "explanation": "Acknowledgement-only response for LUAW — runway readback required."
+    },
+    {
+      "atc": "SIA789, line up and wait runway zero six",
+      "pilot": "Line up and wait runway zero six",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "callsign_not_included",
+      "explanation": "Callsign missing — ATC cannot confirm which aircraft is lining up."
+    },
+    {
+      "atc": "CEB111, line up and wait runway two four",
+      "pilot": "Line up and wait",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "callsign_not_included",
+      "explanation": "No callsign and runway omitted — ATC has no confirmation of crew identity or runway."
+    },
+    {
+      "atc": "PAL666, runway one three, line up and wait",
+      "pilot": "Line up and wait, runway one three",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "callsign_not_included",
+      "explanation": "Callsign omitted from LUAW readback — required per ICAO phraseology."
+    },
+    {
+      "atc": "UAE555, line up and wait runway two four",
+      "pilot": "Line up and wait runway two nine, UAE555",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "runway_designation_wrong",
+      "explanation": "Wrong runway read back — crew confirmed runway two nine instead of two four."
+    },
+    {
+      "atc": "SIA222, line up and wait runway zero six",
+      "pilot": "Line up and wait runway one three, SIA222",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "runway_designation_wrong",
+      "explanation": "Incorrect runway in LUAW readback — ATC must correct immediately."
+    },
+    {
+      "atc": "CEB777, runway two four, line up and wait",
+      "pilot": "Line up and wait runway two nine, CEB777",
+      "isCorrect": false,
+      "phase": "lineup",
+      "errorType": "runway_designation_wrong",
+      "explanation": "Crew read back wrong runway for lineup — safety-critical readback error."
+    },
+    {
+      "atc": "startup approved runway zero six, for pushback contact one two one seven",
+      "pilot": "Startup approved runway zero six, one two one seven for pushback, Philippine four two two",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "PAEC12: Complete startup readback — runway and pushback frequency confirmed with callsign."
+    },
+    {
+      "atc": "startup approved runway three one, contact one two three decimal two five for pushback",
+      "pilot": "Okay, startup approved, one two three two five for pushback, November fifty-four bravo sierra",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: 'Okay' is non-standard; pilot must use 'Roger' or 'Wilco'. Runway also omitted from readback."
+    },
+    {
+      "atc": "startup approved, for pushback ramp one two eight eight",
+      "pilot": "Startup approved, switching one two eight eight, Airphil two five four five",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "PAEC12: Startup readback correct — frequency confirmed, callsign appended."
+    },
+    {
+      "atc": "startup approved runway zero six, for pushback contact one two one three five",
+      "pilot": "Startup approved, switching one two one three five for pushback, Airphil two five four five",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: Runway zero six omitted from startup readback — all safety-critical elements must be read back."
+    },
+    {
+      "atc": "startup approved runway zero six, for pushback contact one two eight eight",
+      "pilot": "Confirm one two one seven, sir, Airphil two eight four niner",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "wrong_value",
+      "explanation": "PAEC12: Pilot read back wrong pushback frequency (one two one seven vs one two eight eight). 'Sir' is non-standard."
+    },
+    {
+      "atc": "revise startup approved runway zero six, for pushback, ramp one two one three five",
+      "pilot": "Okay, we are cleared for, uh, startup, repeat, Emirates three three seven, will call apron for pushback",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: Multiple errors — 'Okay' non-standard, filler 'uh', 'repeat' non-standard (use 'say again'), runway omitted, frequency omitted."
+    },
+    {
+      "atc": "startup approved, for pushback contact one two one decimal three five",
+      "pilot": "One two one three five, cleared startup, China Southern three zero seven eight",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: Reversed readback order — startup approval should precede frequency. Does not confirm startup approved."
+    },
+    {
+      "atc": "startup approved runway zero six, for pushback ramp one two one seven",
+      "pilot": "Startup runway zero six, one two one seven for pushback, Philippine four two two",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: 'Approved' dropped from 'startup approved' — clearance word must be included in readback."
+    },
+    {
+      "atc": "taxi Golf one one, delta, hold short of Foxtrot four",
+      "pilot": "Taxi Golf one one delta, hold short Foxtrot four, Cebu niner six one",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Complete taxi readback — route and hold short point both confirmed with callsign."
+    },
+    {
+      "atc": "taxi Golf one one, delta, hold short of Foxtrot four",
+      "pilot": "Golf one one left delta, hold short of Foxtrot four, Cebu niner one niner",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Correct taxi readback with direction qualifier — hold short confirmed."
+    },
+    {
+      "atc": "taxi Golf one four, delta, hold short of Foxtrot five",
+      "pilot": "Taxi Golf one four, Delta, hold short of Foxtrot five, Coolred one two six four",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Complete taxi readback — taxiway routing and hold short point confirmed."
+    },
+    {
+      "atc": "taxi Hotel two, Golf five, Charlie",
+      "pilot": "Taxi Hotel two, Golf five, Charlie, Airphil two seven seven three",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Multi-segment taxi route read back in correct order with callsign."
+    },
+    {
+      "atc": "taxi Hotel two, Golf eight echo, right Charlie",
+      "pilot": "Hotel two, Golf eight echo, right Charlie, Philippine four one two",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Complex taxi route with turn direction read back correctly."
+    },
+    {
+      "atc": "taxi Golf one two, delta, hold short of Foxtrot five",
+      "pilot": "Taxi Golf one two, Delta, Hold short of Foxtrot five, Cebu four eight five",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Correct taxi readback — route and hold short confirmed."
+    },
+    {
+      "atc": "taxi Golf one one, delta, hold short of Foxtrot four",
+      "pilot": "Golf one one, left delta, hold short of Foxtrot four, Cebu six two three",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Correct taxi readback with direction qualified — hold short point confirmed."
+    },
+    {
+      "atc": "taxi Golf nine, charlie, hotel two",
+      "pilot": "Taxi Golf nine, Charlie, Hotel two, Philippine three zero zero",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Multi-segment taxi route read back in order with callsign."
+    },
+    {
+      "atc": "behind Philippine airbus, taxi Hotel two, Golf five, Charlie",
+      "pilot": "Taxi hotel two, Golf five, Charlie, Coolred seven eight one",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Taxi route confirmed — traffic sequence note acknowledged implicitly."
+    },
+    {
+      "atc": "taxi Golf one one, delta, hold short of Foxtrot four",
+      "pilot": "Roger, Cebu three niner six one",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: 'Roger' alone is insufficient — taxi route and hold short instruction must be fully read back."
+    },
+    {
+      "atc": "taxi Golf one four, delta, hold short of Foxtrot five",
+      "pilot": "Taxi Golf one four, Delta, hold short of Foxtrot four, Coolred one two six four",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "wrong_value",
+      "explanation": "PAEC12: Wrong hold short point — pilot said Foxtrot four instead of Foxtrot five."
+    },
+    {
+      "atc": "hold short of Foxtrot four",
+      "pilot": "Hold short Foxtrot four, Malaysian eight zero three",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold short instruction correctly read back with callsign."
+    },
+    {
+      "atc": "hold short of Foxtrot five",
+      "pilot": "Hold short of Foxtrot five, Malaysian eight zero three",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold short instruction read back in full with callsign."
+    },
+    {
+      "atc": "hold short of Golf four, traffic will cross the runway",
+      "pilot": "Hold short of Golf four, Bluejay six zero five five",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold short confirmed — traffic advisory acknowledged."
+    },
+    {
+      "atc": "hold short of Golf one one",
+      "pilot": "Hold short Golf one one, Cebu nine six three",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold short correctly read back with callsign."
+    },
+    {
+      "atc": "hold short of Golf one one, traffic, Gulfstream will enter Delta via Foxtrot one",
+      "pilot": "Okay, hold short of Golf one one, Cebu nine six three",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: 'Okay' is non-standard acknowledgement — use 'Wilco' or 'Roger'. Hold short point confirmed correctly."
+    },
+    {
+      "atc": "hold short of Foxtrot five, Tower one one eight one, good day",
+      "pilot": "Hold short of Foxtrot five, one one eight one, good day, Cebu eight niner one",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold short and tower frequency both confirmed — complete readback."
+    },
+    {
+      "atc": "hold short of Golf four",
+      "pilot": "Hold short Golf four, Coolred three one seven",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Correct hold short readback with callsign."
+    },
+    {
+      "atc": "hold short of Golf three, for sequence one one eight one, good day",
+      "pilot": "Hold short Golf three, switching one one eight one, good day, Airphil two five four five",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold short and tower frequency confirmed — 'switching' acceptable for frequency change readback."
+    },
+    {
+      "atc": "tower one one eight one, good day",
+      "pilot": "One one eight one, good day, Airphil two one three one",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Tower frequency readback correct — frequency confirmed with callsign."
+    },
+    {
+      "atc": "tower one one eight one, good day",
+      "pilot": "Contact one two one seven, thank you, good day, RPC eight seven eight six",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "wrong_value",
+      "explanation": "PAEC12: Wrong frequency read back — pilot said one two one seven instead of one one eight one."
+    },
+    {
+      "atc": "contact tower, one one eight one",
+      "pilot": "One one eight one, Airphil two zero three niner, good day",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Tower handoff frequency correctly read back with callsign."
+    },
+    {
+      "atc": "when ready, tower one one eight one, good day",
+      "pilot": "When ready, one one eight one, good day, Cebu seven zero three",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Complete tower handoff readback including timing qualifier — correct."
+    },
+    {
+      "atc": "tower one one eight one, good day",
+      "pilot": "Tower one one eight one, thank you, good day, Coolred three one seven",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: 'Thank you' is non-standard in a frequency handoff readback — use only the frequency and callsign."
+    },
+    {
+      "atc": "cross runway three one, hold short of golf eight echo",
+      "pilot": "Cross runway three one, hold short of golf eight echo, RPC eight seven eight six",
+      "isCorrect": true,
+      "phase": "crossing",
+      "explanation": "PAEC12: Runway crossing with hold short point read back completely — correct."
+    },
+    {
+      "atc": "right on foxtrot four, cross runway three one, papa kilo",
+      "pilot": "Right on foxtrot four, cross three one, papa, hold short kilo, RPC eight six one three",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: 'Runway' dropped before three one in readback. 'Hold short kilo' added — not in original instruction."
+    },
+    {
+      "atc": "tow Mike two, Charlie, hold short of November",
+      "pilot": "Tow Charlie, hold short of November, RPC eight seven eight six",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: Starting point 'Mike two' omitted from towing readback — full route must be confirmed."
+    },
+    {
+      "atc": "tow golf one-one, delta, hold short of foxtrot four",
+      "pilot": "Golf one-one, delta, hold short of foxtrot four, RPC eight-six one-three",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Towing instruction read back — route and hold short confirmed with callsign."
+    },
+    {
+      "atc": "hold at Sierra nine, for sequence tower one one eight one, good day",
+      "pilot": "Sierra nine, sequence one one eight one, Coolred two one five",
+      "isCorrect": false,
+      "phase": "holding",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: 'Hold at' omitted — instruction was to hold at Sierra nine. 'For sequence' meaning may be misunderstood."
+    },
+    {
+      "atc": "hold at November five, traffic Cebu will taxi November",
+      "pilot": "Hold at November five, Coolred one two six four",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold position correctly read back — traffic advisory acknowledged implicitly."
+    },
+    {
+      "atc": "continue Delta, hold short Charlie",
+      "pilot": "Continue taxi Delta, hold short Charlie, Cebu five eight five",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Taxi continuation and hold short confirmed with callsign — 'taxi' clarifier acceptable."
+    },
+    {
+      "atc": "continue Delta",
+      "pilot": "Cebu four eight five, hold short of Foxtrot five",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "incorrect_readback",
+      "explanation": "PAEC12: Pilot read back the wrong instruction — responded with hold short rather than confirming continue Delta."
+    },
+    {
+      "atc": "startup approved, one two three two five for air taxi",
+      "pilot": "Startup approved and one two three two five for air taxi, thank you and good day, seven four five eight",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: 'Thank you and good day' inappropriate during active clearance readback — callsign as number only ('seven four five eight') without full registration is non-standard."
+    },
+    {
+      "atc": "standby for start runway zero six, number two",
+      "pilot": "Standing by, China Southern three zero seven eight",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "PAEC12: Standby acknowledged correctly — sequence number noted, callsign confirmed."
+    },
+    {
+      "atc": "standby taxi, traffic on Charlie",
+      "pilot": "Standby taxi, Coolred seven eight one",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Standby instruction read back correctly with callsign."
+    },
+    {
+      "atc": "expect about twenty to thirty minutes before your start-up, Currently there are eleven aircraft with start-up parameters",
+      "pilot": "Roger, Emirates three three seven",
+      "isCorrect": true,
+      "phase": "ground",
+      "explanation": "PAEC12: 'Roger' acceptable for information-only transmissions — no readback of specific clearance elements required."
+    },
+    {
+      "atc": "startup approved, runway zero six, for pushback contact one two eight eight, Airphil two eight four nine",
+      "pilot": "Startup approved, for pushback contact one two eight eight, Airphil two eight four niner",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: Runway omitted from startup readback — runway designation is safety-critical and must be confirmed."
+    },
+    {
+      "atc": "startup approved, for your request contact one two three two five",
+      "pilot": "Startup approved, contact one two three two five, Helicopter five eight five",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "PAEC12: Startup and frequency read back correctly — callsign confirmed."
+    },
+    {
+      "atc": "taxi Golf one one, Delta, hold short of Foxtrot four",
+      "pilot": "Ground, Cebu six two three Hold short Golf one one, request taxi to runway three one, good morning",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "incorrect_readback",
+      "explanation": "PAEC12: Pilot transmitted a new request instead of reading back the taxi instruction — ATC clearance must be acknowledged first."
+    },
+    {
+      "atc": "your flight plan is saved and startup approved, one two three two five for air taxi",
+      "pilot": "Startup approved and one two three two five for air taxi, thank you and good day, seven four five eight",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: Non-standard social phrases during clearance readback. Callsign must use full registration, not just numbers."
+    },
+    {
+      "atc": "startup approved runway zero six, for pushback contact one two one three five",
+      "pilot": "Startup approved runway zero six, for pushback one two one three five, CoolRed one eight eight",
+      "isCorrect": true,
+      "phase": "pushback",
+      "explanation": "PAEC12: Complete startup readback — runway and pushback frequency both confirmed with callsign."
+    },
+    {
+      "atc": "cebu niner one niner, taxi Golf one one delta, hold short of Foxtrot four",
+      "pilot": "Golf one one Delta Fox four, Cebu niner one niner",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: 'Taxi' omitted; hold short abbreviated as 'Fox four' — full instruction must be read back per ICAO."
+    },
+    {
+      "atc": "for sequence tower one one eight one, good day",
+      "pilot": "One one eight one, thank you, good day, Coolred three one seven",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: 'Thank you' is non-standard in ATC communication readbacks — omit social phrases."
+    },
+    {
+      "atc": "for sequence tower one one eight one, good day",
+      "pilot": "Tower one one eight one, good day, Cebu eight niner one",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Tower frequency and sequence instruction confirmed — correct readback with callsign."
+    },
+    {
+      "atc": "ramp one two eight eight, good day",
+      "pilot": "Papa hold short Kilo, contact one two eight decimal eight, thank you and good day, RPC eight six one three",
+      "isCorrect": false,
+      "phase": "taxi",
+      "errorType": "non_standard_phraseology",
+      "explanation": "PAEC12: Pilot added unrequested 'Papa hold short Kilo' and non-standard 'thank you and good day' — only confirm the instruction given."
+    },
+    {
+      "atc": "hold short Golf one two",
+      "pilot": "Cebu four eight five, hold short of Golf one two",
+      "isCorrect": true,
+      "phase": "holding",
+      "explanation": "PAEC12: Hold short correctly confirmed — callsign placed at start is acceptable."
+    },
+    {
+      "atc": "taxi Golf one four delta, hold short of Foxtrot five",
+      "pilot": "Golf one four Delta, hold short of Foxtrot five, following company, Cebu eight niner one",
+      "isCorrect": true,
+      "phase": "taxi",
+      "explanation": "PAEC12: Taxi route and hold short confirmed — pilot added traffic awareness info, acceptable."
+    },
+    {
+      "atc": "startup approved, runway three one, for pushback ramp one two one three five",
+      "pilot": "Startup approved, for push one two one three five, thank you, Coolred one two six four",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "incomplete_readback",
+      "explanation": "PAEC12: Runway three one omitted from readback; 'thank you' non-standard in ATC communications."
     }
   ],
   "checks": {
@@ -3882,6 +4813,10 @@
     "takeoffClearancePattern": "cleared\\s+(for\\s+)?take\\s*off",
     "runwayPattern": "runway\\s+([0-9]{1,2}[LRC]?)",
     "taxiwayViaPattern": "via\\s+([a-z][a-z,\\s0-9]*)",
-    "pushbackPattern": "push\\s*back|pushback"
+    "pushbackPattern": "push\\s*back|pushback",
+    "backtrackPattern": "back-?track|line\\s*up.*runway.*in\\s*use",
+    "intersectionPattern": "intersection\\s+(?:departure|take\\s*off)|[a-z]\\d?\\s+intersection",
+    "atisPattern": "(?:information|info)\\s+([a-z])|atis\\s+([a-z])",
+    "frequencyPattern": "(?:contact\\s+)?(?:tower|approach|ground)(?:\\s+on)?\\s+([0-9]{3}\\.[0-9]{1,3})"
   }
 }
