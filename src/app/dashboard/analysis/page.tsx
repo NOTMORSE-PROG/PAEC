@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useDeferredValue } from 'react'
 import {
   BarChart3,
   Upload,
@@ -33,8 +33,8 @@ import {
 } from 'lucide-react'
 import { extractTextFromPDF, validateATCDialogue } from '@/lib/pdfExtractor'
 import { extractTextFromDOCX } from '@/lib/docxExtractor'
-import { exportAnalysisToPDF, exportAnalysisToCSV } from '@/lib/reportExporter'
-import { analyzeDialogue, parseLines, type AnalysisOutput, type PhraseologyError, type ParsedLine } from '@/lib/analysisEngine'
+import { exportAnalysisToPDF, exportAnalysisToCSV, exportAllToPDF, exportAllToCSV, type BatchExportItem } from '@/lib/reportExporter'
+import { analyzeDialogue, parseLines, type AnalysisOutput, type PhraseologyError } from '@/lib/analysisEngine'
 import { analyzeDepartureApproach, type DepartureApproachMLResult, type FlightPhase } from '@/lib/departureApproachAnalyzer'
 import { analyzeGround, type GroundMLResult, type GroundPhase } from '@/lib/groundAnalyzer'
 import { analyzeWithPhaseContext } from '@/lib/semanticReadbackAnalyzer'
@@ -57,25 +57,36 @@ interface ExtractedPDFData {
   }
 }
 
-export default function AnalysisPage() {
-  const [selectedCorpus, setSelectedCorpus] = useState<CorpusType>(null)
-  const [uploadMethod, setUploadMethod] = useState<UploadMethod>(null)
-  const [uploadedText, setUploadedText] = useState('')
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [isExtracting, setIsExtracting] = useState(false)
-  const [analysisResult, setAnalysisResult] = useState<AnalysisOutput | null>(null)
-  const [showUploadModal, setShowUploadModal] = useState(false)
-  const [pdfData, setPdfData] = useState<ExtractedPDFData | null>(null)
-  const [pdfError, setPdfError] = useState<string | null>(null)
-  const [showDetailedErrors, setShowDetailedErrors] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
-  const [showExportMenu, setShowExportMenu] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
-  const [selectedErrorIndex, setSelectedErrorIndex] = useState<number | null>(null)
-  const [showFullTranscript, setShowFullTranscript] = useState(false)
-  const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set())
-  const [analysisError, setAnalysisError] = useState<string | null>(null)
-  const [mlAnalysisResults, setMlAnalysisResults] = useState<{
+type AnnotatedLine = {
+  lineNum: number
+  text: string
+  speaker: string
+  conversationGroup: number
+  errors: PhraseologyError[]
+  hasErrors: boolean
+  highestWeight: string
+}
+
+interface FileQueueItem {
+  id: string
+  name: string
+  file?: File
+  status: 'pending' | 'extracting' | 'extracted' | 'analyzing' | 'done' | 'error'
+  extractedText?: string
+  annotatedLines?: AnnotatedLine[]
+  metadata?: {
+    pageCount: number
+    extractedLines: number
+    wordCount: number
+    formatQuality: 'good' | 'fair' | 'poor'
+  }
+  validation?: {
+    isValid: boolean
+    confidence: number
+    issues: string[]
+  }
+  analysisResult?: AnalysisOutput
+  mlAnalysisResults?: {
     exchanges: DepartureApproachMLResult[]
     summary: {
       totalExchanges: number
@@ -85,9 +96,8 @@ export default function AnalysisPage() {
       criticalErrors: number
       phaseBreakdown: Record<FlightPhase, number>
     }
-  } | null>(null)
-
-  const [groundAnalysisResults, setGroundAnalysisResults] = useState<{
+  } | null
+  groundAnalysisResults?: {
     exchanges: GroundMLResult[]
     summary: {
       totalExchanges: number
@@ -98,9 +108,48 @@ export default function AnalysisPage() {
       criticalErrors: number
       phaseBreakdown: Record<GroundPhase, number>
     }
-  } | null>(null)
+  } | null
+  error?: string
+}
+
+export default function AnalysisPage() {
+  const [selectedCorpus, setSelectedCorpus] = useState<CorpusType>(null)
+  const [uploadMethod, setUploadMethod] = useState<UploadMethod>(null)
+  const [pastedText, setPastedText] = useState('')
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isExtracting, setIsExtracting] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showDetailedErrors, setShowDetailedErrors] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [selectedErrorIndex, setSelectedErrorIndex] = useState<number | null>(null)
+  const [showFullTranscript, setShowFullTranscript] = useState(false)
+  const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set())
+  const [transcriptLimit, setTranscriptLimit] = useState(50)
+  const [exchangeLimit, setExchangeLimit] = useState(20)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [fileQueue, setFileQueue] = useState<FileQueueItem[]>([])
+  const [activeFileId, setActiveFileId] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+
+  // Defer the expensive results re-render — tab buttons update instantly (urgent),
+  // results update after React has bandwidth (deferred). INP = cost of tab highlight only.
+  const deferredActiveFileId = useDeferredValue(activeFileId)
+  const isResultsStale = activeFileId !== deferredActiveFileId
+
+  // Derived state — drop-in replacements so the results section needs zero changes
+  const activeFile = fileQueue.find(f => f.id === deferredActiveFileId) ?? null
+  const analysisResult = activeFile?.analysisResult ?? null
+  const mlAnalysisResults = activeFile?.mlAnalysisResults ?? null
+  const groundAnalysisResults = activeFile?.groundAnalysisResults ?? null
+  const uploadedText = activeFile?.extractedText ?? ''
+  const pdfData: ExtractedPDFData | null = activeFile?.metadata
+    ? { text: activeFile.extractedText ?? '', metadata: activeFile.metadata, validation: activeFile.validation ?? { isValid: true, confidence: 100, issues: [] } }
+    : null
+  const pdfError = activeFile?.error ?? null
 
   // Close export dropdown when clicking outside
   const handleClickOutside = useCallback(() => setShowExportMenu(false), [])
@@ -135,66 +184,67 @@ export default function AnalysisPage() {
     },
   ]
 
-  const handleFileSelect = useCallback(async (file: File) => {
-    const isPDF  = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                   || file.name.toLowerCase().endsWith('.docx')
+  const handleFilesSelected = useCallback(async (incoming: FileList | File[]) => {
+    const allowed = Array.from(incoming).filter(f =>
+      f.type === 'application/pdf' ||
+      f.name.toLowerCase().endsWith('.pdf') ||
+      f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      f.name.toLowerCase().endsWith('.docx')
+    )
+    if (!allowed.length) return
 
-    if (!isPDF && !isDOCX) {
-      setPdfError('Please upload a PDF or DOCX file')
-      return
-    }
-
-    if (file.size > 20 * 1024 * 1024) {
-      setPdfError('File size must be less than 20 MB')
-      return
-    }
-
+    const newItems: FileQueueItem[] = allowed.map(f => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}-${f.name}`,
+      name: f.name,
+      file: f,
+      status: 'pending' as const,
+    }))
+    setFileQueue(prev => [...prev, ...newItems])
+    setShowUploadModal(false)
     setIsExtracting(true)
-    setPdfError(null)
-    setPdfData(null)
-    // Set method early so the loading message shows the correct file type
-    setUploadMethod(isPDF ? 'pdf' : 'docx')
 
-    try {
-      // Route to the right extractor based on file type
-      const result = isPDF
-        ? await extractTextFromPDF(file)
-        : await extractTextFromDOCX(file)
+    for (const item of newItems) {
+      setFileQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'extracting' as const } : q))
+      const isPDF = item.file!.type === 'application/pdf' || item.name.toLowerCase().endsWith('.pdf')
+      try {
+        const result = isPDF
+          ? await extractTextFromPDF(item.file!)
+          : await extractTextFromDOCX(item.file!)
 
-      if (!result.success) {
-        setPdfError(result.errors.join(', ') || `Failed to extract text from ${isPDF ? 'PDF' : 'DOCX'}`)
-        setUploadedText('')
-        setUploadMethod(null)
-        setIsExtracting(false)
-        return
+        if (!result.success) {
+          setFileQueue(prev => prev.map(q => q.id === item.id
+            ? { ...q, status: 'error' as const, error: result.errors[0] ?? 'Extraction failed' }
+            : q
+          ))
+          continue
+        }
+        const validation = validateATCDialogue(result.text)
+        setFileQueue(prev => prev.map(q => q.id === item.id
+          ? { ...q, status: 'extracted' as const, extractedText: result.text, metadata: result.metadata, validation }
+          : q
+        ))
+      } catch (err) {
+        setFileQueue(prev => prev.map(q => q.id === item.id
+          ? { ...q, status: 'error' as const, error: err instanceof Error ? err.message : 'Extraction failed' }
+          : q
+        ))
       }
-
-      const validation = validateATCDialogue(result.text)
-
-      setPdfData({
-        text: result.text,
-        metadata: result.metadata,
-        validation,
-      })
-
-      setUploadedText(result.text)
-    } catch (error) {
-      setPdfError(error instanceof Error ? error.message : 'Failed to process file')
-    } finally {
-      setIsExtracting(false)
     }
+    setIsExtracting(false)
+  }, [])
+
+  const removeFile = useCallback((id: string) => {
+    setFileQueue(prev => prev.filter(q => q.id !== id))
+    setActiveFileId(prev => prev === id ? null : prev)
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-
-    const file = e.dataTransfer.files[0]
-    if (file) {
-      handleFileSelect(file)
+    if (e.dataTransfer.files.length > 0) {
+      handleFilesSelected(e.dataTransfer.files)
     }
-  }, [handleFileSelect])
+  }, [handleFilesSelected])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -206,154 +256,134 @@ export default function AnalysisPage() {
     setIsDragging(false)
   }, [])
 
-  const handleAnalyze = async () => {
-    if (!selectedCorpus || !uploadedText.trim()) return
+  const analyzeOneItem = async (item: FileQueueItem, corpus: NonNullable<CorpusType>) => {
+    const text = item.extractedText!
+    const result = analyzeDialogue({ text, corpusType: corpus })
 
+    let mlResults: FileQueueItem['mlAnalysisResults'] = null
+    let gndResults: FileQueueItem['groundAnalysisResults'] = null
+
+    if (corpus === 'APP/DEP') {
+      const lines = parseLines(text)
+      const exchanges: DepartureApproachMLResult[] = []
+      const phaseBreakdown: Record<FlightPhase, number> = {} as Record<FlightPhase, number>
+      let totalCompleteness = 0; let criticalErrors = 0; let departureCount = 0; let approachCount = 0
+      for (let i = 0; i < lines.length - 1; i++) {
+        const cur = lines[i]; const nxt = lines[i + 1]
+        if (cur.speaker === 'ATC' && nxt.speaker === 'PILOT') {
+          const ex = analyzeDepartureApproach(cur.text, nxt.text, undefined,
+            exchanges.slice(-3).map(e => ({ type: e.errors[0]?.type || 'unknown', weight: e.contextualWeight, timestamp: Date.now() })))
+          exchanges.push(ex)
+          phaseBreakdown[ex.phase] = (phaseBreakdown[ex.phase] || 0) + 1
+          totalCompleteness += ex.multiPartAnalysis.readbackCompleteness
+          if (ex.contextualWeight === 'critical') criticalErrors++
+          if (['initial_departure', 'departure_climb', 'takeoff_roll', 'lineup', 'taxi'].includes(ex.phase)) departureCount++
+          else if (['approach', 'final_approach', 'go_around', 'descent', 'arrival'].includes(ex.phase)) approachCount++
+          i++
+        }
+      }
+      mlResults = { exchanges, summary: { totalExchanges: exchanges.length, departureCount, approachCount,
+        averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100, criticalErrors, phaseBreakdown } }
+    } else if (corpus === 'GND') {
+      const lines = parseLines(text)
+      const exchanges: GroundMLResult[] = []
+      const phaseBreakdown: Record<GroundPhase, number> = {} as Record<GroundPhase, number>
+      let totalCompleteness = 0; let criticalErrors = 0; let taxiCount = 0; let holdingCount = 0; let crossingCount = 0
+      for (let i = 0; i < lines.length - 1; i++) {
+        const cur = lines[i]; const nxt = lines[i + 1]
+        if (cur.speaker === 'ATC' && nxt.speaker === 'PILOT') {
+          const ex = analyzeGround(cur.text, nxt.text, undefined,
+            exchanges.slice(-3).map(e => ({ type: e.errors[0]?.type || 'unknown', weight: e.contextualWeight, timestamp: Date.now() })))
+          exchanges.push(ex)
+          phaseBreakdown[ex.phase] = (phaseBreakdown[ex.phase] || 0) + 1
+          totalCompleteness += ex.multiPartAnalysis.readbackCompleteness
+          if (ex.contextualWeight === 'critical') criticalErrors++
+          if (['taxi', 'ground', 'pushback'].includes(ex.phase)) taxiCount++
+          if (ex.phase === 'holding') holdingCount++
+          if (ex.phase === 'crossing') crossingCount++
+          i++
+        }
+      }
+      gndResults = { exchanges, summary: { totalExchanges: exchanges.length, taxiCount, holdingCount, crossingCount,
+        averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100, criticalErrors, phaseBreakdown } }
+    }
+
+    // Pre-compute annotated lines once here so tab-switching is instant (no parseLines on render)
+    const parsedLinesForAnnotation = parseLines(text)
+    const errorsByLine = new Map<number, PhraseologyError[]>()
+    result.phraseologyErrors.forEach(err => {
+      const existing = errorsByLine.get(err.line) || []
+      existing.push(err)
+      errorsByLine.set(err.line, existing)
+    })
+    const annotatedLines: AnnotatedLine[] = parsedLinesForAnnotation.map(parsed => {
+      const errors = errorsByLine.get(parsed.lineNumber) || []
+      return {
+        lineNum: parsed.lineNumber,
+        text: parsed.text,
+        speaker: parsed.speaker,
+        conversationGroup: parsed.conversationGroup ?? 0,
+        errors,
+        hasErrors: errors.length > 0,
+        highestWeight: errors.reduce((max, e) => {
+          const weightOrder = { high: 3, medium: 2, low: 1 }
+          return (weightOrder[e.weight as keyof typeof weightOrder] ?? 0) > (weightOrder[max as keyof typeof weightOrder] ?? 0) ? e.weight : max
+        }, 'low' as string),
+      }
+    })
+
+    return { analysisResult: result, mlAnalysisResults: mlResults, groundAnalysisResults: gndResults, annotatedLines }
+  }
+
+  const handleAnalyzeAll = async () => {
+    if (!selectedCorpus) return
+    const toAnalyze = fileQueue.filter(f => f.status === 'extracted')
+    if (!toAnalyze.length) return
     setIsAnalyzing(true)
     setAnalysisError(null)
-    setShowUploadModal(false)
 
-    // Brief delay for UX
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    let firstDoneId: string | null = null
 
-    try {
-      const result = analyzeDialogue({
-        text: uploadedText,
-        corpusType: selectedCorpus,
-      })
-
-      // Enhanced analysis for APP/DEP corpus
-      if (selectedCorpus === 'APP/DEP') {
-        const parsedLines = parseLines(uploadedText)
-        const exchanges: DepartureApproachMLResult[] = []
-        const phaseBreakdown: Record<FlightPhase, number> = {} as Record<FlightPhase, number>
-        let totalCompleteness = 0
-        let criticalErrors = 0
-        let departureCount = 0
-        let approachCount = 0
-
-        // Pair ATC instructions with pilot readbacks
-        for (let i = 0; i < parsedLines.length - 1; i++) {
-          const current = parsedLines[i]
-          const next = parsedLines[i + 1]
-
-          // Look for ATC-Pilot pairs
-          if (current.speaker === 'ATC' && next.speaker === 'PILOT') {
-            const exchangeResult = analyzeDepartureApproach(
-              current.text,
-              next.text,
-              undefined, // callsign extracted automatically
-              exchanges.slice(-3).map(e => ({
-                type: e.errors[0]?.type || 'unknown',
-                weight: e.contextualWeight,
-                timestamp: Date.now()
-              }))
-            )
-
-            exchanges.push(exchangeResult)
-
-            // Track phase
-            phaseBreakdown[exchangeResult.phase] = (phaseBreakdown[exchangeResult.phase] || 0) + 1
-
-            // Track completeness
-            totalCompleteness += exchangeResult.multiPartAnalysis.readbackCompleteness
-
-            // Track critical errors
-            if (exchangeResult.contextualWeight === 'critical') {
-              criticalErrors++
-            }
-
-            // Track departure vs approach
-            if (['initial_departure', 'departure_climb', 'takeoff_roll', 'lineup', 'taxi'].includes(exchangeResult.phase)) {
-              departureCount++
-            } else if (['approach', 'final_approach', 'go_around', 'descent', 'arrival'].includes(exchangeResult.phase)) {
-              approachCount++
-            }
-
-            i++ // Skip the pilot readback since we've processed it
-          }
-        }
-
-        setMlAnalysisResults({
-          exchanges,
-          summary: {
-            totalExchanges: exchanges.length,
-            departureCount,
-            approachCount,
-            averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100,
-            criticalErrors,
-            phaseBreakdown,
-          },
-        })
-        setGroundAnalysisResults(null)
-      } else if (selectedCorpus === 'GND') {
-        const parsedLines = parseLines(uploadedText)
-        const exchanges: GroundMLResult[] = []
-        const phaseBreakdown: Record<GroundPhase, number> = {} as Record<GroundPhase, number>
-        let totalCompleteness = 0
-        let criticalErrors = 0
-        let taxiCount = 0
-        let holdingCount = 0
-        let crossingCount = 0
-
-        for (let i = 0; i < parsedLines.length - 1; i++) {
-          const current = parsedLines[i]
-          const next = parsedLines[i + 1]
-
-          if (current.speaker === 'ATC' && next.speaker === 'PILOT') {
-            const exchangeResult = analyzeGround(
-              current.text,
-              next.text,
-              undefined,
-              exchanges.slice(-3).map(e => ({
-                type: e.errors[0]?.type || 'unknown',
-                weight: e.contextualWeight,
-                timestamp: Date.now(),
-              }))
-            )
-
-            exchanges.push(exchangeResult)
-            phaseBreakdown[exchangeResult.phase] = (phaseBreakdown[exchangeResult.phase] || 0) + 1
-            totalCompleteness += exchangeResult.multiPartAnalysis.readbackCompleteness
-            if (exchangeResult.contextualWeight === 'critical') criticalErrors++
-            if (['taxi', 'ground', 'pushback'].includes(exchangeResult.phase)) taxiCount++
-            if (exchangeResult.phase === 'holding') holdingCount++
-            if (exchangeResult.phase === 'crossing') crossingCount++
-            i++
-          }
-        }
-
-        setGroundAnalysisResults({
-          exchanges,
-          summary: {
-            totalExchanges: exchanges.length,
-            taxiCount,
-            holdingCount,
-            crossingCount,
-            averageCompleteness: exchanges.length > 0
-              ? Math.round(totalCompleteness / exchanges.length)
-              : 100,
-            criticalErrors,
-            phaseBreakdown,
-          },
-        })
-        setMlAnalysisResults(null)
-      } else {
-        setMlAnalysisResults(null)
-        setGroundAnalysisResults(null)
+    for (const item of toAnalyze) {
+      setFileQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'analyzing' as const } : q))
+      await new Promise(resolve => setTimeout(resolve, 300))
+      try {
+        const { analysisResult: res, mlAnalysisResults: ml, groundAnalysisResults: gnd, annotatedLines: al } =
+          await analyzeOneItem(item, selectedCorpus)
+        setFileQueue(prev => prev.map(q => q.id === item.id
+          ? { ...q, status: 'done' as const, analysisResult: res, mlAnalysisResults: ml, groundAnalysisResults: gnd, annotatedLines: al }
+          : q
+        ))
+        if (!firstDoneId) firstDoneId = item.id
+      } catch (err) {
+        setFileQueue(prev => prev.map(q => q.id === item.id
+          ? { ...q, status: 'error' as const, error: err instanceof Error ? err.message : 'Analysis failed' }
+          : q
+        ))
+        setAnalysisError(err instanceof Error ? `Analysis failed: ${err.message}` : 'An unexpected error occurred.')
       }
-
-      setAnalysisResult(result)
-    } catch (err) {
-      console.error('Analysis failed:', err)
-      setAnalysisError(
-        err instanceof Error
-          ? `Analysis failed: ${err.message}`
-          : 'An unexpected error occurred during analysis. Please check your input and try again.'
-      )
-    } finally {
-      setIsAnalyzing(false)
     }
+
+    // Only reveal results after all files are done — avoids rendering the heavy
+    // results panel on each file completion while analysis is still running.
+    if (firstDoneId) setActiveFileId(firstDoneId)
+    setIsAnalyzing(false)
+  }
+
+  const handleTextSubmit = () => {
+    if (!pastedText.trim()) return
+    const validation = validateATCDialogue(pastedText)
+    const newItem: FileQueueItem = {
+      id: `text-${Date.now()}`,
+      name: 'Pasted text',
+      status: 'extracted',
+      extractedText: pastedText,
+      validation,
+    }
+    setFileQueue(prev => [...prev, newItem])
+    setPastedText('')
+    setShowUploadModal(false)
+    setUploadMethod(null)
   }
 
   const getRiskColor = (level: string) => {
@@ -383,51 +413,19 @@ export default function AnalysisPage() {
   }
 
   const resetAnalysis = () => {
-    setAnalysisResult(null)
-    setUploadedText('')
-    setPdfData(null)
-    setPdfError(null)
+    setFileQueue([])
+    setActiveFileId(null)
     setAnalysisError(null)
     setUploadMethod(null)
     setSelectedErrorIndex(null)
     setShowFullTranscript(false)
     setExpandedLines(new Set())
-    setMlAnalysisResults(null)
-    setGroundAnalysisResults(null)
+    setTranscriptLimit(50)
+    setExchangeLimit(20)
   }
 
-  // Build annotated transcript with error highlighting
-  const annotatedLines = useMemo(() => {
-    if (!uploadedText || !analysisResult) return []
-
-    // Use the smart parser instead of simple split
-    const parsedLines = parseLines(uploadedText)
-    const errorsByLine = new Map<number, PhraseologyError[]>()
-
-    // Group errors by line number
-    analysisResult.phraseologyErrors.forEach(error => {
-      const existing = errorsByLine.get(error.line) || []
-      existing.push(error)
-      errorsByLine.set(error.line, existing)
-    })
-
-    return parsedLines.map((parsed) => {
-      const errors = errorsByLine.get(parsed.lineNumber) || []
-
-      return {
-        lineNum: parsed.lineNumber,
-        text: parsed.text,
-        speaker: parsed.speaker,
-        conversationGroup: parsed.conversationGroup ?? 0,
-        errors,
-        hasErrors: errors.length > 0,
-        highestWeight: errors.reduce((max, e) => {
-          const weightOrder = { high: 3, medium: 2, low: 1 }
-          return weightOrder[e.weight as keyof typeof weightOrder] > weightOrder[max as keyof typeof weightOrder] ? e.weight : max
-        }, 'low' as string)
-      }
-    })
-  }, [uploadedText, analysisResult])
+  // Pre-computed during analysis — no recalculation on tab switch
+  const annotatedLines = activeFile?.annotatedLines ?? []
 
   const getErrorStyles = (weight: string) => {
     if (weight !== 'none') {
@@ -467,7 +465,7 @@ export default function AnalysisPage() {
               key={corpus.id}
               onClick={() => {
                 setSelectedCorpus(corpus.id as CorpusType)
-                if (analysisResult) resetAnalysis()
+                if (fileQueue.length > 0) resetAnalysis()
               }}
               className={`card p-6 text-left transition-all ${
                 selectedCorpus === corpus.id
@@ -495,126 +493,29 @@ export default function AnalysisPage() {
         </div>
       </div>
 
-      {/* Upload Section */}
-      {selectedCorpus && !analysisResult && (
+      {/* Upload Section — shown only when queue is empty */}
+      {selectedCorpus && fileQueue.length === 0 && (
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Upload Dialogue Data</h2>
-
-          {/* Upload Method Selection */}
-          <div className="grid sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid sm:grid-cols-2 gap-4">
             <button
-              onClick={() => {
-                setUploadMethod('pdf')
-                setShowUploadModal(true)
-              }}
-              className={`p-6 border-2 border-dashed rounded-xl text-center transition-all ${
-                uploadMethod === 'pdf'
-                  ? 'border-primary-400 bg-primary-50'
-                  : 'border-gray-300 hover:border-primary-300 hover:bg-gray-50'
-              }`}
+              onClick={() => { setUploadMethod('pdf'); setShowUploadModal(true) }}
+              className="p-6 border-2 border-dashed rounded-xl text-center transition-all border-gray-300 hover:border-primary-300 hover:bg-gray-50"
             >
               <FileUp className="w-10 h-10 text-primary-500 mx-auto mb-3" />
-              <h3 className="font-medium text-gray-900 mb-1">Upload PDF or DOCX</h3>
-              <p className="text-sm text-gray-500">
-                Upload a PDF or Word document with ATC-Pilot dialogues
-              </p>
-              <span className="inline-block mt-3 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-                Recommended
-              </span>
+              <h3 className="font-medium text-gray-900 mb-1">Upload Files</h3>
+              <p className="text-sm text-gray-500">PDF or DOCX — single files, multiple, or a folder</p>
+              <span className="inline-block mt-3 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Recommended</span>
             </button>
-
             <button
-              onClick={() => {
-                setUploadMethod('text')
-                setShowUploadModal(true)
-              }}
-              className={`p-6 border-2 border-dashed rounded-xl text-center transition-all ${
-                uploadMethod === 'text'
-                  ? 'border-primary-400 bg-primary-50'
-                  : 'border-gray-300 hover:border-primary-300 hover:bg-gray-50'
-              }`}
+              onClick={() => { setUploadMethod('text'); setShowUploadModal(true) }}
+              className="p-6 border-2 border-dashed rounded-xl text-center transition-all border-gray-300 hover:border-primary-300 hover:bg-gray-50"
             >
               <ClipboardPaste className="w-10 h-10 text-gray-400 mx-auto mb-3" />
               <h3 className="font-medium text-gray-900 mb-1">Paste Text</h3>
-              <p className="text-sm text-gray-500">
-                Paste dialogue text directly into the editor
-              </p>
+              <p className="text-sm text-gray-500">Paste dialogue text directly into the editor</p>
             </button>
           </div>
-
-          {/* Show preview if data is loaded */}
-          {uploadedText && (
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span className="font-medium text-gray-900">Data Loaded</span>
-                  {pdfData && (
-                    <span className={`text-xs px-2 py-1 rounded-full ${getQualityColor(pdfData.metadata.formatQuality)}`}>
-                      {pdfData.metadata.formatQuality} quality
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => {
-                    setUploadedText('')
-                    setPdfData(null)
-                    setUploadMethod(null)
-                  }}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Clear
-                </button>
-              </div>
-
-              {pdfData && (
-                <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-                  <div className="text-center p-3 bg-white rounded-lg border border-gray-100">
-                    <div className="text-2xl font-bold text-gray-900">{pdfData.metadata.pageCount}</div>
-                    <div className="text-gray-500">Pages</div>
-                  </div>
-                  <div className="text-center p-3 bg-white rounded-lg border border-gray-100">
-                    <div className="text-2xl font-bold text-gray-900">{pdfData.metadata.wordCount}</div>
-                    <div className="text-gray-500">Words</div>
-                  </div>
-                  <div className="text-center p-3 bg-white rounded-lg border border-gray-100">
-                    <div className="text-2xl font-bold text-gray-900">{pdfData.metadata.extractedLines}</div>
-                    <div className="text-gray-500">Lines</div>
-                  </div>
-                </div>
-              )}
-
-              {pdfData?.validation && !pdfData.validation.isValid && (
-                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-amber-800">Format Issues Detected</p>
-                      <ul className="text-sm text-amber-700 mt-1 space-y-1">
-                        {pdfData.validation.issues.map((issue, i) => (
-                          <li key={i}>- {issue}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="max-h-32 overflow-y-auto text-sm text-gray-600 font-mono bg-white p-3 rounded-lg border border-gray-100">
-                {uploadedText.slice(0, 500)}
-                {uploadedText.length > 500 && '...'}
-              </div>
-
-              <button
-                onClick={handleAnalyze}
-                disabled={!uploadedText.trim()}
-                className="btn-primary w-full mt-4 disabled:opacity-50"
-              >
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Analyze Dialogue
-              </button>
-            </div>
-          )}
         </div>
       )}
 
@@ -624,169 +525,75 @@ export default function AnalysisPage() {
           <div className="bg-white rounded-2xl shadow-elevated max-w-2xl w-full max-h-[90vh] overflow-hidden animate-slide-up">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900">
-                {uploadMethod === 'text' ? 'Paste Dialogue Text' : 'Upload PDF / DOCX'} — {selectedCorpus}
+                {uploadMethod === 'text' ? 'Paste Dialogue Text' : 'Upload Files'} — {selectedCorpus}
               </h3>
-              <button
-                onClick={() => {
-                  setShowUploadModal(false)
-                  setPdfError(null)
-                }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
+              <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
 
             <div className="p-6">
-              {(uploadMethod === 'pdf' || uploadMethod === 'docx') ? (
+              {uploadMethod !== 'text' ? (
                 <>
-                  {/* PDF Upload Area */}
+                  {/* Hidden inputs */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={e => { if (e.target.files) handleFilesSelected(e.target.files); e.target.value = '' }}
+                    className="hidden"
+                  />
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    multiple
+                    {...{ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLInputElement>}
+                    onChange={e => { if (e.target.files) handleFilesSelected(e.target.files); e.target.value = '' }}
+                    className="hidden"
+                  />
+
+                  {/* Drop zone */}
                   <div
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onClick={() => fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                      isDragging
-                        ? 'border-primary-500 bg-primary-50'
-                        : pdfData
-                        ? 'border-green-400 bg-green-50'
-                        : 'border-gray-300 hover:border-primary-400 hover:bg-primary-50/50'
+                      isDragging ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-400 hover:bg-primary-50/50'
                     }`}
                   >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) handleFileSelect(file)
-                      }}
-                      className="hidden"
-                    />
-
-                    {isExtracting ? (
-                      <>
-                        <Loader2 className="w-12 h-12 text-primary-500 animate-spin mx-auto mb-4" />
-                        <p className="text-gray-600 font-medium">
-                          Extracting text from {uploadMethod === 'docx' ? 'DOCX' : 'PDF'}...
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
-                          Processing and normalizing document format
-                        </p>
-                      </>
-                    ) : pdfData ? (
-                      <>
-                        <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                        <p className="text-green-600 font-medium">
-                          {uploadMethod === 'docx' ? 'DOCX' : 'PDF'} Processed Successfully
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
-                          Extracted {pdfData.metadata.wordCount} words from {pdfData.metadata.pageCount} page(s)
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          Click to upload a different file
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-2">
-                          Drag and drop a PDF or DOCX file here, or click to browse
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Supports PDF and Word (.docx) documents — up to 20 MB
-                        </p>
-                      </>
-                    )}
-                  </div>
-
-                  {pdfError && (
-                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                      <div>
-                        <p className="font-medium text-red-800">Error Processing PDF</p>
-                        <p className="text-sm text-red-600 mt-1">{pdfError}</p>
-                      </div>
+                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-2 font-medium">Drop PDF or DOCX files here</p>
+                    <p className="text-sm text-gray-500 mb-4">Multiple files or a folder — up to 20 MB each</p>
+                    <div className="flex items-center justify-center gap-3" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        <FileUp className="w-4 h-4" />
+                        Browse Files
+                      </button>
+                      <button
+                        onClick={() => folderInputRef.current?.click()}
+                        className="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Add Folder
+                      </button>
                     </div>
-                  )}
-
-                  {pdfData && (
-                    <>
-                      {/* Validation Status */}
-                      <div className={`mt-4 p-4 rounded-lg flex items-start gap-3 ${
-                        pdfData.validation.isValid
-                          ? 'bg-green-50 border border-green-200'
-                          : 'bg-amber-50 border border-amber-200'
-                      }`}>
-                        {pdfData.validation.isValid ? (
-                          <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <FileWarning className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                        )}
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className={`font-medium ${pdfData.validation.isValid ? 'text-green-800' : 'text-amber-800'}`}>
-                              {pdfData.validation.isValid
-                                ? 'Valid ATC Dialogue Detected'
-                                : 'Document Format May Need Review'}
-                            </p>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              pdfData.validation.confidence >= 70
-                                ? 'bg-green-100 text-green-700'
-                                : pdfData.validation.confidence >= 40
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}>
-                              {pdfData.validation.confidence}% confidence
-                            </span>
-                          </div>
-                          {pdfData.validation.issues.length > 0 && (
-                            <ul className="text-sm text-amber-700 mt-2 space-y-1">
-                              {pdfData.validation.issues.map((issue, i) => (
-                                <li key={i} className="flex items-start gap-1">
-                                  <span className="text-amber-400">-</span> {issue}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Preview */}
-                      <div className="mt-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">Extracted Text Preview</span>
-                          <button
-                            onClick={() => setShowUploadModal(false)}
-                            className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
-                          >
-                            <Eye className="w-4 h-4" />
-                            Preview Full Text
-                          </button>
-                        </div>
-                        <div className="max-h-40 overflow-y-auto text-sm text-gray-600 font-mono bg-gray-50 p-3 rounded-lg border border-gray-200">
-                          {pdfData.text.slice(0, 800)}
-                          {pdfData.text.length > 800 && '...'}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  </div>
 
                   <p className="text-sm text-gray-500 mt-4 flex items-start gap-2">
                     <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>
-                      The system will automatically extract and normalize text from your PDF, handling various formats and layouts.
-                      For best results, use documents with clear ATC/Pilot speaker labels.
-                    </span>
+                    <span>Files are extracted immediately after selection. Switch to the queue below and click Analyze All when ready.</span>
                   </p>
                 </>
               ) : (
                 <>
-                  {/* Text Input */}
                   <textarea
-                    value={uploadedText}
-                    onChange={(e) => setUploadedText(e.target.value)}
+                    value={pastedText}
+                    onChange={e => setPastedText(e.target.value)}
                     placeholder="Paste your ATC-pilot dialogue text here...
 
 Example:
@@ -798,43 +605,79 @@ Pilot: Left heading 180, PAL456."
                   />
                   <p className="text-sm text-gray-500 mt-2 flex items-start gap-2">
                     <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                    <span>
-                      Format: Label each line with speaker (ATC/Pilot) followed by the message.
-                      You can also use controller positions (TOWER, APPROACH, GROUND) or airline callsigns (PAL, CEB).
-                    </span>
+                    <span>Label each line with speaker (ATC/Pilot) followed by the message.</span>
                   </p>
                 </>
               )}
             </div>
 
             <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50">
-              <button
-                onClick={() => {
-                  setShowUploadModal(false)
-                  setPdfError(null)
-                }}
-                className="btn-secondary"
-              >
-                Cancel
+              <button onClick={() => setShowUploadModal(false)} className="btn-secondary">
+                {uploadMethod !== 'text' ? 'Done' : 'Cancel'}
               </button>
-              <button
-                onClick={handleAnalyze}
-                disabled={!uploadedText.trim() || isExtracting}
-                className="btn-primary disabled:opacity-50"
-              >
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Analyze Dialogue
-              </button>
+              {uploadMethod === 'text' && (
+                <button
+                  onClick={handleTextSubmit}
+                  disabled={!pastedText.trim()}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Add to Queue
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Loading State */}
-      {isAnalyzing && (
+      {/* File Queue Panel — shown while files are queued but not yet analyzed */}
+      {fileQueue.length > 0 && !activeFileId && (
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">File Queue</h2>
+            <button
+              onClick={() => { setUploadMethod('pdf'); setShowUploadModal(true) }}
+              className="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <FileUp className="w-3.5 h-3.5" />
+              Add More Files
+            </button>
+          </div>
+          <div className="space-y-2 mb-4">
+            {fileQueue.map(item => (
+              <div key={item.id} className="flex items-center gap-3 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-100">
+                <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <span className="flex-1 text-sm text-gray-800 font-medium truncate">{item.name}</span>
+                {item.status === 'pending'    && <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">Pending</span>}
+                {item.status === 'extracting' && <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Extracting…</span>}
+                {item.status === 'extracted'  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Ready</span>}
+                {item.status === 'analyzing'  && <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Analyzing…</span>}
+                {item.status === 'done'       && <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">Done ✓</span>}
+                {item.status === 'error'      && <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium" title={item.error}>Error ✗</span>}
+                <button onClick={() => removeFile(item.id)} className="p-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={handleAnalyzeAll}
+            disabled={isAnalyzing || isExtracting || !fileQueue.some(f => f.status === 'extracted')}
+            className="btn-primary w-full disabled:opacity-50"
+          >
+            {isAnalyzing
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analyzing…</>
+              : <><BarChart3 className="w-4 h-4 mr-2" />Analyze All ({fileQueue.filter(f => f.status === 'extracted').length} file{fileQueue.filter(f => f.status === 'extracted').length !== 1 ? 's' : ''})</>
+            }
+          </button>
+        </div>
+      )}
+
+      {/* Loading State — only while analyzing and no file done yet */}
+      {isAnalyzing && !activeFileId && (
         <div className="card p-12 text-center">
           <Loader2 className="w-12 h-12 text-primary-500 animate-spin mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Analyzing Dialogue...</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Analyzing Dialogue…</h3>
           <p className="text-gray-500">Processing phraseology patterns and detecting errors</p>
         </div>
       )}
@@ -847,18 +690,50 @@ Pilot: Left heading 180, PAL456."
             <p className="font-medium text-red-800">Analysis Error</p>
             <p className="text-sm text-red-600 mt-1">{analysisError}</p>
           </div>
-          <button
-            onClick={() => setAnalysisError(null)}
-            className="text-red-400 hover:text-red-600 transition-colors"
-          >
+          <button onClick={() => setAnalysisError(null)} className="text-red-400 hover:text-red-600 transition-colors">
             <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* File Tabs — shown only after all analysis is finished */}
+      {!isAnalyzing && fileQueue.some(f => f.status === 'done' || f.status === 'error') && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {fileQueue.filter(f => f.status === 'done' || f.status === 'error').map(f => (
+            <button
+              key={f.id}
+              onClick={() => { setActiveFileId(f.id); setExpandedLines(new Set()); setShowFullTranscript(false); setTranscriptLimit(50); setExchangeLimit(20) }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors max-w-[200px] truncate ${
+                activeFileId === f.id
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+              }`}
+              title={f.name}
+            >
+              {f.name}{'  '}{f.status === 'done' ? '✓' : '✗'}
+            </button>
+          ))}
+          {fileQueue.some(f => f.status === 'extracted') && (
+            <button
+              onClick={handleAnalyzeAll}
+              disabled={isAnalyzing}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+            >
+              {isAnalyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : 'Analyze remaining'}
+            </button>
+          )}
+          <button
+            onClick={() => { setUploadMethod('pdf'); setShowUploadModal(true) }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-500 hover:border-indigo-300 transition-colors"
+          >
+            + Add Files
           </button>
         </div>
       )}
 
       {/* Analysis Results */}
       {analysisResult && (
-        <div className="space-y-6">
+        <div className={`space-y-6 transition-opacity duration-150 ${isResultsStale ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
           {/* Results Header */}
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -886,32 +761,71 @@ Pilot: Left heading 180, PAL456."
                     Export
                     <ChevronDown className="w-3 h-3 ml-0.5" />
                   </button>
-                  {showExportMenu && (
-                    <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                      <button
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
-                        onClick={async () => {
-                          setShowExportMenu(false)
-                          setIsExporting(true)
-                          try { await exportAnalysisToPDF(analysisResult, undefined, groundAnalysisResults ?? undefined) }
-                          finally { setIsExporting(false) }
-                        }}
-                      >
-                        <FileText className="w-4 h-4 text-red-500" />
-                        Export as PDF
-                      </button>
-                      <button
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors border-t border-gray-100"
-                        onClick={() => {
-                          setShowExportMenu(false)
-                          exportAnalysisToCSV(analysisResult, undefined, groundAnalysisResults ?? undefined)
-                        }}
-                      >
-                        <BarChart3 className="w-4 h-4 text-green-500" />
-                        Export as CSV
-                      </button>
-                    </div>
-                  )}
+                  {showExportMenu && (() => {
+                    const doneFiles = fileQueue.filter(f => f.status === 'done' && f.analysisResult)
+                    const batchItems: BatchExportItem[] = doneFiles.map(f => ({
+                      name: f.name,
+                      result: f.analysisResult!,
+                      groundResults: f.groundAnalysisResults ?? undefined,
+                    }))
+                    const multi = doneFiles.length > 1
+                    return (
+                      <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden" style={{ minWidth: '11rem' }}>
+                        {/* Single-file exports (active tab) */}
+                        <p className="px-4 pt-2.5 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Active File</p>
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+                          onClick={async () => {
+                            setShowExportMenu(false); setIsExporting(true)
+                            try { await exportAnalysisToPDF(analysisResult!, undefined, groundAnalysisResults ?? undefined) }
+                            finally { setIsExporting(false) }
+                          }}
+                        >
+                          <FileText className="w-4 h-4 text-red-500" />
+                          Export as PDF
+                        </button>
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+                          onClick={() => {
+                            setShowExportMenu(false)
+                            exportAnalysisToCSV(analysisResult!, undefined, groundAnalysisResults ?? undefined)
+                          }}
+                        >
+                          <BarChart3 className="w-4 h-4 text-green-500" />
+                          Export as CSV
+                        </button>
+
+                        {/* Batch exports — only when multiple files are done */}
+                        {multi && (
+                          <>
+                            <div className="border-t border-gray-100 mx-3 my-1" />
+                            <p className="px-4 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">All {doneFiles.length} Files</p>
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+                              onClick={async () => {
+                                setShowExportMenu(false); setIsExporting(true)
+                                try { await exportAllToPDF(batchItems) }
+                                finally { setIsExporting(false) }
+                              }}
+                            >
+                              <FileText className="w-4 h-4 text-red-400" />
+                              Export All as PDF
+                            </button>
+                            <button
+                              className="w-full text-left px-4 py-2 pb-2.5 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+                              onClick={() => {
+                                setShowExportMenu(false)
+                                exportAllToCSV(batchItems)
+                              }}
+                            >
+                              <BarChart3 className="w-4 h-4 text-green-400" />
+                              Export All as CSV
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -1075,12 +989,16 @@ Pilot: Left heading 180, PAL456."
 
               {/* Transcript body */}
               <div className={`overflow-y-auto transition-all duration-300 ${showFullTranscript ? 'max-h-[700px]' : 'max-h-96'}`}>
-                {annotatedLines.map((line, idx) => {
+                {(() => {
+                  // Hoist O(N) computation outside the per-line map
+                  const totalGroups = new Set(annotatedLines.map(l => l.conversationGroup)).size
+                  const visibleLines = annotatedLines.slice(0, transcriptLimit)
+                  return (<>
+                {visibleLines.map((line, idx) => {
                   const styles = line.hasErrors ? getErrorStyles(line.highestWeight) : getErrorStyles('none')
                   const isExpanded = expandedLines.has(line.lineNum)
-                  const prevGroup = idx > 0 ? annotatedLines[idx - 1].conversationGroup : line.conversationGroup
+                  const prevGroup = idx > 0 ? visibleLines[idx - 1].conversationGroup : line.conversationGroup
                   const isNewConversation = idx > 0 && line.conversationGroup !== prevGroup
-                  const totalGroups = new Set(annotatedLines.map(l => l.conversationGroup)).size
 
                   const toggleExpand = () => {
                     const newExpanded = new Set(expandedLines)
@@ -1201,6 +1119,16 @@ Pilot: Left heading 180, PAL456."
                     </div>
                   )
                 })}
+                {annotatedLines.length > transcriptLimit && (
+                  <button
+                    onClick={() => setTranscriptLimit(prev => prev + 50)}
+                    className="w-full py-2.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 border-t border-gray-100 transition-colors"
+                  >
+                    Show {Math.min(50, annotatedLines.length - transcriptLimit)} more lines
+                    ({annotatedLines.length - transcriptLimit} remaining)
+                  </button>
+                )}
+                </>)})()}
               </div>
 
               {/* Transcript footer */}
@@ -1271,7 +1199,7 @@ Pilot: Left heading 180, PAL456."
 
               {/* Exchange list */}
               <div className="max-h-[500px] overflow-y-auto divide-y divide-indigo-50">
-                {mlAnalysisResults.exchanges.map((exchange, idx) => {
+                {mlAnalysisResults.exchanges.slice(0, exchangeLimit).map((exchange, idx) => {
                   const sevClasses = (exchange.contextualWeight === 'critical' || exchange.contextualWeight === 'high') ? 'bg-amber-100 text-amber-700' :
                     exchange.contextualWeight === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-green-100 text-green-700'
 
@@ -1322,6 +1250,15 @@ Pilot: Left heading 180, PAL456."
                     </div>
                   )
                 })}
+                {mlAnalysisResults.exchanges.length > exchangeLimit && (
+                  <button
+                    onClick={() => setExchangeLimit(prev => prev + 20)}
+                    className="w-full py-2.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors"
+                  >
+                    Show {Math.min(20, mlAnalysisResults.exchanges.length - exchangeLimit)} more exchanges
+                    ({mlAnalysisResults.exchanges.length - exchangeLimit} remaining)
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1383,7 +1320,7 @@ Pilot: Left heading 180, PAL456."
 
               {/* Exchange list */}
               <div className="max-h-[500px] overflow-y-auto divide-y divide-emerald-50">
-                {groundAnalysisResults.exchanges.map((exchange, idx) => {
+                {groundAnalysisResults.exchanges.slice(0, exchangeLimit).map((exchange, idx) => {
                   const sevClasses = (exchange.contextualWeight === 'critical' || exchange.contextualWeight === 'high') ? 'bg-amber-100 text-amber-700' :
                     exchange.contextualWeight === 'medium' ? 'bg-amber-50 text-amber-600'  : 'bg-green-100 text-green-700'
 
@@ -1442,6 +1379,15 @@ Pilot: Left heading 180, PAL456."
                     </div>
                   )
                 })}
+                {groundAnalysisResults.exchanges.length > exchangeLimit && (
+                  <button
+                    onClick={() => setExchangeLimit(prev => prev + 20)}
+                    className="w-full py-2.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+                  >
+                    Show {Math.min(20, groundAnalysisResults.exchanges.length - exchangeLimit)} more exchanges
+                    ({groundAnalysisResults.exchanges.length - exchangeLimit} remaining)
+                  </button>
+                )}
               </div>
 
               {/* 2B — Readback Vectors */}
@@ -1603,7 +1549,7 @@ Pilot: Left heading 180, PAL456."
       )}
 
       {/* Empty State when no corpus selected */}
-      {!selectedCorpus && !analysisResult && (
+      {!selectedCorpus && fileQueue.length === 0 && (
         <div className="card p-12 text-center bg-gray-50">
           <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BarChart3 className="w-8 h-8 text-gray-400" />
