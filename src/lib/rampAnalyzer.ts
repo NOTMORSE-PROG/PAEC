@@ -35,6 +35,46 @@ import {
 
 import rampCorpus from '../data/rampCorpus.json'
 
+// ============================================================================
+// SPOKEN-DIGIT NORMALISATION
+// ============================================================================
+
+/**
+ * Collapses spoken digit words (and ICAO "niner") to their digit equivalents,
+ * then removes all whitespace.  Used for numeric comparisons across checks.
+ * e.g. "one niner" → "19",  "zero six" → "06"
+ */
+function normDigits(s: string): string {
+  return s.toLowerCase()
+    .replace(/\bniner\b/g, '9')
+    .replace(/\bzero\b/g,  '0').replace(/\bone\b/g,   '1').replace(/\btwo\b/g,   '2')
+    .replace(/\bthree\b/g, '3').replace(/\bfour\b/g,  '4').replace(/\bfive\b/g,  '5')
+    .replace(/\bsix\b/g,   '6').replace(/\bseven\b/g, '7').replace(/\beight\b/g, '8')
+    .replace(/\bnine\b/g,  '9')
+    .replace(/decimal|point/gi, '')
+    .replace(/\s+/g, '')
+}
+
+/**
+ * Extracts a normalised spoken-frequency string from ramp ATC text.
+ * Handles "one two one decimal eight", "one two one eight", "121.8", etc.
+ * Returns null if no frequency-like pattern is found.
+ */
+function extractSpokenFreq(text: string): string | null {
+  const t = text.toLowerCase()
+  // Digit form: "121.8" or "121 8"
+  const digitMatch = t.match(/\b(1[0-9]{2})[\s.]+(\d{1,2})\b/)
+  if (digitMatch) return digitMatch[1] + digitMatch[2]
+  // Spoken form: after "contact/monitor ground/tower/..." extract digit run
+  const spokenSect = t.match(/(?:contact|monitor)\s+(?:ground|tower|approach|departure|ramp|delivery)[^,\n]{0,30}?((?:one|two|three|four|five|six|seven|eight|nine|niner|zero)\s+(?:one|two|three|four|five|six|seven|eight|nine|niner|zero)\s+(?:one|two|three|four|five|six|seven|eight|nine|niner|zero)[^,\n]{0,20})/)
+  if (spokenSect) {
+    const norm = normDigits(spokenSect[1])
+    const m = norm.match(/1\d{2}\d{0,2}/)
+    if (m) return m[0].slice(0, 4)  // e.g. "1218"
+  }
+  return null
+}
+
 // Typed corpus entry
 type RampCorpusEntry = {
   atc: string
@@ -230,15 +270,12 @@ export function detectRampErrors(
   const atcL  = atcInstruction.toLowerCase()
   const pilotL = pilotReadback.toLowerCase()
 
-  const pushbackRe  = new RegExp(CHECKS.pushbackPattern, 'i')
-  const directionRe = new RegExp(CHECKS.pushbackDirectionPattern, 'i')
-  const startupRe   = new RegExp(CHECKS.startupPattern, 'i')
-  const towingRe    = new RegExp(CHECKS.towingPattern, 'i')
-  const standRe     = new RegExp(CHECKS.standPattern, 'i')
-  const freqRe      = new RegExp(CHECKS.frequencyPattern, 'i')
-  const sierraRe    = new RegExp(CHECKS.sierraPattern, 'i')
-  const crossRe     = new RegExp(CHECKS.apronCrossingPattern, 'i')
-  const brakeRe     = new RegExp(CHECKS.parkingBrakePattern, 'i')
+  const pushbackRe = new RegExp(CHECKS.pushbackPattern, 'i')
+  const startupRe  = new RegExp(CHECKS.startupPattern, 'i')
+  const towingRe   = new RegExp(CHECKS.towingPattern, 'i')
+  const standRe    = new RegExp(CHECKS.standPattern, 'i')
+  const crossRe    = new RegExp(CHECKS.apronCrossingPattern, 'i')
+  const brakeRe    = new RegExp(CHECKS.parkingBrakePattern, 'i')
 
   // ── 1. roger_substitution ──────────────────────────────────────────────────
   // Safety-critical ramp instructions must not be acknowledged with Roger alone
@@ -261,12 +298,15 @@ export function detectRampErrors(
   }
 
   // ── 2. pushback_direction_missing ─────────────────────────────────────────
-  // ATC gave a facing direction but pilot omitted it
+  // ATC gave facing direction but pilot omitted it.
+  // FIX: use word-boundary regex instead of plain .includes() to avoid false
+  // matches where the direction word is part of a longer token (e.g. "south"
+  // inside "south-southeast" or a callsign fragment).
   if (pushbackRe.test(atcL)) {
-    const dirMatch = atcL.match(/(?:facing|face)\s+(north|south|east|west|golf|sierra|charlie|november|delta|alpha|bravo|lima\b)/i)
+    const dirMatch = atcL.match(/(?:facing|face)\s+(north|south|east|west|golf|sierra|charlie|november|delta|alpha|bravo|lima)/i)
     if (dirMatch) {
       const dir = dirMatch[1].toLowerCase()
-      if (!pilotL.includes(dir)) {
+      if (!new RegExp(`\\b${dir}\\b`, 'i').test(pilotL)) {
         errors.push({
           type: 'pushback_direction_missing',
           description: `Pushback facing direction "${dirMatch[1]}" not confirmed in readback`,
@@ -280,16 +320,18 @@ export function detectRampErrors(
   }
 
   // ── 3. pushback_clearance_not_confirmed ───────────────────────────────────
-  // ATC issued pushback but pilot did not confirm Sierra position or runway
+  // ATC issued pushback — pilot must confirm Sierra position AND runway.
+  // FIX: normalise both sides to digit strings so "one niner" == "19" etc.
+  // This catches both missing Sierra and wrong-position readbacks precisely.
   if (pushbackRe.test(atcL)) {
-    const sierraMatch = atcL.match(/sierra\s+([\w\s]+?)(?=\s*[,.]|\s+(?:facing|face|runway|contact|$))/i)
+    const sierraMatch = atcL.match(/sierra\s+([\w\s]+?)(?=\s*[,.]|\s+(?:facing|face|runway|contact)|$)/i)
     if (sierraMatch) {
-      const pos = sierraMatch[1].trim().toLowerCase()
-      // Check pilot has "sierra" and key part of position
-      const pilotHasSierra = /sierra/i.test(pilotL)
-      const posWord = pos.split(/\s+/)[0]  // first word of position number
-      const pilotHasPos = pilotL.includes(posWord)
-      if (!pilotHasSierra || !pilotHasPos) {
+      const atcPosNorm = normDigits(sierraMatch[1].trim())
+      const pilotSierraRaw = pilotL.match(/sierra\s+([\w\s]+?)(?=\s*[,.]|\s+(?:facing|face|runway|contact)|$)/i)
+      const pilotPosNorm   = pilotSierraRaw ? normDigits(pilotSierraRaw[1].trim()) : ''
+
+      if (!pilotSierraRaw) {
+        // Pilot did not include Sierra at all
         errors.push({
           type: 'pushback_clearance_not_confirmed',
           description: `Pushback position "Sierra ${sierraMatch[1].trim()}" not confirmed in readback`,
@@ -298,16 +340,25 @@ export function detectRampErrors(
           icaoReference: 'ICAO Doc 4444 §12.3.1',
           safetyImpact: 'Controller cannot verify aircraft will push to the correct apron lane',
         })
+      } else if (atcPosNorm && pilotPosNorm && atcPosNorm !== pilotPosNorm) {
+        // Pilot included Sierra but with wrong position number
+        errors.push({
+          type: 'pushback_clearance_not_confirmed',
+          description: `Pushback position mismatch: ATC "Sierra ${sierraMatch[1].trim()}" vs readback "Sierra ${pilotSierraRaw[1].trim()}"`,
+          weight: 'critical',
+          correction: `Confirm exact pushback position: "Pushback Sierra ${sierraMatch[1].trim()}, [callsign]"`,
+          icaoReference: 'ICAO Doc 4444 §12.3.1',
+          safetyImpact: 'Wrong Sierra position routes aircraft to incorrect apron lane — collision risk',
+        })
       }
     }
 
-    // Runway given but not confirmed
-    const rwyMatch = atcL.match(/runway\s+([\w\s]+?)(?=\s*[,.]|\s*$)/i)
-    if (rwyMatch && errors.length === 0) {  // only if no position error already flagged
-      const rwy = rwyMatch[1].trim().toLowerCase()
-      const rwyNorm = rwy.replace(/\s+/g, '')
-      const pilotNorm = pilotL.replace(/\s+/g, '')
-      if (!pilotNorm.includes(rwyNorm)) {
+    // Runway given but not confirmed (only flag if no Sierra error already)
+    const rwyMatch = atcL.match(/runway\s+([\w\s]+?)(?=\s*[,.]|$)/i)
+    if (rwyMatch && errors.length === 0) {
+      const atcRwyNorm = normDigits(rwyMatch[1].trim())
+      const pilotRwyNorm = normDigits(pilotL)
+      if (atcRwyNorm && !pilotRwyNorm.includes(atcRwyNorm)) {
         errors.push({
           type: 'pushback_clearance_not_confirmed',
           description: `Departure runway "${rwyMatch[1].trim()}" not confirmed in pushback readback`,
@@ -321,8 +372,10 @@ export function detectRampErrors(
   }
 
   // ── 4. startup_not_confirmed ──────────────────────────────────────────────
+  // FIX: was matching "appro" which incorrectly passes "approach" in the pilot
+  // text. Changed to "approv" so only "approved/approval" matches.
   if (startupRe.test(atcL)) {
-    const hasAcknowledge = /appro|roger|wilco|standby|will\s+advise|noted|copy|confirmed/i.test(pilotL)
+    const hasAcknowledge = /approv(?:e[ds]?|al)|roger|wilco|standby|will\s+advise|noted|copy|confirmed/i.test(pilotL)
     if (!hasAcknowledge) {
       errors.push({
         type: 'startup_not_confirmed',
@@ -336,8 +389,7 @@ export function detectRampErrors(
   }
 
   // ── 5. engine_number_wrong ────────────────────────────────────────────────
-  // If ATC specified a specific engine number and pilot read back a different one
-  const atcEngineMatch  = atcL.match(/engine\s+(one|two|three|four|number\s+\d)/i)
+  const atcEngineMatch   = atcL.match(/engine\s+(one|two|three|four|number\s+\d)/i)
   const pilotEngineMatch = pilotL.match(/engine\s+(one|two|three|four|number\s+\d)/i)
   if (atcEngineMatch && pilotEngineMatch && atcEngineMatch[1].trim() !== pilotEngineMatch[1].trim()) {
     errors.push({
@@ -351,44 +403,70 @@ export function detectRampErrors(
   }
 
   // ── 6. stand_number_wrong ─────────────────────────────────────────────────
-  // ATC assigned a bay/stand but pilot either omitted it or read a different one
+  // ATC assigned a bay/stand but pilot either omitted or misread it.
+  // FIX (136 FP): pilots commonly read back the bay NUMBER alone without the
+  // "bay" keyword (e.g. ATC "Bay One One Two" → pilot "one one two").
+  // Accept the readback as correct if:
+  //   a) pilot used "bay/spot/stand" + number, OR
+  //   b) pilot's normalised text contains the same digit string (multi-digit
+  //      bays only — single-digit bays still require the keyword to avoid
+  //      false negatives from incidental digit matches).
   if (standRe.test(atcL) && !pushbackRe.test(atcL)) {
-    const atcBayMatch  = atcL.match(/\b(?:bay|spot|stand)\s+([\w\s]{1,12}?)(?=\s*[,.]|\s*$)/i)
-    const pilotBayMatch = pilotL.match(/\b(?:bay|spot|stand)\s+([\w\s]{1,12}?)(?=\s*[,.]|\s*$)/i)
-    if (atcBayMatch && !pilotBayMatch) {
-      errors.push({
-        type: 'stand_number_wrong',
-        description: `Bay/stand assignment "${atcBayMatch[1].trim()}" not confirmed in pilot readback`,
-        weight: 'high',
-        correction: `Read back bay assignment: "Bay ${atcBayMatch[1].trim()}, [callsign]"`,
-        icaoReference: 'ICAO Doc 9157 Part 2',
-        safetyImpact: 'Aircraft may proceed to wrong gate, causing traffic conflict on apron',
-      })
+    const atcBayMatch = atcL.match(/\b(?:bay|spot|stand)\s+([\w\s]{1,14}?)(?=\s*[,.]|\s*$)/i)
+    if (atcBayMatch) {
+      const atcBayNorm = normDigits(atcBayMatch[1].trim())
+      const pilotHasBayKw = /\b(?:bay|spot|stand)\s+\w/i.test(pilotL)
+      const pilotNormFull  = normDigits(pilotL)
+      // For multi-digit bays (≥2 digits), accept bare number in pilot text
+      const pilotHasBayNum = atcBayNorm.length >= 2 && pilotNormFull.includes(atcBayNorm)
+
+      if (!pilotHasBayKw && !pilotHasBayNum) {
+        errors.push({
+          type: 'stand_number_wrong',
+          description: `Bay/stand "${atcBayMatch[1].trim()}" not confirmed in pilot readback`,
+          weight: 'high',
+          correction: `Read back bay assignment: "Bay ${atcBayMatch[1].trim()}, [callsign]"`,
+          icaoReference: 'ICAO Doc 9157 Part 2',
+          safetyImpact: 'Aircraft may proceed to wrong gate, causing traffic conflict on apron',
+        })
+      }
     }
   }
 
   // ── 7. towing_direction_missing ───────────────────────────────────────────
+  // Same bay-number fix as stand_number_wrong: accept bare number for multi-digit bays.
   if (towingRe.test(atcL)) {
-    const atcTowBay  = atcL.match(/\b(?:bay|stand|spot)\s+([\w\s]{1,12}?)(?=\s*[,.]|\s*$)/i)
-    const pilotHasBay = /\b(?:bay|stand|spot)\s+\w/i.test(pilotL)
-    if (atcTowBay && !pilotHasBay) {
-      errors.push({
-        type: 'towing_direction_missing',
-        description: `Towing destination "Bay ${atcTowBay[1].trim()}" not confirmed in readback`,
-        weight: 'medium',
-        correction: 'Confirm tow destination bay number to ensure tug crew has correct routing',
-        icaoReference: 'ICAO Doc 9157 Part 2',
-        safetyImpact: 'Tug crew may route to wrong bay, causing congestion or aircraft conflict',
-      })
+    const atcTowBay = atcL.match(/\b(?:bay|stand|spot)\s+([\w\s]{1,14}?)(?=\s*[,.]|\s*$)/i)
+    if (atcTowBay) {
+      const atcBayNorm    = normDigits(atcTowBay[1].trim())
+      const pilotHasBayKw = /\b(?:bay|stand|spot)\s+\w/i.test(pilotL)
+      const pilotNormFull  = normDigits(pilotL)
+      const pilotHasBayNum = atcBayNorm.length >= 2 && pilotNormFull.includes(atcBayNorm)
+
+      if (!pilotHasBayKw && !pilotHasBayNum) {
+        errors.push({
+          type: 'towing_direction_missing',
+          description: `Towing destination "Bay ${atcTowBay[1].trim()}" not confirmed in readback`,
+          weight: 'medium',
+          correction: 'Confirm tow destination bay number to ensure tug crew has correct routing',
+          icaoReference: 'ICAO Doc 9157 Part 2',
+          safetyImpact: 'Tug crew may route to wrong bay, causing congestion or aircraft conflict',
+        })
+      }
     }
   }
 
   // ── 8. apron_crossing_incomplete ─────────────────────────────────────────
-  // ATC instructed hold short on apron (non-runway) — pilot must confirm
+  // ATC instructed hold short on apron — pilot must confirm.
+  // FIX (34 FP): pilots also say "holding [taxiway]" or "remain [taxiway]" as
+  // valid equivalents of "hold short".  Expand the acceptance pattern.
   const hsApronMatch = atcL.match(/hold\s+short\s+(?:of\s+)?(?!runway)([a-z][a-z0-9\s]{1,20}?)(?=\s*[,.]|\s+contact|\s*$)/i)
   if (hsApronMatch) {
     const hs = hsApronMatch[1].trim()
-    const pilotHasHs = /hold\s+short|holding\s+short/i.test(pilotL)
+    const pilotHasHs =
+      /hold\s+short|holding\s+short/i.test(pilotL) ||
+      /holding\s+(?:at|on|\w)/i.test(pilotL) ||
+      /remain(?:ing)?\s+(?:at|short|on)/i.test(pilotL)
     if (!pilotHasHs) {
       errors.push({
         type: 'apron_crossing_incomplete',
@@ -402,12 +480,15 @@ export function detectRampErrors(
   }
 
   // ── 9. callsign_not_included ──────────────────────────────────────────────
-  // Mandatory readback instructions (pushback, startup, hold short) should include callsign
+  // Only checked when a callsign is explicitly provided by the caller.
+  // (page.tsx passes callsign as undefined, so this is a corpus-evaluation gate.)
+  // FIX: removed the arbitrary < 4 word length gate which caused false negatives
+  // on longer readbacks that omitted the callsign.
   const isMandatoryReadback = pushbackRe.test(atcL) || startupRe.test(atcL) || crossRe.test(atcL)
   if (isMandatoryReadback && callsign) {
-    const csNorm = callsign.toLowerCase().replace(/\s+/g, '')
+    const csNorm   = callsign.toLowerCase().replace(/\s+/g, '')
     const pilotNorm = pilotL.replace(/\s+/g, '')
-    if (!pilotNorm.includes(csNorm) && pilotL.split(' ').length < 4) {
+    if (!pilotNorm.includes(csNorm)) {
       errors.push({
         type: 'callsign_not_included',
         description: 'Callsign omitted from mandatory readback',
@@ -420,14 +501,16 @@ export function detectRampErrors(
   }
 
   // ── 10. frequency_not_confirmed ───────────────────────────────────────────
-  const freqMatch = atcL.match(freqRe)
-  if (freqMatch) {
-    const freqVal = freqMatch[1]?.replace(/\s/g, '') || ''
-    const pilotFreqNorm = pilotL.replace(/decimal/gi, '.').replace(/\s/g, '')
-    if (freqVal && !pilotFreqNorm.includes(freqVal.replace('.', ''))) {
+  // FIX: the original pattern required digit-form frequencies ("121.8") which
+  // never appeared in spoken-form transcripts.  We now normalise both ATC and
+  // pilot text to digit strings first, then compare extracted frequency runs.
+  const atcFreqNorm = extractSpokenFreq(atcL)
+  if (atcFreqNorm) {
+    const pilotFreqNorm = normDigits(pilotL)
+    if (!pilotFreqNorm.includes(atcFreqNorm)) {
       errors.push({
         type: 'frequency_not_confirmed',
-        description: `Frequency "${freqMatch[1]}" not confirmed in handoff readback`,
+        description: `Frequency (${atcFreqNorm}) not confirmed in handoff readback`,
         weight: 'low',
         correction: 'Read back frequency to confirm correct channel before switch',
         icaoReference: 'ICAO Doc 4444 §12.4.4',

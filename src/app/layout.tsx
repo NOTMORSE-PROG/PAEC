@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Providers from './providers'
 
 export const metadata: Metadata = {
   title: 'PAEC - Philippine Aeronautical English Corpus',
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen bg-white antialiased">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

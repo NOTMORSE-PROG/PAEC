@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
 import {
   Plane,
   LayoutDashboard,
@@ -30,6 +31,16 @@ const userNavigation = [
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
+function getInitials(name: string | null | undefined): string {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -38,6 +49,11 @@ export default function DashboardLayout({
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const { data: session } = useSession()
+
+  const userName = session?.user?.name ?? 'User'
+  const userEmail = session?.user?.email ?? ''
+  const initials = getInitials(session?.user?.name)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -130,11 +146,11 @@ export default function DashboardLayout({
           <div className="p-4 border-t border-gray-100">
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
               <div className="w-10 h-10 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center">
-                <span className="text-sm font-semibold text-white">JS</span>
+                <span className="text-sm font-semibold text-white">{initials}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">Juan Santos</p>
-                <p className="text-xs text-gray-500 truncate">Student</p>
+                <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
+                <p className="text-xs text-gray-500 truncate capitalize">{session?.user?.role ?? 'Student'}</p>
               </div>
             </div>
           </div>
@@ -176,7 +192,7 @@ export default function DashboardLayout({
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                 >
                   <div className="w-8 h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center">
-                    <span className="text-xs font-semibold text-white">JS</span>
+                    <span className="text-xs font-semibold text-white">{initials}</span>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -184,13 +200,14 @@ export default function DashboardLayout({
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-elevated border border-gray-100 py-2 animate-slide-down">
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">Juan Santos</p>
-                      <p className="text-xs text-gray-500">juan.santos@email.com</p>
+                      <p className="text-sm font-medium text-gray-900">{userName}</p>
+                      <p className="text-xs text-gray-500">{userEmail}</p>
                     </div>
                     <div className="py-1">
                       <Link
                         href="/dashboard/profile"
                         className="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                        onClick={() => setUserMenuOpen(false)}
                       >
                         <User className="w-4 h-4" />
                         Your Profile
@@ -198,19 +215,20 @@ export default function DashboardLayout({
                       <Link
                         href="/dashboard/settings"
                         className="flex items-center gap-3 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                        onClick={() => setUserMenuOpen(false)}
                       >
                         <Settings className="w-4 h-4" />
                         Settings
                       </Link>
                     </div>
                     <div className="border-t border-gray-100 py-1">
-                      <Link
-                        href="/"
-                        className="flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                      <button
+                        onClick={() => signOut({ callbackUrl: '/' })}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                       >
                         <LogOut className="w-4 h-4" />
                         Sign Out
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 )}

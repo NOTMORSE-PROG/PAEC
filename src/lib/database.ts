@@ -55,6 +55,51 @@ export async function initializeDatabase(): Promise<void> {
   try {
     await client.query('BEGIN')
 
+    // Users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        name VARCHAR(255),
+        password_hash VARCHAR(255),
+        role VARCHAR(50) DEFAULT 'student',
+        avatar_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
+    // OAuth accounts table (for Google etc.)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(50) NOT NULL,
+        provider_account_id VARCHAR(255) NOT NULL,
+        access_token TEXT,
+        refresh_token TEXT,
+        expires_at BIGINT,
+        UNIQUE(provider, provider_account_id)
+      )
+    `)
+
+    // Sessions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_token VARCHAR(255) UNIQUE NOT NULL,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires TIMESTAMP NOT NULL
+      )
+    `)
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id)
+    `)
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
+    `)
+
     // Training Corpus table
     await client.query(`
       CREATE TABLE IF NOT EXISTS training_corpus (
