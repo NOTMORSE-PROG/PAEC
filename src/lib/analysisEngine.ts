@@ -2381,6 +2381,8 @@ function detectAllErrorsWithContext(
       lineErrors.push(...detectAppDepSpecificErrors(line))
     } else if (corpusType === 'GND') {
       lineErrors.push(...detectGndSpecificErrors(line))
+    } else if (corpusType === 'RAMP') {
+      lineErrors.push(...detectRampSpecificErrors(line))
     }
 
     // Apply dynamic weight adjustment based on context
@@ -3287,6 +3289,45 @@ function detectGndSpecificErrors(line: ParsedLine): PhraseologyError[] {
       safetyImpact: 'safety',
       icaoReference: 'ICAO Doc 4444 §7.11.3',
       explanation: 'Combining LUAW and takeoff clearance risks pilot commencing takeoff prematurely.',
+    })
+  }
+
+  return errors
+}
+
+function detectRampSpecificErrors(line: ParsedLine): PhraseologyError[] {
+  const errors: PhraseologyError[] = []
+
+  // 1. Pilot uses "roger" or "wilco" alone (≤3 words) for safety-critical ramp instruction
+  if (line.speaker === 'PILOT' && /\b(roger|wilco|copy)\b/i.test(line.text)) {
+    const wordCount = line.text.trim().split(/\s+/).length
+    if (wordCount <= 3) {
+      errors.push({
+        line: line.lineNumber,
+        original: line.rawText,
+        issue: '"Roger/Wilco" alone is insufficient for ramp readbacks',
+        suggestion: 'Read back the full instruction including pushback position, direction, and callsign',
+        weight: 'medium',
+        category: 'procedure',
+        safetyImpact: 'safety',
+        icaoReference: 'ICAO Doc 4444 §12.4.4',
+        explanation: 'Ramp instructions for pushback and startup must be fully read back so ATC and tug crew can confirm all parameters.',
+      })
+    }
+  }
+
+  // 2. ATC uses non-ICAO "go ahead" instead of standard ramp call-back
+  if (line.speaker === 'ATC' && /\bgo\s+ahead\b/i.test(line.text)) {
+    errors.push({
+      line: line.lineNumber,
+      original: line.rawText,
+      issue: 'Non-standard: "go ahead" in ramp control',
+      suggestion: 'Use standard invitation to proceed: "[callsign], pass your message" or "[callsign], go ahead" is acceptable informally but avoid in formal ICAO contexts',
+      weight: 'low',
+      category: 'language',
+      safetyImpact: 'clarity',
+      icaoReference: 'ICAO Doc 9432 §4.2',
+      explanation: '"Go ahead" is informally used on ramp but not standard ICAO phraseology for inviting a transmission.',
     })
   }
 

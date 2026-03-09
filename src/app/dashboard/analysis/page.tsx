@@ -37,6 +37,7 @@ import { exportAnalysisToPDF, exportAnalysisToCSV, exportAllToPDF, exportAllToCS
 import { analyzeDialogue, parseLines, type AnalysisOutput, type PhraseologyError } from '@/lib/analysisEngine'
 import { analyzeDepartureApproach, type DepartureApproachMLResult, type FlightPhase } from '@/lib/departureApproachAnalyzer'
 import { analyzeGround, type GroundMLResult, type GroundPhase } from '@/lib/groundAnalyzer'
+import { analyzeRamp, type RampMLResult, type RampPhase } from '@/lib/rampAnalyzer'
 import { analyzeWithPhaseContext } from '@/lib/semanticReadbackAnalyzer'
 
 type CorpusType = 'APP/DEP' | 'GND' | 'RAMP' | null
@@ -109,6 +110,19 @@ interface FileQueueItem {
       phaseBreakdown: Record<GroundPhase, number>
     }
   } | null
+  rampAnalysisResults?: {
+    exchanges: RampMLResult[]
+    summary: {
+      totalExchanges: number
+      pushbackCount: number
+      startupCount: number
+      parkingCount: number
+      crossingCount: number
+      averageCompleteness: number
+      criticalErrors: number
+      phaseBreakdown: Record<RampPhase, number>
+    }
+  } | null
   error?: string
 }
 
@@ -145,6 +159,7 @@ export default function AnalysisPage() {
   const analysisResult = activeFile?.analysisResult ?? null
   const mlAnalysisResults = activeFile?.mlAnalysisResults ?? null
   const groundAnalysisResults = activeFile?.groundAnalysisResults ?? null
+  const rampAnalysisResults = activeFile?.rampAnalysisResults ?? null
   const uploadedText = activeFile?.extractedText ?? ''
   const pdfData: ExtractedPDFData | null = activeFile?.metadata
     ? { text: activeFile.extractedText ?? '', metadata: activeFile.metadata, validation: activeFile.validation ?? { isValid: true, confidence: 100, issues: [] } }
@@ -262,6 +277,7 @@ export default function AnalysisPage() {
 
     let mlResults: FileQueueItem['mlAnalysisResults'] = null
     let gndResults: FileQueueItem['groundAnalysisResults'] = null
+    let rampResults: FileQueueItem['rampAnalysisResults'] = null
 
     if (corpus === 'APP/DEP') {
       const lines = parseLines(text)
@@ -306,6 +322,30 @@ export default function AnalysisPage() {
       }
       gndResults = { exchanges, summary: { totalExchanges: exchanges.length, taxiCount, holdingCount, crossingCount,
         averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100, criticalErrors, phaseBreakdown } }
+    } else if (corpus === 'RAMP') {
+      const lines = parseLines(text)
+      const exchanges: RampMLResult[] = []
+      const phaseBreakdown: Record<RampPhase, number> = {} as Record<RampPhase, number>
+      let totalCompleteness = 0; let criticalErrors = 0
+      let pushbackCount = 0; let startupCount = 0; let parkingCount = 0; let crossingCount = 0
+      for (let i = 0; i < lines.length - 1; i++) {
+        const cur = lines[i]; const nxt = lines[i + 1]
+        if (cur.speaker === 'ATC' && nxt.speaker === 'PILOT') {
+          const ex = analyzeRamp(cur.text, nxt.text, undefined,
+            exchanges.slice(-3).map(e => ({ type: e.errors[0]?.type || 'unknown', weight: e.contextualWeight, timestamp: Date.now() })))
+          exchanges.push(ex)
+          phaseBreakdown[ex.phase] = (phaseBreakdown[ex.phase] || 0) + 1
+          totalCompleteness += ex.multiPartAnalysis.readbackCompleteness
+          if (ex.contextualWeight === 'critical') criticalErrors++
+          if (ex.phase === 'pushback') pushbackCount++
+          if (ex.phase === 'startup') startupCount++
+          if (ex.phase === 'parking') parkingCount++
+          if (ex.phase === 'crossing') crossingCount++
+          i++
+        }
+      }
+      rampResults = { exchanges, summary: { totalExchanges: exchanges.length, pushbackCount, startupCount, parkingCount, crossingCount,
+        averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100, criticalErrors, phaseBreakdown } }
     }
 
     // Pre-compute annotated lines once here so tab-switching is instant (no parseLines on render)
@@ -332,7 +372,7 @@ export default function AnalysisPage() {
       }
     })
 
-    return { analysisResult: result, mlAnalysisResults: mlResults, groundAnalysisResults: gndResults, annotatedLines }
+    return { analysisResult: result, mlAnalysisResults: mlResults, groundAnalysisResults: gndResults, rampAnalysisResults: rampResults, annotatedLines }
   }
 
   const handleAnalyzeAll = async () => {
@@ -348,10 +388,10 @@ export default function AnalysisPage() {
       setFileQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'analyzing' as const } : q))
       await new Promise(resolve => setTimeout(resolve, 300))
       try {
-        const { analysisResult: res, mlAnalysisResults: ml, groundAnalysisResults: gnd, annotatedLines: al } =
+        const { analysisResult: res, mlAnalysisResults: ml, groundAnalysisResults: gnd, rampAnalysisResults: ramp, annotatedLines: al } =
           await analyzeOneItem(item, selectedCorpus)
         setFileQueue(prev => prev.map(q => q.id === item.id
-          ? { ...q, status: 'done' as const, analysisResult: res, mlAnalysisResults: ml, groundAnalysisResults: gnd, annotatedLines: al }
+          ? { ...q, status: 'done' as const, analysisResult: res, mlAnalysisResults: ml, groundAnalysisResults: gnd, rampAnalysisResults: ramp, annotatedLines: al }
           : q
         ))
         if (!firstDoneId) firstDoneId = item.id
@@ -1451,6 +1491,208 @@ Pilot: Left heading 180, PAL456."
                     {[...new Set(groundAnalysisResults.exchanges.flatMap(e => e.trainingRecommendations))].slice(0, 5).map((r, i) => (
                       <li key={i} className="text-[11px] text-gray-600 flex items-start gap-1.5">
                         <ArrowRight className="w-3 h-3 text-emerald-500 mt-0.5 flex-shrink-0" />
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* RAMP Exchange Analysis Panel */}
+          {rampAnalysisResults && rampAnalysisResults.exchanges.length > 0 && (
+            <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/50 to-orange-50/50 overflow-hidden">
+
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-amber-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <Radio className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-sm">Ramp Operations Analysis</h3>
+                    <p className="text-[11px] text-gray-500">{rampAnalysisResults.summary.totalExchanges} exchanges analyzed</p>
+                  </div>
+                </div>
+                <span className={`text-lg font-bold ${
+                  rampAnalysisResults.summary.averageCompleteness >= 80 ? 'text-green-600' :
+                  rampAnalysisResults.summary.averageCompleteness >= 60 ? 'text-amber-600' : 'text-red-600'
+                }`}>
+                  {rampAnalysisResults.summary.averageCompleteness}%
+                </span>
+              </div>
+
+              {/* Stat row */}
+              <div className="grid grid-cols-4 divide-x divide-amber-100 border-b border-amber-100 bg-white/50">
+                {[
+                  { value: rampAnalysisResults.summary.totalExchanges, label: 'Total',      color: 'text-amber-600'  },
+                  { value: rampAnalysisResults.summary.pushbackCount,  label: 'Pushback',   color: 'text-orange-600' },
+                  { value: rampAnalysisResults.summary.parkingCount,   label: 'Parking',    color: 'text-amber-600'  },
+                  { value: rampAnalysisResults.summary.criticalErrors, label: 'High-Weight', color: 'text-amber-600' },
+                ].map((s) => (
+                  <div key={s.label} className="text-center py-3">
+                    <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Phase chips */}
+              <div className="px-5 py-3 border-b border-amber-100 bg-white/30">
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(rampAnalysisResults.summary.phaseBreakdown)
+                    .filter(([, count]) => count > 0)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([phase, count]) => (
+                      <span key={phase} className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        phase === 'pushback' ? 'bg-orange-100 text-orange-700' :
+                        phase === 'startup'  ? 'bg-amber-100 text-amber-700' :
+                        phase === 'parking'  ? 'bg-yellow-100 text-yellow-700' :
+                        phase === 'towing'   ? 'bg-amber-100 text-amber-700' :
+                        phase === 'crossing' ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>{phase.replace(/_/g, ' ')} ({count})</span>
+                    ))}
+                </div>
+              </div>
+
+              {/* Exchange list */}
+              <div className="max-h-[500px] overflow-y-auto divide-y divide-amber-50">
+                {rampAnalysisResults.exchanges.slice(0, exchangeLimit).map((exchange, idx) => {
+                  const sevClasses = (exchange.contextualWeight === 'critical' || exchange.contextualWeight === 'high') ? 'bg-amber-100 text-amber-700' :
+                    exchange.contextualWeight === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-green-100 text-green-700'
+
+                  return (
+                    <div key={idx} className="px-5 py-3 hover:bg-white/60 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500">{idx + 1}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                            exchange.phase === 'pushback' ? 'bg-orange-100 text-orange-700' :
+                            exchange.phase === 'startup'  ? 'bg-amber-100 text-amber-700' :
+                            exchange.phase === 'parking'  ? 'bg-yellow-100 text-yellow-700' :
+                            exchange.phase === 'crossing' ? 'bg-orange-100 text-orange-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>{exchange.phase.replace(/_/g, ' ')}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sevClasses}`}>
+                            {exchange.multiPartAnalysis.readbackCompleteness}%
+                          </span>
+                          {exchange.sequenceAnalysis?.errorTrend !== 'stable' && (
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              exchange.sequenceAnalysis.errorTrend === 'improving'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              {exchange.sequenceAnalysis.errorTrend === 'improving' ? '↑ improving' : '↓ declining'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Multi-part component chips */}
+                      {exchange.multiPartAnalysis.isMultiPart && exchange.multiPartAnalysis.parts.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {exchange.multiPartAnalysis.parts.map((part, pIdx) => (
+                            <span key={pIdx} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              part.isPresent ? 'bg-green-50 text-green-700 border border-green-200' :
+                              'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}>{part.isPresent ? '✓' : '✗'} {part.type.replace(/_/g, ' ')}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* RAMP-specific errors */}
+                      {exchange.rampSpecificErrors.map((err, eIdx) => (
+                        <div key={eIdx} className="text-[11px] text-gray-600 flex items-start gap-1.5 mb-1">
+                          <ArrowRight className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
+                          <span><strong className="text-gray-800">{err.description}</strong> — {err.correction}</span>
+                        </div>
+                      ))}
+
+                      {exchange.isCorrect && exchange.contextualWeight === 'low' && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-green-600">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Correct and complete
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {rampAnalysisResults.exchanges.length > exchangeLimit && (
+                  <button
+                    onClick={() => setExchangeLimit(prev => prev + 20)}
+                    className="w-full py-2.5 text-xs font-medium text-amber-600 hover:bg-amber-50 transition-colors"
+                  >
+                    Show {Math.min(20, rampAnalysisResults.exchanges.length - exchangeLimit)} more exchanges
+                    ({rampAnalysisResults.exchanges.length - exchangeLimit} remaining)
+                  </button>
+                )}
+              </div>
+
+              {/* Readback Vectors */}
+              <div className="px-5 py-4 border-t border-amber-100 bg-white/30">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-3">Readback Vectors</p>
+                <div className="space-y-2.5">
+                  {['Parameter Readback Accuracy', 'Pushback & Startup Compliance', 'Instruction Completeness', 'Phrase Accuracy', 'Callsign Compliance'].map(name => {
+                    const avg = Math.round(
+                      rampAnalysisResults.exchanges.reduce((sum, ex) => {
+                        const v = ex.safetyVectors.find(sv => sv.factor === name)
+                        return sum + (v?.score ?? 100)
+                      }, 0) / rampAnalysisResults.exchanges.length
+                    )
+                    return (
+                      <div key={name}>
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span className="text-gray-600">{name}</span>
+                          <span className={`font-medium ${avg >= 80 ? 'text-green-600' : avg >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{avg}</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${avg >= 80 ? 'bg-amber-400' : avg >= 60 ? 'bg-amber-500' : 'bg-red-400'}`}
+                               style={{ width: `${avg}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Confidence Scores */}
+              <div className="px-5 py-3 border-t border-amber-100 bg-white/20">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Avg. Confidence</p>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  {[
+                    { key: 'phaseDetection',            label: 'Phase' },
+                    { key: 'instructionClassification', label: 'Instruction' },
+                    { key: 'errorDetection',            label: 'Error Det.' },
+                    { key: 'weightAssessment',          label: 'Weight' },
+                  ].map(({ key, label }) => {
+                    const avg = Math.round(
+                      rampAnalysisResults.exchanges.reduce(
+                        (s, e) => s + ((e.rampConfidenceScores[key as keyof typeof e.rampConfidenceScores] as number) * 100),
+                        0
+                      ) / rampAnalysisResults.exchanges.length
+                    )
+                    return (
+                      <div key={key}>
+                        <div className={`text-sm font-bold ${avg >= 80 ? 'text-amber-700' : avg >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{avg}%</div>
+                        <div className="text-[9px] text-gray-400 leading-tight">{label}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Training Recommendations */}
+              {rampAnalysisResults.exchanges.some(e => e.trainingRecommendations.length > 0) && (
+                <div className="px-5 py-4 border-t border-amber-100">
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Training Recommendations</p>
+                  <ul className="space-y-1.5">
+                    {[...new Set(rampAnalysisResults.exchanges.flatMap(e => e.trainingRecommendations))].slice(0, 5).map((r, i) => (
+                      <li key={i} className="text-[11px] text-gray-600 flex items-start gap-1.5">
+                        <ArrowRight className="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0" />
                         {r}
                       </li>
                     ))}
