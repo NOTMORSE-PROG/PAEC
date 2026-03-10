@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import {
   Plane,
   Radio,
@@ -23,6 +24,7 @@ import {
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { data: session } = useSession()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -67,10 +69,10 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-slate-950">
       {/* Navigation */}
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'bg-white/95 backdrop-blur-md shadow-soft' : 'bg-transparent'
+        isScrolled ? 'bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-soft' : 'bg-transparent'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-20">
@@ -95,13 +97,22 @@ export default function LandingPage() {
 
             {/* CTA Buttons */}
             <div className="hidden lg:flex items-center gap-3">
-              <Link href="/auth/login" className="btn-ghost">
-                Sign In
-              </Link>
-              <Link href="/auth/register" className="btn-primary">
-                Get Started
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Link>
+              {session ? (
+                <Link href="/dashboard" className="btn-primary">
+                  Go to Dashboard
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
+              ) : (
+                <>
+                  <Link href="/auth/login" className="btn-ghost">
+                    Sign In
+                  </Link>
+                  <Link href="/auth/register" className="btn-primary">
+                    Get Started
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Link>
+                </>
+              )}
             </div>
 
             {/* Mobile Menu Button */}
@@ -116,15 +127,21 @@ export default function LandingPage() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg animate-slide-down">
+          <div className="lg:hidden bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-700 shadow-lg animate-slide-down">
             <div className="px-4 py-4 space-y-3">
               <a href="#features" className="block px-4 py-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg">Features</a>
               <a href="#training" className="block px-4 py-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg">Training</a>
               <a href="#analysis" className="block px-4 py-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg">Analysis</a>
               <a href="#about" className="block px-4 py-2 text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg">About</a>
               <hr className="my-3" />
-              <Link href="/auth/login" className="block px-4 py-2 text-center text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg">Sign In</Link>
-              <Link href="/auth/register" className="block btn-primary w-full text-center">Get Started</Link>
+              {session ? (
+                <Link href="/dashboard" className="block btn-primary w-full text-center">Go to Dashboard</Link>
+              ) : (
+                <>
+                  <Link href="/auth/login" className="block px-4 py-2 text-center text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg">Sign In</Link>
+                  <Link href="/auth/register" className="block btn-primary w-full text-center">Get Started</Link>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -134,7 +151,7 @@ export default function LandingPage() {
       <section className="relative min-h-screen flex items-center overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0 gradient-bg"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#1e3a5f_1px,transparent_1px),linear-gradient(to_bottom,#1e3a5f_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]"></div>
 
         {/* Floating Elements */}
         <div className="absolute top-1/4 left-10 w-72 h-72 bg-primary-200/30 rounded-full blur-3xl animate-pulse-slow"></div>
@@ -142,7 +159,7 @@ export default function LandingPage() {
 
         {/* Floating Aircraft Icon */}
         <div className="absolute top-1/3 right-1/4 hidden lg:block animate-float">
-          <div className="w-20 h-20 bg-white rounded-2xl shadow-elevated flex items-center justify-center">
+          <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-2xl shadow-elevated flex items-center justify-center">
             <Plane className="w-10 h-10 text-primary-500" />
           </div>
         </div>
@@ -167,17 +184,24 @@ export default function LandingPage() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-slide-up delay-200">
-                <Link href="/auth/register" className="btn-primary text-lg px-8 py-4">
-                  Start Training
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Link>
+                {session ? (
+                  <Link href="/dashboard" className="btn-primary text-lg px-8 py-4">
+                    Go to Dashboard
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Link>
+                ) : (
+                  <Link href="/auth/register" className="btn-primary text-lg px-8 py-4">
+                    Start Training
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Link>
+                )}
                 <Link href="#features" className="btn-secondary text-lg px-8 py-4">
                   Explore Features
                 </Link>
               </div>
 
               {/* Trust Badges */}
-              <div className="mt-10 pt-8 border-t border-gray-200 animate-fade-in delay-300">
+              <div className="mt-10 pt-8 border-t border-gray-200 dark:border-slate-700 animate-fade-in delay-300">
                 <p className="text-sm text-gray-500 mb-4">Built on ICAO Standards</p>
                 <div className="flex items-center justify-center lg:justify-start gap-6">
                   <div className="flex items-center gap-2 text-gray-600">
@@ -194,7 +218,7 @@ export default function LandingPage() {
 
             {/* Right Content - Hero Card */}
             <div className="relative hidden lg:block">
-              <div className="relative bg-white rounded-3xl shadow-elevated p-8 border border-gray-100">
+              <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-elevated p-8 border border-gray-100 dark:border-slate-700">
                 {/* Mini Dashboard Preview */}
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
@@ -233,7 +257,7 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-gray-100">
+                  <div className="pt-4 border-t border-gray-100 dark:border-slate-700">
                     <button className="w-full btn-primary">
                       Continue Training
                     </button>
@@ -242,8 +266,8 @@ export default function LandingPage() {
               </div>
 
               {/* Decorative Elements */}
-              <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary-100 rounded-2xl -z-10"></div>
-              <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-aviation-light rounded-2xl -z-10"></div>
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary-100 dark:bg-primary-900/30 rounded-2xl -z-10"></div>
+              <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-aviation-light dark:bg-slate-800/50 rounded-2xl -z-10"></div>
             </div>
           </div>
         </div>
@@ -339,10 +363,10 @@ export default function LandingPage() {
                     &quot;PAL456, climb and maintain flight level 350, turn right heading 090&quot;
                   </p>
                 </div>
-                <div className="bg-white rounded-2xl p-6 text-gray-900">
-                  <div className="text-sm text-gray-500 mb-2">Your Response</div>
+                <div className="bg-white dark:bg-slate-700 rounded-2xl p-6 text-gray-900 dark:text-slate-100">
+                  <div className="text-sm text-gray-500 dark:text-slate-400 mb-2">Your Response</div>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-100 rounded-xl px-4 py-3 text-gray-700">
+                    <div className="flex-1 bg-gray-100 dark:bg-slate-600 rounded-xl px-4 py-3 text-gray-700 dark:text-slate-200">
                       Climb maintain flight level 350, right heading 090, PAL456
                     </div>
                   </div>
@@ -364,7 +388,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <div className="order-2 lg:order-1">
-              <div className="bg-white rounded-3xl shadow-elevated p-8 border border-gray-100">
+              <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-elevated p-8 border border-gray-100 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-6">
                   <h4 className="font-semibold text-gray-900">Corpus Analysis</h4>
                   <span className="badge-success">APP/DEP Control</span>
@@ -411,7 +435,7 @@ export default function LandingPage() {
                   { label: 'GND', desc: 'Ground Control' },
                   { label: 'RAMP', desc: 'Ramp Control' },
                 ].map((corpus, index) => (
-                  <div key={index} className="text-center p-4 bg-white rounded-xl border border-gray-200">
+                  <div key={index} className="text-center p-4 bg-white dark:bg-slate-700 rounded-xl border border-gray-200 dark:border-slate-600">
                     <div className="font-bold text-primary-600 mb-1">{corpus.label}</div>
                     <div className="text-xs text-gray-500">{corpus.desc}</div>
                   </div>
