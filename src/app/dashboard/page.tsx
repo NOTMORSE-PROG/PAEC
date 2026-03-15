@@ -1,5 +1,7 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import {
   Radio,
@@ -8,120 +10,105 @@ import {
   Headphones,
   BarChart3,
   TrendingUp,
-  Clock,
-  Award,
+  TrendingDown,
   ChevronRight,
   ArrowUpRight,
-  Calendar,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 
+interface CategorySummary {
+  category: string
+  bestScore: number | null
+  count: number
+  activeQuestions: number
+}
+
+interface RecentSession {
+  id: string
+  category: string
+  score: number | null
+  completed_at: string | null
+  created_at: string
+}
+
+interface DashData {
+  userName: string | null
+  summary: CategorySummary[]
+  recentSessions: RecentSession[]
+  areasToImprove: { category: string; bestScore: number | null }[]
+  weeklyTrend: { delta: number; thisWeekCount: number } | null
+}
+
+const MODULES = [
+  {
+    id: 'scenario',
+    title: 'Scenario Simulation',
+    description: 'Practice ATC clearances in realistic scenarios',
+    icon: Radio,
+    color: 'from-blue-500 to-cyan-500',
+  },
+  {
+    id: 'readback',
+    title: 'Readback Correction',
+    description: 'Identify and correct pilot readback errors',
+    icon: Target,
+    color: 'from-indigo-500 to-purple-500',
+  },
+  {
+    id: 'jumbled',
+    title: 'Jumbled Clearance',
+    description: 'Arrange words into correct phraseology',
+    icon: BookOpen,
+    color: 'from-violet-500 to-pink-500',
+  },
+  {
+    id: 'pronunciation',
+    title: 'Pronunciation Drill',
+    description: 'Master ICAO standard pronunciation',
+    icon: Headphones,
+    color: 'from-emerald-500 to-teal-500',
+  },
+]
+
+const CATEGORY_LABELS: Record<string, string> = {
+  scenario: 'Scenario Simulation',
+  readback: 'Readback Correction',
+  jumbled: 'Jumbled Clearance',
+  pronunciation: 'Pronunciation Drill',
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  if (diff < 3_600_000) {
+    const m = Math.max(1, Math.round(diff / 60_000))
+    return `${m} min ago`
+  }
+  if (diff < 86_400_000) {
+    const h = Math.round(diff / 3_600_000)
+    return `${h} hour${h !== 1 ? 's' : ''} ago`
+  }
+  if (diff < 172_800_000) return 'Yesterday'
+  return new Date(dateStr).toLocaleDateString()
+}
+
 export default function DashboardPage() {
-  const trainingModules = [
-    {
-      id: 'scenario',
-      title: 'Scenario Simulation',
-      description: 'Practice ATC clearances in realistic scenarios',
-      icon: Radio,
-      color: 'from-blue-500 to-cyan-500',
-      progress: 68,
-      exercises: 45,
-      lastScore: 92,
-    },
-    {
-      id: 'readback',
-      title: 'Readback Correction',
-      description: 'Identify and correct pilot readback errors',
-      icon: Target,
-      color: 'from-indigo-500 to-purple-500',
-      progress: 42,
-      exercises: 28,
-      lastScore: 78,
-    },
-    {
-      id: 'jumbled',
-      title: 'Jumbled Clearance',
-      description: 'Arrange words into correct phraseology',
-      icon: BookOpen,
-      color: 'from-violet-500 to-pink-500',
-      progress: 55,
-      exercises: 35,
-      lastScore: 85,
-    },
-    {
-      id: 'pronunciation',
-      title: 'Pronunciation Drill',
-      description: 'Master ICAO standard pronunciation',
-      icon: Headphones,
-      color: 'from-emerald-500 to-teal-500',
-      progress: 31,
-      exercises: 22,
-      lastScore: 88,
-    },
-  ]
+  const { data: session } = useSession()
+  const [dashData, setDashData] = useState<DashData | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const recentActivity = [
-    {
-      id: 1,
-      type: 'Scenario Simulation',
-      score: 92,
-      time: '2 hours ago',
-      status: 'completed',
-    },
-    {
-      id: 2,
-      type: 'Readback Correction',
-      score: 78,
-      time: '5 hours ago',
-      status: 'completed',
-    },
-    {
-      id: 3,
-      type: 'Jumbled Clearance',
-      score: 85,
-      time: 'Yesterday',
-      status: 'completed',
-    },
-    {
-      id: 4,
-      type: 'Analysis: APP/DEP',
-      score: null,
-      time: 'Yesterday',
-      status: 'analyzed',
-    },
-  ]
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then((r) => r.json())
+      .then((d: DashData) => setDashData(d))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
-  const stats = [
-    {
-      label: 'Total Exercises',
-      value: '156',
-      change: '+12 this week',
-      changeType: 'positive',
-      icon: BookOpen,
-    },
-    {
-      label: 'Average Score',
-      value: '87%',
-      change: '+5% from last week',
-      changeType: 'positive',
-      icon: TrendingUp,
-    },
-    {
-      label: 'Time Spent',
-      value: '24h 35m',
-      change: 'This month',
-      changeType: 'neutral',
-      icon: Clock,
-    },
-    {
-      label: 'Achievements',
-      value: '8/15',
-      change: '3 in progress',
-      changeType: 'neutral',
-      icon: Award,
-    },
-  ]
+  const firstName = session?.user?.name?.split(' ')[0] ?? 'Pilot'
+  const getSummary = (id: string) => dashData?.summary.find((s) => s.category === id)
+  const totalSessions = dashData?.summary.reduce((s, c) => s + c.count, 0) ?? 0
 
   return (
     <div className="space-y-8">
@@ -129,7 +116,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            Welcome back, Juan!
+            Welcome back, {firstName}!
           </h1>
           <p className="text-gray-600 mt-1">
             Continue your aviation communication training journey.
@@ -143,32 +130,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {stats.map((stat, index) => (
-          <div key={index} className="stat-card">
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
-                <stat.icon className="w-5 h-5 text-primary-600" />
-              </div>
-              {stat.changeType === 'positive' && (
-                <span className="badge-success text-xs">
-                  <TrendingUp className="w-3 h-3 mr-1" />
-                  Up
-                </span>
-              )}
-            </div>
-            <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
-            <div className="text-sm text-gray-500">{stat.label}</div>
-            <div className={`text-xs mt-2 ${
-              stat.changeType === 'positive' ? 'text-green-600' : 'text-gray-500'
-            }`}>
-              {stat.change}
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* Training Modules */}
       <div>
         <div className="flex items-center justify-between mb-6">
@@ -180,37 +141,56 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-          {trainingModules.map((module) => (
-            <Link
-              key={module.id}
-              href={`/dashboard/training/${module.id}`}
-              className="card-interactive p-6 group"
-            >
-              <div className={`w-12 h-12 bg-gradient-to-br ${module.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                <module.icon className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-1">{module.title}</h3>
-              <p className="text-sm text-gray-500 mb-4">{module.description}</p>
+          {MODULES.map((module) => {
+            const stats = getSummary(module.id)
+            const bestScore = stats?.bestScore ?? null
+            const sessions = stats?.count ?? 0
+            const barWidth = bestScore !== null ? bestScore : 0
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Progress</span>
-                  <span className="font-medium text-primary-600">{module.progress}%</span>
+            return (
+              <Link
+                key={module.id}
+                href={`/dashboard/training/${module.id}`}
+                className="card-interactive p-6 group"
+              >
+                <div className={`w-12 h-12 bg-gradient-to-br ${module.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                  <module.icon className="w-6 h-6 text-white" />
                 </div>
-                <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${module.progress}%` }}
-                  />
-                </div>
+                <h3 className="font-semibold text-gray-900 mb-1">{module.title}</h3>
+                <p className="text-sm text-gray-500 mb-4">{module.description}</p>
 
-                <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
-                  <span>{module.exercises} exercises</span>
-                  <span>Last: {module.lastScore}%</span>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Best Score</span>
+                    {loading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                    ) : (
+                      <span className="font-medium text-primary-600">
+                        {bestScore !== null ? `${bestScore}%` : '—'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{ width: loading ? '0%' : `${barWidth}%` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs text-gray-500">
+                    {loading ? (
+                      <span className="text-gray-300">Loading…</span>
+                    ) : (
+                      <>
+                        <span>{sessions} session{sessions !== 1 ? 's' : ''}</span>
+                        <span>{bestScore !== null ? `Best: ${bestScore}%` : 'No sessions yet'}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            )
+          })}
         </div>
       </div>
 
@@ -225,38 +205,48 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="space-y-4">
-            {recentActivity.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  activity.status === 'completed' ? 'bg-green-100' : 'bg-blue-100'
-                }`}>
-                  {activity.status === 'completed' ? (
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <BarChart3 className="w-5 h-5 text-blue-600" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900">{activity.type}</p>
-                  <p className="text-sm text-gray-500">{activity.time}</p>
-                </div>
-                {activity.score !== null && (
-                  <div className="text-right">
-                    <p className={`text-lg font-bold ${
-                      activity.score >= 80 ? 'text-green-600' : activity.score >= 60 ? 'text-amber-600' : 'text-red-600'
-                    }`}>
-                      {activity.score}%
-                    </p>
-                    <p className="text-xs text-gray-500">Score</p>
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          ) : !dashData?.recentSessions.length ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+              <CheckCircle className="w-8 h-8 mb-2 opacity-40" />
+              <p className="text-sm">No activity yet — start a training session!</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {dashData.recentSessions.map((session) => {
+                const dateStr = session.completed_at ?? session.created_at
+                return (
+                  <div
+                    key={session.id}
+                    className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-green-100">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900">
+                        {CATEGORY_LABELS[session.category] ?? session.category}
+                      </p>
+                      <p className="text-sm text-gray-500">{timeAgo(dateStr)}</p>
+                    </div>
+                    {session.score !== null && (
+                      <div className="text-right">
+                        <p className={`text-lg font-bold ${
+                          session.score >= 80 ? 'text-green-600' : session.score >= 60 ? 'text-amber-600' : 'text-red-600'
+                        }`}>
+                          {session.score}%
+                        </p>
+                        <p className="text-xs text-gray-500">Score</p>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Quick Actions & Insights */}
@@ -282,18 +272,30 @@ export default function DashboardPage() {
           </div>
 
           {/* Performance Insight */}
-          <div className="card p-6 bg-gradient-to-br from-primary-500 to-primary-700 text-white">
-            <h3 className="font-semibold mb-2">Performance Insight</h3>
-            <p className="text-sm text-primary-100 mb-4">
-              Your readback correction accuracy has improved by 15% this week.
-            </p>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-green-300" />
-              <span className="text-sm font-medium text-green-300">Great progress!</span>
+          {!loading && dashData?.weeklyTrend !== null && (
+            <div className="card p-6 bg-gradient-to-br from-primary-500 to-primary-700 text-white">
+              <h3 className="font-semibold mb-2">Performance Insight</h3>
+              <p className="text-sm text-primary-100 mb-4">
+                {dashData!.weeklyTrend!.delta > 0
+                  ? `Your average score improved by ${dashData!.weeklyTrend!.delta}% this week.`
+                  : dashData!.weeklyTrend!.delta < 0
+                  ? `Your average score dipped by ${Math.abs(dashData!.weeklyTrend!.delta)}% vs. last week — keep practising.`
+                  : `${dashData!.weeklyTrend!.thisWeekCount} session${dashData!.weeklyTrend!.thisWeekCount !== 1 ? 's' : ''} completed this week.`}
+              </p>
+              <div className="flex items-center gap-2">
+                {dashData!.weeklyTrend!.delta >= 0 ? (
+                  <TrendingUp className="w-5 h-5 text-green-300" />
+                ) : (
+                  <TrendingDown className="w-5 h-5 text-amber-300" />
+                )}
+                <span className={`text-sm font-medium ${dashData!.weeklyTrend!.delta >= 0 ? 'text-green-300' : 'text-amber-300'}`}>
+                  {dashData!.weeklyTrend!.delta > 0 ? 'Great progress!' : dashData!.weeklyTrend!.delta < 0 ? 'Keep at it!' : 'Stay consistent!'}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Upcoming Session */}
+          {/* Areas to Improve */}
           <div className="card p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
@@ -304,20 +306,29 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-500">Based on recent training</p>
               </div>
             </div>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-center gap-2 text-gray-600">
-                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-                Number readback accuracy
-              </li>
-              <li className="flex items-center gap-2 text-gray-600">
-                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-                Call sign pronunciation
-              </li>
-              <li className="flex items-center gap-2 text-gray-600">
-                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-                Clearance sequencing
-              </li>
-            </ul>
+            {loading ? (
+              <div className="flex items-center justify-center py-4 text-gray-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+            ) : dashData?.areasToImprove.length ? (
+              <ul className="space-y-2 text-sm">
+                {dashData.areasToImprove.map((area) => (
+                  <li key={area.category} className="flex items-center justify-between text-gray-600">
+                    <span className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                      {CATEGORY_LABELS[area.category] ?? area.category}
+                    </span>
+                    {area.bestScore !== null && (
+                      <span className="text-xs text-amber-600 font-medium">{area.bestScore}%</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : totalSessions > 0 ? (
+              <p className="text-sm text-green-600 font-medium">Strong performance across all modules — keep it up!</p>
+            ) : (
+              <p className="text-sm text-gray-400">Complete a training session to see your weak areas.</p>
+            )}
           </div>
         </div>
       </div>

@@ -123,6 +123,44 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_corpus_correct ON training_corpus(is_correct)
     `)
 
+    // Training questions (admin-managed question pool)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS training_questions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        category VARCHAR(50) NOT NULL,
+        question_data JSONB NOT NULL,
+        difficulty VARCHAR(20) DEFAULT 'medium',
+        is_active BOOLEAN DEFAULT false,
+        source VARCHAR(50) DEFAULT 'manual',
+        source_meta JSONB,
+        created_by UUID REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_tq_category_active ON training_questions(category, is_active)
+    `)
+
+    // Training sessions (per-user session records)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS training_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category VARCHAR(50) NOT NULL,
+        question_ids JSONB NOT NULL,
+        answers JSONB DEFAULT '{}',
+        question_scores JSONB DEFAULT '{}',
+        score INTEGER,
+        completed BOOLEAN DEFAULT false,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+      )
+    `)
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_ts_user_category ON training_sessions(user_id, category)
+    `)
+
     await client.query('COMMIT')
     console.log('Database schema initialized successfully')
   } catch (error) {
@@ -287,3 +325,283 @@ export async function clearTrainingCorpus(): Promise<void> {
   await query('DELETE FROM training_corpus')
 }
 
+// ─── Training Questions ──────────────────────────────────────────────────────
+
+export interface TrainingQuestion {
+  id: string
+  category: string
+  question_data: Record<string, unknown>
+  difficulty: string
+  is_active: boolean
+  source: string
+  source_meta: Record<string, unknown> | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export async function getRandomActiveQuestions(
+  category: string,
+  count = 10
+): Promise<TrainingQuestion[]> {
+  return query<TrainingQuestion>(
+    `SELECT * FROM training_questions
+     WHERE category = $1 AND is_active = true
+     ORDER BY RANDOM()
+     LIMIT $2`,
+    [category, count]
+  )
+}
+
+export async function countActiveQuestions(category: string): Promise<number> {
+  const [row] = await query<{ count: string }>(
+    `SELECT COUNT(*) as count FROM training_questions WHERE category = $1 AND is_active = true`,
+    [category]
+  )
+  return parseInt(row?.count || '0')
+}
+
+export async function saveDraftQuestion(
+  category: string,
+  questionData: Record<string, unknown>,
+  sourceMeta?: Record<string, unknown>,
+  createdBy?: string
+): Promise<string> {
+  const [row] = await query<{ id: string }>(
+    `INSERT INTO training_questions (category, question_data, is_active, source, source_meta, created_by)
+     VALUES ($1, $2, false, 'analysis', $3, $4)
+     RETURNING id`,
+    [category, JSON.stringify(questionData), sourceMeta ? JSON.stringify(sourceMeta) : null, createdBy || null]
+  )
+  return row.id
+}
+
+export async function createTrainingQuestion(data: {
+  category: string
+  questionData: Record<string, unknown>
+  difficulty?: string
+  isActive?: boolean
+  source?: string
+  sourceMeta?: Record<string, unknown>
+  createdBy?: string
+}): Promise<string> {
+  const [row] = await query<{ id: string }>(
+    `INSERT INTO training_questions (category, question_data, difficulty, is_active, source, source_meta, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id`,
+    [
+      data.category,
+      JSON.stringify(data.questionData),
+      data.difficulty || 'medium',
+      data.isActive ?? false,
+      data.source || 'manual',
+      data.sourceMeta ? JSON.stringify(data.sourceMeta) : null,
+      data.createdBy || null,
+    ]
+  )
+  return row.id
+}
+
+export async function getTrainingQuestions(filters?: {
+  category?: string
+  isActive?: boolean
+  source?: string
+  limit?: number
+  offset?: number
+}): Promise<TrainingQuestion[]> {
+  const conditions: string[] = []
+  const params: unknown[] = []
+
+  if (filters?.category) {
+    params.push(filters.category)
+    conditions.push(`category = $${params.length}`)
+  }
+  if (filters?.isActive !== undefined) {
+    params.push(filters.isActive)
+    conditions.push(`is_active = $${params.length}`)
+  }
+  if (filters?.source) {
+    params.push(filters.source)
+    conditions.push(`source = $${params.length}`)
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const limit = filters?.limit ? `LIMIT ${filters.limit}` : ''
+  const offset = filters?.offset ? `OFFSET ${filters.offset}` : ''
+
+  return query<TrainingQuestion>(
+    `SELECT * FROM training_questions ${where} ORDER BY created_at DESC ${limit} ${offset}`,
+    params
+  )
+}
+
+export async function getTrainingQuestionById(id: string): Promise<TrainingQuestion | null> {
+  const [row] = await query<TrainingQuestion>(
+    `SELECT * FROM training_questions WHERE id = $1`,
+    [id]
+  )
+  return row || null
+}
+
+export async function updateTrainingQuestion(
+  id: string,
+  data: Partial<{
+    questionData: Record<string, unknown>
+    difficulty: string
+    isActive: boolean
+  }>
+): Promise<void> {
+  const sets: string[] = ['updated_at = NOW()']
+  const params: unknown[] = []
+
+  if (data.questionData !== undefined) {
+    params.push(JSON.stringify(data.questionData))
+    sets.push(`question_data = $${params.length}`)
+  }
+  if (data.difficulty !== undefined) {
+    params.push(data.difficulty)
+    sets.push(`difficulty = $${params.length}`)
+  }
+  if (data.isActive !== undefined) {
+    params.push(data.isActive)
+    sets.push(`is_active = $${params.length}`)
+  }
+
+  params.push(id)
+  await query(`UPDATE training_questions SET ${sets.join(', ')} WHERE id = $${params.length}`, params)
+}
+
+export async function deleteTrainingQuestion(id: string): Promise<void> {
+  await query('DELETE FROM training_questions WHERE id = $1', [id])
+}
+
+export async function bulkCreateTrainingQuestions(questions: {
+  category: string
+  questionData: Record<string, unknown>
+  difficulty?: string
+  isActive?: boolean
+  source?: string
+  sourceMeta?: Record<string, unknown>
+  createdBy?: string
+}[]): Promise<number> {
+  if (questions.length === 0) return 0
+  const client = await getClient()
+  let inserted = 0
+  try {
+    await client.query('BEGIN')
+    for (const q of questions) {
+      await client.query(
+        `INSERT INTO training_questions (category, question_data, difficulty, is_active, source, source_meta, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          q.category,
+          JSON.stringify(q.questionData),
+          q.difficulty || 'medium',
+          q.isActive ?? true,
+          q.source || 'manual',
+          q.sourceMeta ? JSON.stringify(q.sourceMeta) : null,
+          q.createdBy || null,
+        ]
+      )
+      inserted++
+    }
+    await client.query('COMMIT')
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
+  }
+  return inserted
+}
+
+// ─── Training Sessions ───────────────────────────────────────────────────────
+
+export interface TrainingSession {
+  id: string
+  user_id: string
+  category: string
+  question_ids: string[]
+  answers: Record<string, unknown>
+  question_scores: Record<string, number>
+  score: number | null
+  completed: boolean
+  started_at: string
+  completed_at: string | null
+}
+
+export async function createTrainingSession(
+  userId: string,
+  category: string,
+  questionIds: string[]
+): Promise<string> {
+  const [row] = await query<{ id: string }>(
+    `INSERT INTO training_sessions (user_id, category, question_ids)
+     VALUES ($1, $2, $3)
+     RETURNING id`,
+    [userId, category, JSON.stringify(questionIds)]
+  )
+  return row.id
+}
+
+export async function getTrainingSession(id: string): Promise<TrainingSession | null> {
+  const [row] = await query<TrainingSession>(
+    `SELECT * FROM training_sessions WHERE id = $1`,
+    [id]
+  )
+  return row || null
+}
+
+export async function submitTrainingSession(
+  sessionId: string,
+  answers: Record<string, unknown>,
+  questionScores: Record<string, number>,
+  score: number
+): Promise<void> {
+  await query(
+    `UPDATE training_sessions
+     SET answers = $1, question_scores = $2, score = $3,
+         completed = true, completed_at = NOW()
+     WHERE id = $4`,
+    [JSON.stringify(answers), JSON.stringify(questionScores), score, sessionId]
+  )
+}
+
+export async function getUserTrainingSessions(
+  userId: string,
+  category?: string,
+  limit = 10
+): Promise<TrainingSession[]> {
+  if (category) {
+    return query<TrainingSession>(
+      `SELECT * FROM training_sessions
+       WHERE user_id = $1 AND category = $2 AND completed = true
+       ORDER BY completed_at DESC LIMIT $3`,
+      [userId, category, limit]
+    )
+  }
+  return query<TrainingSession>(
+    `SELECT * FROM training_sessions
+     WHERE user_id = $1 AND completed = true
+     ORDER BY completed_at DESC LIMIT $2`,
+    [userId, limit]
+  )
+}
+
+export async function getUserBestScore(userId: string, category: string): Promise<number | null> {
+  const [row] = await query<{ best: string | null }>(
+    `SELECT MAX(score) as best FROM training_sessions
+     WHERE user_id = $1 AND category = $2 AND completed = true`,
+    [userId, category]
+  )
+  return row?.best !== null && row?.best !== undefined ? parseInt(row.best) : null
+}
+
+export async function getUserSessionCount(userId: string, category: string): Promise<number> {
+  const [row] = await query<{ count: string }>(
+    `SELECT COUNT(*) as count FROM training_sessions
+     WHERE user_id = $1 AND category = $2 AND completed = true`,
+    [userId, category]
+  )
+  return parseInt(row?.count || '0')
+}

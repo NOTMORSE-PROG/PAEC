@@ -30,6 +30,7 @@ import {
   Minimize2,
   ArrowRight,
   BookOpen,
+  PlusCircle,
 } from 'lucide-react'
 import { extractTextFromPDF, validateATCDialogue } from '@/lib/pdfExtractor'
 import { extractTextFromDOCX } from '@/lib/docxExtractor'
@@ -145,6 +146,8 @@ export default function AnalysisPage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [fileQueue, setFileQueue] = useState<FileQueueItem[]>([])
   const [activeFileId, setActiveFileId] = useState<string | null>(null)
+  const [savedDraftIds, setSavedDraftIds] = useState<Set<string>>(new Set())
+  const [draftToast, setDraftToast] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -165,6 +168,36 @@ export default function AnalysisPage() {
     ? { text: activeFile.extractedText ?? '', metadata: activeFile.metadata, validation: activeFile.validation ?? { isValid: true, confidence: 100, issues: [] } }
     : null
   const pdfError = activeFile?.error ?? null
+
+  const saveDraftQuestion = useCallback(async (
+    draftKey: string,
+    line: AnnotatedLine,
+    error: PhraseologyError,
+    allLines: AnnotatedLine[],
+  ) => {
+    if (savedDraftIds.has(draftKey)) return
+    // Find preceding ATC line in the same conversation group
+    const atcLine = [...allLines]
+      .filter(l => l.lineNum < line.lineNum && l.conversationGroup === line.conversationGroup && l.speaker === 'ATC')
+      .pop()
+    const question_data = {
+      atcInstruction: atcLine?.text ?? '',
+      incorrectReadback: line.text,
+      correctReadback: error.correctExample ?? '',
+      errors: [{ type: error.category, field: error.category, wrong: error.incorrectPhrase ?? '', correct: error.suggestion ?? '' }],
+      explanation: error.explanation ?? error.issue ?? '',
+    }
+    try {
+      await fetch('/api/training/draft-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: 'readback', question_data, source_meta: { corpusType: selectedCorpus, errorCategory: error.category } }),
+      })
+      setSavedDraftIds(prev => new Set(prev).add(draftKey))
+      setDraftToast('Saved as draft — admin will review and publish')
+      setTimeout(() => setDraftToast(null), 3000)
+    } catch { /* silent fail */ }
+  }, [savedDraftIds, selectedCorpus])
 
   // Close export dropdown when clicking outside
   const handleClickOutside = useCallback(() => setShowExportMenu(false), [])
@@ -486,6 +519,14 @@ export default function AnalysisPage() {
 
   return (
     <div className="space-y-8">
+      {/* Draft saved toast */}
+      {draftToast && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-3 bg-gray-900 text-white text-sm rounded-xl shadow-lg flex items-center gap-2 animate-fade-in">
+          <CheckCircle className="w-4 h-4 text-green-400" />
+          {draftToast}
+        </div>
+      )}
+
       {/* Page Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
@@ -1119,9 +1160,20 @@ Pilot: Left heading 180, PAL456."
                                         {error.category}
                                       </span>
                                     </div>
-                                    {error.icaoReference && (
-                                      <span className="text-[10px] text-gray-400">{error.icaoReference.split(' ').slice(0, 3).join(' ')}</span>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                      {error.icaoReference && (
+                                        <span className="text-[10px] text-gray-400">{error.icaoReference.split(' ').slice(0, 3).join(' ')}</span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        title="Save as draft training question"
+                                        onClick={() => saveDraftQuestion(`${line.lineNum}-${errIdx}`, line, error, annotatedLines)}
+                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${savedDraftIds.has(`${line.lineNum}-${errIdx}`) ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-primary-600 hover:bg-primary-50'}`}
+                                      >
+                                        <PlusCircle className="w-3 h-3" />
+                                        {savedDraftIds.has(`${line.lineNum}-${errIdx}`) ? 'Saved' : 'Draft'}
+                                      </button>
+                                    </div>
                                   </div>
                                   <div className="p-3 bg-white space-y-2">
                                     <p className="text-sm font-medium text-gray-900">{error.issue}</p>

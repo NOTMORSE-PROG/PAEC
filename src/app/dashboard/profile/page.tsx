@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { Mail, Shield, Award, Target, Clock, TrendingUp, CheckCircle, Calendar } from 'lucide-react'
+import {
+  Mail, Shield, Award, Target, TrendingUp, CheckCircle, Calendar,
+  BarChart3, Loader2, Radio, Headphones, BookOpen,
+} from 'lucide-react'
 
 function getInitials(name: string | null | undefined): string {
   if (!name) return '?'
@@ -13,15 +16,30 @@ function formatJoined(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
+interface DashSummary {
+  category: string
+  bestScore: number | null
+  count: number
+}
+
+const MODULE_META = [
+  { id: 'scenario',      label: 'Scenario Simulation',  Icon: Radio,      color: 'from-blue-500 to-cyan-500' },
+  { id: 'readback',      label: 'Readback Correction',   Icon: Target,     color: 'from-indigo-500 to-purple-500' },
+  { id: 'jumbled',       label: 'Jumbled Clearance',     Icon: BookOpen,   color: 'from-violet-500 to-pink-500' },
+  { id: 'pronunciation', label: 'Pronunciation Drill',   Icon: Headphones, color: 'from-emerald-500 to-teal-500' },
+]
+
 export default function ProfilePage() {
   const { data: session } = useSession()
   const [joinedDate, setJoinedDate] = useState<string | null>(null)
+  const [summary, setSummary] = useState<DashSummary[]>([])
+  const [loadingStats, setLoadingStats] = useState(true)
 
-  const userName = session?.user?.name ?? ''
-  const userEmail = session?.user?.email ?? ''
+  const userName    = session?.user?.name ?? ''
+  const userEmail   = session?.user?.email ?? ''
   const hasPassword = session?.user?.hasPassword ?? false
   const googleLinked = session?.user?.googleLinked ?? false
-  const role = session?.user?.role ?? 'student'
+  const role        = session?.user?.role ?? 'student'
 
   useEffect(() => {
     fetch('/api/user/profile')
@@ -30,17 +48,28 @@ export default function ProfilePage() {
       .catch(() => {})
   }, [])
 
-  const stats = [
-    { label: 'Total Exercises', value: '156', icon: Target },
-    { label: 'Average Score', value: '87%', icon: TrendingUp },
-    { label: 'Training Hours', value: '24.5h', icon: Clock },
-    { label: 'Achievements', value: '8', icon: Award },
-  ]
+  useEffect(() => {
+    fetch('/api/dashboard')
+      .then((r) => r.json())
+      .then((d) => { if (d.summary) setSummary(d.summary) })
+      .catch(() => {})
+      .finally(() => setLoadingStats(false))
+  }, [])
 
-  const recentAchievements = [
-    { name: 'Perfect Score', date: 'Dec 15, 2024', icon: '🎯' },
-    { name: '10-Day Streak', date: 'Dec 18, 2024', icon: '🔥' },
-    { name: 'Quick Learner', date: 'Dec 10, 2024', icon: '⚡' },
+  // Computed stats
+  const totalSessions = summary.reduce((s, c) => s + c.count, 0)
+  const scored = summary.filter((s) => s.bestScore !== null)
+  const avgScore = scored.length
+    ? Math.round(scored.reduce((s, c) => s + (c.bestScore ?? 0), 0) / scored.length)
+    : null
+  const bestScore = scored.length ? Math.max(...scored.map((s) => s.bestScore ?? 0)) : null
+  const modulesTried = summary.filter((s) => s.count > 0).length
+
+  const stats = [
+    { label: 'Total Sessions', value: loadingStats ? null : totalSessions,                         icon: Target    },
+    { label: 'Average Score',  value: loadingStats ? null : (avgScore !== null ? `${avgScore}%` : '—'), icon: TrendingUp },
+    { label: 'Best Score',     value: loadingStats ? null : (bestScore !== null ? `${bestScore}%` : '—'), icon: Award  },
+    { label: 'Modules Tried',  value: loadingStats ? null : `${modulesTried} / 4`,                 icon: BarChart3  },
   ]
 
   return (
@@ -71,10 +100,14 @@ export default function ProfilePage() {
 
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center p-4 bg-gray-50 rounded-xl">
+            {stats.map((stat) => (
+              <div key={stat.label} className="text-center p-4 bg-gray-50 rounded-xl">
                 <stat.icon className="w-5 h-5 text-primary-500 mx-auto mb-2" />
-                <div className="text-xl font-bold text-gray-900">{stat.value}</div>
+                {stat.value === null ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-300 mx-auto mb-1" />
+                ) : (
+                  <div className="text-xl font-bold text-gray-900">{stat.value}</div>
+                )}
                 <div className="text-xs text-gray-500">{stat.label}</div>
               </div>
             ))}
@@ -138,17 +171,49 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Recent Achievements */}
+      {/* Training Summary */}
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Achievements</h2>
-        <div className="grid sm:grid-cols-3 gap-4">
-          {recentAchievements.map((achievement, index) => (
-            <div key={index} className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-              <div className="text-2xl mb-2">{achievement.icon}</div>
-              <h3 className="font-medium text-amber-900">{achievement.name}</h3>
-              <p className="text-xs text-amber-700">{achievement.date}</p>
-            </div>
-          ))}
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Training Summary</h2>
+        <div className="space-y-4">
+          {MODULE_META.map(({ id, label, Icon, color }) => {
+            const s = summary.find((x) => x.category === id)
+            const count = s?.count ?? 0
+            const best  = s?.bestScore ?? null
+
+            return (
+              <div key={id} className="flex items-center gap-4">
+                <div className={`w-9 h-9 shrink-0 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center`}>
+                  <Icon className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-900">{label}</span>
+                    {loadingStats ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-300" />
+                    ) : (
+                      <span className="text-xs text-gray-500">
+                        {count > 0 ? `${count} session${count !== 1 ? 's' : ''}` : 'No sessions yet'}
+                      </span>
+                    )}
+                  </div>
+                  {loadingStats ? (
+                    <div className="progress-bar"><div className="progress-fill" style={{ width: '0%' }} /></div>
+                  ) : count > 0 && best !== null ? (
+                    <div className="flex items-center gap-2">
+                      <div className="progress-bar flex-1">
+                        <div className="progress-fill" style={{ width: `${best}%` }} />
+                      </div>
+                      <span className={`text-xs font-medium shrink-0 ${best >= 80 ? 'text-green-600' : best >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
+                        {best}%
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="progress-bar"><div className="progress-fill" style={{ width: '0%' }} /></div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>
