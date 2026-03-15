@@ -6,7 +6,6 @@ import { useTheme } from '@/lib/ThemeContext'
 import {
   Shield,
   Palette,
-  Globe,
   Volume2,
   Moon,
   Sun,
@@ -26,12 +25,7 @@ export default function SettingsPage() {
   const googleLinked = session?.user?.googleLinked ?? false
   const userEmail = session?.user?.email ?? ''
 
-  const { darkMode, setDarkMode } = useTheme()
-
-  // Appearance (UI state only)
-  const [soundEffects, setSoundEffects] = useState(true)
-  const [autoPlayAudio, setAutoPlayAudio] = useState(true)
-  const [language, setLanguage] = useState('en')
+  const { darkMode, setDarkMode, autoPlayAudio, setAutoPlayAudio } = useTheme()
 
   // Password
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
@@ -159,38 +153,11 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3">
               <Volume2 className="w-5 h-5 text-gray-400" />
               <div>
-                <p className="font-medium text-gray-900">Sound Effects</p>
-                <p className="text-sm text-gray-500">Play sounds for interactions</p>
-              </div>
-            </div>
-            <Toggle enabled={soundEffects} onChange={() => setSoundEffects(!soundEffects)} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Volume2 className="w-5 h-5 text-gray-400" />
-              <div>
                 <p className="font-medium text-gray-900">Auto-Play Audio</p>
                 <p className="text-sm text-gray-500">Automatically play audio in exercises</p>
               </div>
             </div>
             <Toggle enabled={autoPlayAudio} onChange={() => setAutoPlayAudio(!autoPlayAudio)} />
-          </div>
-          <div>
-            <div className="flex items-center gap-3 mb-3">
-              <Globe className="w-5 h-5 text-gray-400" />
-              <div>
-                <p className="font-medium text-gray-900">Language</p>
-                <p className="text-sm text-gray-500">Select your preferred language</p>
-              </div>
-            </div>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="input-field max-w-xs"
-            >
-              <option value="en">English</option>
-              <option value="fil">Filipino</option>
-            </select>
           </div>
         </div>
       </div>

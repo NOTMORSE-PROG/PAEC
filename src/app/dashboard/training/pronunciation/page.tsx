@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Headphones, ChevronRight, Trophy, RotateCcw, CheckCircle, XCircle, Loader2, AlertTriangle, Volume2, RefreshCw, Lightbulb } from 'lucide-react'
+import { useTheme } from '@/lib/ThemeContext'
 
 type SessionState = 'intro' | 'quiz' | 'results'
 
@@ -58,6 +59,7 @@ const LETTER_REFERENCE = [
 
 export default function PronunciationPage() {
   const router = useRouter()
+  const { autoPlayAudio } = useTheme()
   const [state, setState] = useState<SessionState>('intro')
   const [history, setHistory] = useState<HistoryData>({ bestScore: null, count: 0 })
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -81,6 +83,12 @@ export default function PronunciationPage() {
       .catch(() => {})
       .finally(() => setLoadingHistory(false))
   }, [])
+
+  // Auto-play the question display text when advancing to a new question
+  useEffect(() => {
+    if (state !== 'quiz' || !autoPlayAudio || !questions[currentIdx]) return
+    speak(questions[currentIdx].question_data.display)
+  }, [currentIdx, state, autoPlayAudio, questions])
 
   const startSession = async () => {
     setStarting(true); setError('')
