@@ -14,7 +14,6 @@ import {
   LogOut,
   Menu,
   X,
-  Bell,
   ChevronDown
 } from 'lucide-react'
 
@@ -177,12 +176,6 @@ export default function DashboardLayout({
 
             {/* Right Actions */}
             <div className="flex items-center gap-3">
-              {/* Notifications */}
-              <button className="relative p-2 text-gray-400 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
-
               {/* User Menu */}
               <div className="relative">
                 <button
