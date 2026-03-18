@@ -71,13 +71,13 @@ export default function DashboardLayout({
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-between h-16 px-6 border-b border-gray-100 dark:border-slate-700">
-            <Link href="/dashboard" className="flex items-center gap-3">
+            <Link href="/" className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/25">
                 <Plane className="w-5 h-5 text-white" />
               </div>
               <div>
-                <span className="text-lg font-bold text-gray-900 dark:text-slate-100">PAEC</span>
-                <span className="text-xs text-gray-500 dark:text-slate-400 block -mt-1">Student Portal</span>
+                <span className="text-sm font-bold text-gray-900 dark:text-slate-100 leading-tight">Corpus-Based System</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 block">Student Portal</span>
               </div>
             </Link>
             <button

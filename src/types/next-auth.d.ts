@@ -7,6 +7,7 @@ declare module 'next-auth' {
       role: string
       hasPassword: boolean
       googleLinked: boolean
+      onboardingCompleted: boolean
     } & DefaultSession['user']
   }
 }
@@ -17,5 +18,6 @@ declare module 'next-auth/jwt' {
     role?: string
     hasPassword?: boolean
     googleLinked?: boolean
+    onboardingCompleted?: boolean
   }
 }

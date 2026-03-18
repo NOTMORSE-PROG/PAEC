@@ -113,7 +113,7 @@ function LoginForm() {
               <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
                 <Plane className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">PAEC</span>
+              <span className="text-2xl font-bold text-gray-900">Corpus-Based System</span>
             </Link>
           </div>
 
@@ -233,7 +233,7 @@ function LoginForm() {
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-gray-50 text-gray-500">New to PAEC?</span>
+              <span className="px-4 bg-gray-50 text-gray-500">New here?</span>
             </div>
           </div>
 

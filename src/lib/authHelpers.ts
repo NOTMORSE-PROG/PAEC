@@ -12,6 +12,7 @@ export interface DbUser {
   password_hash: string | null
   role: string
   avatar_url: string | null
+  onboarding_completed: boolean
   created_at: Date
   updated_at: Date
 }

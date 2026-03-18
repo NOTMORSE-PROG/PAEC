@@ -45,6 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name ?? '',
           role: user.role,
           hasPassword: true,
+          onboardingCompleted: user.onboarding_completed,
         }
       },
     }),
@@ -96,15 +97,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true
     },
 
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, session, trigger }) {
+      // Refresh token when session.update() is called from the client
+      if (trigger === 'update' && session?.onboardingCompleted !== undefined) {
+        token.onboardingCompleted = session.onboardingCompleted
+      }
       // On first sign-in, populate token with DB user data
       if (account && user) {
         if (account.provider === 'credentials') {
           // user comes from authorize() — already has our DB fields
-          const u = user as { id: string; role: string; hasPassword: boolean }
+          const u = user as { id: string; role: string; hasPassword: boolean; onboardingCompleted: boolean }
           token.id = u.id
           token.role = u.role
           token.hasPassword = u.hasPassword
+          token.onboardingCompleted = u.onboardingCompleted
           token.googleLinked = await hasGoogleLinked(u.id)
         } else if (account.provider === 'google') {
           // Look up the DB user by email (created/linked in signIn callback)
@@ -116,6 +122,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               token.role = dbUser.role
               token.hasPassword = !!dbUser.password_hash
               token.googleLinked = true
+              token.onboardingCompleted = dbUser.onboarding_completed
             }
           }
         }
@@ -129,6 +136,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role as string
         session.user.hasPassword = token.hasPassword as boolean
         session.user.googleLinked = token.googleLinked as boolean
+        session.user.onboardingCompleted = token.onboardingCompleted as boolean
       }
       return session
     },

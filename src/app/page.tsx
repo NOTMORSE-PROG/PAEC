@@ -61,13 +61,6 @@ export default function LandingPage() {
     },
   ]
 
-  const stats = [
-    { value: '10,000+', label: 'Training Exercises' },
-    { value: '95%', label: 'Accuracy Rate' },
-    { value: '500+', label: 'Active Learners' },
-    { value: '3', label: 'Corpus Categories' },
-  ]
-
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
       {/* Navigation */}
@@ -82,8 +75,7 @@ export default function LandingPage() {
                 <Plane className="w-5 h-5 text-white" />
               </div>
               <div className="hidden sm:block">
-                <span className="text-xl font-bold text-gray-900">PAEC</span>
-                <span className="hidden md:inline text-xs text-gray-500 block -mt-1">Corpus-Based System</span>
+                <span className="text-xl font-bold text-gray-900">Corpus-Based System</span>
               </div>
             </Link>
 
@@ -174,13 +166,14 @@ export default function LandingPage() {
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6 animate-slide-up">
-                Master Aviation
-                <span className="block gradient-text">Communication</span>
+                Master ICAO-Standard
+                <span className="block gradient-text">Phraseology</span>
               </h1>
 
               <p className="text-lg sm:text-xl text-gray-600 max-w-xl mx-auto lg:mx-0 mb-8 animate-slide-up delay-100">
-                Train with corpus-based exercises designed to improve your ICAO standard
-                phraseology and enhance aviation communication safety.
+                Train with authentic pilot–ATC communications drawn directly from the Philippine
+                Aeronautical English Corpus (PAEC). Improve your ICAO-standard phraseology and
+                enhance aviation communication safety in Philippine operations.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-slide-up delay-200">
@@ -219,48 +212,47 @@ export default function LandingPage() {
             {/* Right Content - Hero Card */}
             <div className="relative hidden lg:block">
               <div className="relative bg-white dark:bg-slate-800 rounded-3xl shadow-elevated p-8 border border-gray-100 dark:border-slate-700">
-                {/* Mini Dashboard Preview */}
-                <div className="space-y-6">
+                <div className="space-y-5">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Training Progress</h3>
-                    <span className="badge-primary">Student View</span>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Sample Analysis</h3>
+                    <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">APP/DEP</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="stat-card">
-                      <div className="text-2xl font-bold text-primary-600">87%</div>
-                      <div className="text-sm text-gray-500">Accuracy Rate</div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="text-2xl font-bold text-primary-600">156</div>
-                      <div className="text-sm text-gray-500">Exercises Done</div>
+                  {/* ATC line */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">ATC</p>
+                    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl px-4 py-3 text-sm text-gray-700 dark:text-slate-300 leading-relaxed">
+                      PAL456, descend and maintain four thousand, QNH one zero one three.
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Scenario Simulation</span>
-                      <span className="font-medium text-primary-600">92%</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: '92%' }}></div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Readback Correction</span>
-                      <span className="font-medium text-primary-600">78%</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: '78%' }}></div>
+                  {/* Pilot readback with highlighted errors */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Pilot Readback</p>
+                    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-xl px-4 py-3 text-sm leading-relaxed">
+                      <span className="text-gray-700 dark:text-slate-300">Roger, </span>
+                      <span className="bg-amber-200 dark:bg-amber-400/30 text-amber-800 dark:text-amber-300 rounded px-1">descend four thousand</span>
+                      <span className="text-gray-700 dark:text-slate-300">, QNH one zero one three, PAL456.</span>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-gray-100 dark:border-slate-700">
-                    <button className="w-full btn-primary">
-                      Continue Training
-                    </button>
+                  {/* Error tags */}
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="shrink-0 mt-0.5 w-2 h-2 rounded-full bg-amber-400"></span>
+                      <span className="text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-800 dark:text-slate-200">&quot;Roger&quot;</span> — non-standard acknowledgement</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="shrink-0 mt-0.5 w-2 h-2 rounded-full bg-amber-400"></span>
+                      <span className="text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-800 dark:text-slate-200">&quot;maintain&quot;</span> — omitted from readback</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
+                    <Link href={session ? '/dashboard' : '/auth/register'} className="w-full btn-primary flex items-center justify-center">
+                      {session ? 'Go to Dashboard' : 'Start Training'}
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -269,20 +261,6 @@ export default function LandingPage() {
               <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary-100 dark:bg-primary-900/30 rounded-2xl -z-10"></div>
               <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-aviation-light dark:bg-slate-800/50 rounded-2xl -z-10"></div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-16 bg-gradient-to-r from-primary-600 to-primary-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="text-3xl sm:text-4xl font-bold text-white mb-2">{stat.value}</div>
-                <div className="text-primary-100">{stat.label}</div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -328,9 +306,10 @@ export default function LandingPage() {
                 Interactive Practice for Real-World Scenarios
               </h2>
               <p className="text-lg text-gray-600 mb-8">
-                Train with realistic ATC communications based on actual corpus data.
-                Our system validates your responses against ICAO phraseology standards
-                and provides instant, actionable feedback.
+                Train with authentic pilot-ATC communications drawn directly from the
+                Philippine Aeronautical English Corpus (PAEC). The system validates your
+                responses against ICAO standard phraseology and provides instant, actionable
+                feedback on non-standard elements.
               </p>
 
               <div className="space-y-4">
@@ -338,7 +317,6 @@ export default function LandingPage() {
                   'Real flight scenario simulations',
                   'Instant feedback on phraseology accuracy',
                   'Number and terminology error detection',
-                  'Progressive difficulty levels',
                 ].map((item, index) => (
                   <div key={index} className="flex items-center gap-3">
                     <div className="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center">
@@ -424,9 +402,10 @@ export default function LandingPage() {
                 Deep Insights from Corpus Data
               </h2>
               <p className="text-lg text-gray-600 mb-8">
-                Analyze aviation communication patterns with three specialized corpus
-                categories. Understand error distributions, miscommunication risks,
-                and phraseology deviations.
+                Analyze authentic aviation communication patterns from the Philippine
+                Aeronautical English Corpus (PAEC) across three specialized domains.
+                Explore phraseology patterns, deviations from ICAO standards, and
+                standardization insights specific to Philippine operations.
               </p>
 
               <div className="grid grid-cols-3 gap-4 mb-8">
@@ -452,19 +431,116 @@ export default function LandingPage() {
       </section>
 
       {/* About Section */}
-      <section id="about" className="py-20 lg:py-32">
+      <section id="about" className="py-20 lg:py-32 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="badge-primary mb-4">About PAEC</span>
+
+          {/* Section header */}
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <span className="badge-primary mb-4">About the Corpus</span>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               Philippine Aeronautical English Corpus
             </h2>
             <p className="text-lg text-gray-600">
-              A research-based corpus of authentic aviation communications designed
-              to improve safety and standardization in Philippine airspace.
+              An authentic, specialized collection of manually transcribed and annotated
+              audio recordings of real pilot–ATC communications at Ninoy Aquino
+              International Airport (RPLL) in Manila.
             </p>
           </div>
 
+          {/* Two-column: history + key facts */}
+          <div className="grid lg:grid-cols-2 gap-12 items-start mb-16">
+
+            {/* Left: History */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <span className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
+                    <BookOpen className="w-4 h-4 text-primary-600" />
+                  </span>
+                  History
+                </h3>
+                <p className="text-gray-600 leading-relaxed">
+                  The corpus was developed as part of the Aeronautical English Language
+                  Proficiency (AELP) course under the Institute of Liberal Arts and Sciences
+                  (ILAS) at the Philippine State College of Aeronautics (PhilSCA). The project
+                  launched in the 2nd semester of Academic Year 2024–2025 as a supervised
+                  corpus-building initiative led by <span className="font-medium text-gray-800">Dr. Ramsey S. Ferrer</span>.
+                </p>
+              </div>
+              <p className="text-gray-600 leading-relaxed">
+                Students received specialized training in transcription and annotation
+                guidelines, including speaker identification, metadata tagging, and XML markup.
+                A key milestone was the guest workshop conducted by{' '}
+                <span className="font-medium text-gray-800">Dr. Malila Prado</span> on
+                February 7, 2025 — <span className="italic">&quot;From Technical English to English as a
+                Lingua Franca: Reviewing a 15-Year-Old Aviation English Corpus&quot;</span> — during
+                which students reviewed her Radiotelephony Plain English Corpus (RTPEC, 2019)
+                to ensure standardization and consistency.
+              </p>
+              <p className="text-gray-600 leading-relaxed">
+                Today, the corpus serves as the core authentic dataset for this system and
+                directly supports the ongoing AELP program at PhilSCA.
+              </p>
+            </div>
+
+            {/* Right: Key facts card */}
+            <div className="bg-white rounded-3xl border border-gray-200 shadow-soft p-8 space-y-5">
+              <h3 className="text-lg font-semibold text-gray-900">Corpus at a Glance</h3>
+              {[
+                { label: 'Airport', value: 'Ninoy Aquino International Airport (RPLL), Manila' },
+                { label: 'Institution', value: 'Philippine State College of Aeronautics (PhilSCA)' },
+                { label: 'Program', value: 'Aeronautical English Language Proficiency (AELP)' },
+                { label: 'Led by', value: 'Dr. Ramsey S. Ferrer' },
+                { label: 'Academic Year', value: '2nd Semester, AY 2024–2025' },
+                { label: 'Source', value: 'LiveATC.net — full 0000–2400 Zulu time coverage' },
+              ].map((fact) => (
+                <div key={fact.label} className="flex gap-4 items-start">
+                  <span className="text-xs font-semibold text-primary-600 uppercase tracking-wider w-28 shrink-0 pt-0.5">{fact.label}</span>
+                  <span className="text-gray-700 text-sm leading-relaxed">{fact.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Corpus phases timeline */}
+          <div className="mb-16">
+            <h3 className="text-xl font-semibold text-gray-900 mb-8 text-center">How the Corpus Was Built</h3>
+            <div className="grid md:grid-cols-3 gap-6">
+              {[
+                {
+                  phase: '01',
+                  title: 'Data Collection',
+                  description: 'Audio recordings sourced from publicly available LiveATC.net, covering full 0000–2400 Zulu time at RPLL.',
+                  color: 'from-blue-500 to-cyan-500',
+                  bg: 'bg-blue-50',
+                },
+                {
+                  phase: '02',
+                  title: 'Transcription & Metadata',
+                  description: 'Manual transcription with metadata entry: corpus ID, speaker roles, situational context, duration, word count, weather, and date.',
+                  color: 'from-violet-500 to-purple-500',
+                  bg: 'bg-violet-50',
+                },
+                {
+                  phase: '03',
+                  title: 'Expert Review',
+                  description: 'Final expert-guided review and standardization, benchmarked against RTPEC (2019) during the Dr. Malila Prado workshop.',
+                  color: 'from-emerald-500 to-teal-500',
+                  bg: 'bg-emerald-50',
+                },
+              ].map((step) => (
+                <div key={step.phase} className={`${step.bg} rounded-2xl p-6 border border-white`}>
+                  <div className={`w-10 h-10 bg-gradient-to-br ${step.color} rounded-xl flex items-center justify-center text-white font-bold text-sm mb-4`}>
+                    {step.phase}
+                  </div>
+                  <h4 className="font-semibold text-gray-900 mb-2">{step.title}</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">{step.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Feature cards */}
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
@@ -483,7 +559,7 @@ export default function LandingPage() {
                 description: 'Designed to enhance aviation English proficiency and communication safety.',
               },
             ].map((item, index) => (
-              <div key={index} className="text-center p-8">
+              <div key={index} className="text-center p-8 bg-white rounded-2xl border border-gray-100">
                 <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <item.icon className="w-8 h-8 text-primary-600" />
                 </div>
@@ -492,6 +568,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+
         </div>
       </section>
 
@@ -505,13 +582,22 @@ export default function LandingPage() {
             Join hundreds of aviation professionals improving their ICAO phraseology skills.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth/register" className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-primary-600 bg-white rounded-xl shadow-lg hover:bg-gray-50 transition-all duration-300">
-              Create Free Account
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Link>
-            <Link href="/auth/login" className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white border-2 border-white/30 rounded-xl hover:bg-white/10 transition-all duration-300">
-              Sign In
-            </Link>
+            {session ? (
+              <Link href="/dashboard" className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-primary-600 bg-white rounded-xl shadow-lg hover:bg-gray-50 transition-all duration-300">
+                Go to Dashboard
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Link>
+            ) : (
+              <>
+                <Link href="/auth/register" className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-primary-600 bg-white rounded-xl shadow-lg hover:bg-gray-50 transition-all duration-300">
+                  Create Free Account
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Link>
+                <Link href="/auth/login" className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white border-2 border-white/30 rounded-xl hover:bg-white/10 transition-all duration-300">
+                  Sign In
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -525,11 +611,11 @@ export default function LandingPage() {
                 <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center">
                   <Plane className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-xl font-bold text-white">PAEC</span>
+                <span className="text-xl font-bold text-white">Corpus-Based System</span>
               </div>
               <p className="text-gray-400 max-w-md">
-                Philippine Aeronautical English Corpus - Enhancing aviation communication
-                safety through research-based training.
+                Corpus Based System - Supporting Philippine Aviation English training
+                through authentic corpus data.
               </p>
             </div>
             <div>
@@ -545,14 +631,14 @@ export default function LandingPage() {
               <h4 className="font-semibold text-white mb-4">Resources</h4>
               <ul className="space-y-2">
                 <li><a href="#" className="hover:text-white transition-colors">ICAO Standards</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Corpus Data</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">About the Corpus</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">About Research</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm">
-            <p>&copy; 2024 Philippine Aeronautical English Corpus. All rights reserved.</p>
+            <p>&copy; 2026 Corpus Based System. All rights reserved.</p>
           </div>
         </div>
       </footer>

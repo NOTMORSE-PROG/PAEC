@@ -89,7 +89,7 @@ export default function RegisterPage() {
       return
     }
 
-    router.push('/dashboard')
+    router.push('/onboarding')
     router.refresh()
   }
 
@@ -110,9 +110,9 @@ export default function RegisterPage() {
             <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6">
               <Plane className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-4xl xl:text-5xl font-bold text-white mb-4">Join PAEC</h1>
+            <h1 className="text-4xl xl:text-5xl font-bold text-white mb-4">Get Started</h1>
             <p className="text-xl text-primary-100 max-w-md">
-              Start your journey to master aviation communication with our corpus-based training system.
+              Start your journey to master ICAO-standard phraseology with authentic data from the Philippine Aeronautical English Corpus (PAEC).
             </p>
           </div>
           <div className="space-y-4">
@@ -132,19 +132,6 @@ export default function RegisterPage() {
               </div>
             ))}
           </div>
-          <div className="mt-12 p-6 bg-white/10 backdrop-blur-sm rounded-2xl">
-            <p className="text-white/90 italic mb-4">
-              &quot;PAEC helped me improve my readback accuracy by 40%. The instant feedback
-              feature is invaluable for identifying my weak points.&quot;
-            </p>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full"></div>
-              <div>
-                <p className="font-medium text-white">Aviation Student</p>
-                <p className="text-sm text-primary-200">Flight Training Academy</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -157,7 +144,7 @@ export default function RegisterPage() {
               <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
                 <Plane className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">PAEC</span>
+              <span className="text-2xl font-bold text-gray-900">Corpus-Based System</span>
             </Link>
           </div>
 
@@ -321,9 +308,9 @@ export default function RegisterPage() {
               />
               <span className="text-sm text-gray-600">
                 I agree to the{' '}
-                <a href="#" className="text-primary-600 hover:text-primary-700 font-medium">Terms of Service</a>
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 font-medium">Terms of Service</a>
                 {' '}and{' '}
-                <a href="#" className="text-primary-600 hover:text-primary-700 font-medium">Privacy Policy</a>
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-700 font-medium">Privacy Policy</a>
               </span>
             </label>
 

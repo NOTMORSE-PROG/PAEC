@@ -64,6 +64,7 @@ export async function initializeDatabase(): Promise<void> {
         password_hash VARCHAR(255),
         role VARCHAR(50) DEFAULT 'student',
         avatar_url TEXT,
+        onboarding_completed BOOLEAN DEFAULT FALSE NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -161,6 +162,11 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_ts_user_category ON training_sessions(user_id, category)
     `)
 
+    // Migrate existing tables — safe no-ops if column already exists
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE NOT NULL
+    `)
+
     await client.query('COMMIT')
     console.log('Database schema initialized successfully')
   } catch (error) {
@@ -170,6 +176,14 @@ export async function initializeDatabase(): Promise<void> {
   } finally {
     client.release()
   }
+}
+
+// User Operations
+export async function completeOnboarding(userId: string): Promise<void> {
+  await query(
+    `UPDATE users SET onboarding_completed = TRUE, updated_at = NOW() WHERE id = $1`,
+    [userId]
+  )
 }
 
 // Training Corpus Operations

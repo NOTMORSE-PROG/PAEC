@@ -3,7 +3,7 @@ import './globals.css'
 import Providers from './providers'
 
 export const metadata: Metadata = {
-  title: 'PAEC - Philippine Aeronautical English Corpus',
+  title: 'Corpus-Based System',
   description: 'Corpus-Based Training System for Aviation Communication Excellence',
   keywords: ['aviation', 'english', 'training', 'ICAO', 'phraseology', 'pilot', 'ATC'],
 }

@@ -181,7 +181,6 @@ export default function TrainingPage() {
                         <Lock className="w-3 h-3" />Coming Soon
                       </span>
                     )}
-                    <span className={`badge ${module.difficultyColor}`}>{module.difficulty}</span>
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{module.title}</h3>
