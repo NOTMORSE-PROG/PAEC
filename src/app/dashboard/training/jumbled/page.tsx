@@ -1,8 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { BookOpen, ChevronRight, Trophy, RotateCcw, CheckCircle, XCircle, Loader2, AlertTriangle, Lightbulb } from 'lucide-react'
+import {
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, closestCenter, useDroppable, useDraggable,
+  type DragStartEvent, type DragEndEvent, type DragOverEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 type SessionState = 'intro' | 'quiz' | 'results'
 
@@ -17,6 +26,7 @@ interface Question {
 }
 
 interface HistoryData { bestScore: number | null; count: number }
+interface WordItem { id: string; word: string }
 
 type WordStatus = 'correct' | 'present' | 'wrong'
 function analyzeWords(submitted: string[], correctOrder: string[]): WordStatus[] {
@@ -55,6 +65,58 @@ const PHRASEOLOGY_TIPS = [
   { num: 4, text: 'Call sign at the end' },
 ]
 
+// ── Draggable bank word (pointer + touch via @dnd-kit) ─────────────────────
+function DraggableWord({ item, onAdd }: { item: WordItem; onAdd: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id })
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={onAdd}
+      className={`px-3 py-1.5 rounded-full border bg-white text-gray-700 text-sm font-medium cursor-grab active:cursor-grabbing select-none transition-all hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700 touch-none${isDragging ? ' opacity-40' : ''}`}
+    >
+      {item.word}
+    </div>
+  )
+}
+
+// ── Drop zone containers (must be children of DndContext) ──────────────────
+function BankDropZone({ children, highlight }: { children: React.ReactNode; highlight: boolean }) {
+  const { setNodeRef } = useDroppable({ id: 'bank-drop' })
+  return (
+    <div ref={setNodeRef} className={`min-h-[60px] p-3 rounded-xl border-2 transition-colors flex flex-wrap gap-2 ${highlight ? 'border-violet-400 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}>
+      {children}
+    </div>
+  )
+}
+
+function AnswerDropZone({ children, highlight }: { children: React.ReactNode; highlight: boolean }) {
+  const { setNodeRef } = useDroppable({ id: 'answer-drop' })
+  return (
+    <div ref={setNodeRef} className={`min-h-[70px] p-3 rounded-xl border-2 border-dashed transition-colors flex flex-wrap gap-2 ${highlight ? 'border-violet-400 bg-violet-50' : 'border-gray-300'}`}>
+      {children}
+    </div>
+  )
+}
+
+// ── Sortable answer word (reorderable via @dnd-kit) ─────────────────────────
+function SortableWord({ item, onRemove }: { item: WordItem; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      {...attributes}
+      {...listeners}
+      onClick={onRemove}
+      className="px-3 py-1.5 rounded-full border border-violet-300 bg-violet-50 text-violet-700 text-sm font-medium cursor-grab active:cursor-grabbing select-none transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 touch-none"
+    >
+      {item.word}
+    </div>
+  )
+}
+
 export default function JumbledPage() {
   const router = useRouter()
   const [state, setState] = useState<SessionState>('intro')
@@ -62,8 +124,8 @@ export default function JumbledPage() {
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [sessionId, setSessionId] = useState('')
   const [questions, setQuestions] = useState<Question[]>([])
-  const [wordBanks, setWordBanks] = useState<Record<string, string[]>>({})
-  const [arranged, setArranged] = useState<Record<string, string[]>>({})
+  const [wordBanks, setWordBanks] = useState<Record<string, WordItem[]>>({})
+  const [arranged, setArranged] = useState<Record<string, WordItem[]>>({})
   const [starting, setStarting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -73,9 +135,17 @@ export default function JumbledPage() {
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
   const [currentIdx, setCurrentIdx] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
-  // Drag state: { src: 'bank'|'answer', idx: number } | null
-  const [dragging, setDragging] = useState<{ src: 'bank' | 'answer'; idx: number } | null>(null)
-  const [dragOver, setDragOver] = useState<'bank' | 'answer' | null>(null)
+  const [activeItem, setActiveItem] = useState<WordItem | null>(null)
+  const [overZone, setOverZone] = useState<'bank' | 'answer' | null>(null)
+
+  // Stable ID counter across renders
+  const idRef = useRef(0)
+
+  // dnd-kit sensors — PointerSensor covers both mouse AND touch
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   useEffect(() => {
     fetch('/api/training/history?category=jumbled')
@@ -95,11 +165,11 @@ export default function JumbledPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to start session.'); return }
       setSessionId(data.sessionId); setQuestions(data.questions)
-      const banks: Record<string, string[]> = {}
-      const arrs: Record<string, string[]> = {}
+      const banks: Record<string, WordItem[]> = {}
+      const arrs: Record<string, WordItem[]> = {}
       const ans: Record<string, string> = {}
       for (const q of data.questions) {
-        banks[q.id] = shuffleArr(q.question_data.correctOrder)
+        banks[q.id] = shuffleArr(q.question_data.correctOrder as string[]).map(word => ({ id: `w${idRef.current++}`, word }))
         arrs[q.id] = []
         ans[q.id] = ''
       }
@@ -109,26 +179,35 @@ export default function JumbledPage() {
     finally { setStarting(false) }
   }
 
-  const moveToArranged = (qId: string, word: string, bankIdx: number) => {
+  const moveToArranged = (qId: string, item: WordItem, bankIdx: number) => {
     setWordBanks(prev => { const b = [...prev[qId]]; b.splice(bankIdx, 1); return { ...prev, [qId]: b } })
     setArranged(prev => {
-      const a = [...(prev[qId] ?? []), word]
-      setAnswers(ans => ({ ...ans, [qId]: a.join(' ') }))
+      const a = [...(prev[qId] ?? []), item]
+      setAnswers(ans => ({ ...ans, [qId]: a.map(w => w.word).join(' ') }))
       return { ...prev, [qId]: a }
     })
   }
 
-  const moveToBank = (qId: string, word: string, arrIdx: number) => {
+  const moveToBank = (qId: string, item: WordItem, arrIdx: number) => {
     setArranged(prev => {
       const a = [...prev[qId]]; a.splice(arrIdx, 1)
-      setAnswers(ans => ({ ...ans, [qId]: a.join(' ') }))
+      setAnswers(ans => ({ ...ans, [qId]: a.map(w => w.word).join(' ') }))
       return { ...prev, [qId]: a }
     })
-    setWordBanks(prev => ({ ...prev, [qId]: [...prev[qId], word] }))
+    setWordBanks(prev => ({ ...prev, [qId]: [...prev[qId], item] }))
+  }
+
+  const reorderArranged = (qId: string, fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return
+    setArranged(prev => {
+      const a = arrayMove([...prev[qId]], fromIdx, toIdx)
+      setAnswers(ans => ({ ...ans, [qId]: a.map(w => w.word).join(' ') }))
+      return { ...prev, [qId]: a }
+    })
   }
 
   const resetQuestion = (qId: string, correctOrder: string[]) => {
-    setWordBanks(prev => ({ ...prev, [qId]: shuffleArr(correctOrder) }))
+    setWordBanks(prev => ({ ...prev, [qId]: shuffleArr(correctOrder).map(word => ({ id: `w${idRef.current++}`, word })) }))
     setArranged(prev => ({ ...prev, [qId]: [] }))
     setAnswers(prev => ({ ...prev, [qId]: '' }))
   }
@@ -194,7 +273,7 @@ export default function JumbledPage() {
       <div className="card p-6 space-y-4">
         <h3 className="font-semibold text-gray-900">How it works</h3>
         <ul className="space-y-2 text-sm text-gray-600">
-          {['Up to 10 clearances — arrange all before submitting', 'Click or drag words to move them to your answer area', 'Scored by how many words are in the correct position', 'New random clearances each session'].map((t, i) => (
+          {['Up to 10 clearances — arrange all before submitting', 'Click or drag words to move them to your answer area', 'Drag words within your answer to reorder them', 'Scored by how many words are in the correct position', 'New random clearances each session'].map((t, i) => (
             <li key={i} className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-primary-500 mt-0.5 shrink-0" />{t}</li>
           ))}
         </ul>
@@ -217,17 +296,49 @@ export default function JumbledPage() {
       ? (CATEGORY_LABELS[q.question_data.category] ?? 'ATC Clearance')
       : undefined
 
-    const handleBankDragStart = (idx: number) => setDragging({ src: 'bank', idx })
-    const handleArrDragStart = (idx: number) => setDragging({ src: 'answer', idx })
-
-    const handleDropOnAnswer = () => {
-      if (dragging?.src === 'bank') moveToArranged(q.id, bank[dragging.idx], dragging.idx)
-      setDragging(null); setDragOver(null)
+    const handleDragStart = (event: DragStartEvent) => {
+      const id = event.active.id as string
+      const item = [...bank, ...arr].find(w => w.id === id) ?? null
+      setActiveItem(item)
     }
 
-    const handleDropOnBank = () => {
-      if (dragging?.src === 'answer') moveToBank(q.id, arr[dragging.idx], dragging.idx)
-      setDragging(null); setDragOver(null)
+    const handleDragOver = (event: DragOverEvent) => {
+      const overId = event.over?.id as string | undefined
+      if (!overId) { setOverZone(null); return }
+      if (overId === 'answer-drop' || arr.some(w => w.id === overId)) setOverZone('answer')
+      else if (overId === 'bank-drop' || bank.some(w => w.id === overId)) setOverZone('bank')
+      else setOverZone(null)
+    }
+
+    const handleDragEnd = (event: DragEndEvent) => {
+      const { active, over } = event
+      setActiveItem(null)
+      setOverZone(null)
+      if (!over || !q) return
+
+      const activeId = active.id as string
+      const overId = over.id as string
+
+      const bankIdx = bank.findIndex(w => w.id === activeId)
+      const arrIdx = arr.findIndex(w => w.id === activeId)
+
+      if (bankIdx >= 0) {
+        // Dragging from bank → drop on answer zone or any answer word
+        const goToAnswer = overId === 'answer-drop' || arr.some(w => w.id === overId) || overZone === 'answer'
+        if (goToAnswer) moveToArranged(q.id, bank[bankIdx], bankIdx)
+      } else if (arrIdx >= 0) {
+        // Dragging from answer
+        const goToBank = overId === 'bank-drop' || bank.some(w => w.id === overId) || overZone === 'bank'
+        if (goToBank) {
+          moveToBank(q.id, arr[arrIdx], arrIdx)
+        } else {
+          // Reorder within answer
+          const toIdx = arr.findIndex(w => w.id === overId)
+          if (toIdx >= 0 && arrIdx !== toIdx) {
+            reorderArranged(q.id, arrIdx, toIdx)
+          }
+        }
+      }
     }
 
     return (
@@ -252,7 +363,13 @@ export default function JumbledPage() {
         {error && <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700"><AlertTriangle className="w-5 h-5 shrink-0" />{error}</div>}
 
         {q && (
-          <>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
             {/* Gradient header card */}
             <div className="rounded-2xl bg-gradient-to-br from-violet-500 to-pink-500 text-white px-5 py-5">
               <div className="flex items-center gap-3 mb-2">
@@ -275,55 +392,39 @@ export default function JumbledPage() {
                   <p className="text-sm font-semibold text-gray-800">Word Bank</p>
                   <p className="text-xs text-violet-500">Click or drag words to arrange</p>
                 </div>
-                <div
-                  className={`min-h-[60px] p-3 rounded-xl border-2 transition-colors flex flex-wrap gap-2 ${dragOver === 'bank' ? 'border-violet-400 bg-violet-50' : 'border-gray-200 bg-gray-50'}`}
-                  onDragOver={e => { e.preventDefault(); setDragOver('bank') }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={handleDropOnBank}
-                >
+                <BankDropZone highlight={overZone === 'bank'}>
                   {bank.length === 0
                     ? <p className="text-xs text-gray-400 w-full text-center py-2">All words placed ✓</p>
-                    : bank.map((word, wi) => (
-                      <div
-                        key={`bank-${wi}`}
-                        draggable
-                        onDragStart={() => handleBankDragStart(wi)}
-                        onDragEnd={() => setDragging(null)}
-                        onClick={() => moveToArranged(q.id, word, wi)}
-                        className={`px-3 py-1.5 rounded-full border bg-white text-gray-700 text-sm font-medium cursor-grab active:cursor-grabbing select-none transition-all hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700 ${dragging?.src === 'bank' && dragging.idx === wi ? 'opacity-40' : ''}`}
-                      >
-                        {word}
-                      </div>
+                    : bank.map(item => (
+                      <DraggableWord
+                        key={item.id}
+                        item={item}
+                        onAdd={() => moveToArranged(q.id, item, bank.indexOf(item))}
+                      />
                     ))
                   }
-                </div>
+                </BankDropZone>
               </div>
 
               {/* Your Answer */}
               <div>
                 <p className="text-sm font-semibold text-gray-800 mb-3">Your Answer</p>
-                <div
-                  className={`min-h-[70px] p-3 rounded-xl border-2 border-dashed transition-colors flex flex-wrap gap-2 ${dragOver === 'answer' ? 'border-violet-400 bg-violet-50' : 'border-gray-300'}`}
-                  onDragOver={e => { e.preventDefault(); setDragOver('answer') }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={handleDropOnAnswer}
-                >
+                <AnswerDropZone highlight={overZone === 'answer'}>
                   {arr.length === 0
                     ? <p className="text-xs text-gray-400 w-full text-center py-2">Click or drag words here to form your answer</p>
-                    : arr.map((word, wi) => (
-                      <div
-                        key={`arr-${wi}`}
-                        draggable
-                        onDragStart={() => handleArrDragStart(wi)}
-                        onDragEnd={() => setDragging(null)}
-                        onClick={() => moveToBank(q.id, word, wi)}
-                        className={`px-3 py-1.5 rounded-full border border-violet-300 bg-violet-50 text-violet-700 text-sm font-medium cursor-grab active:cursor-grabbing select-none transition-all hover:border-red-300 hover:bg-red-50 hover:text-red-600 ${dragging?.src === 'answer' && dragging.idx === wi ? 'opacity-40' : ''}`}
-                      >
-                        {word}
-                      </div>
-                    ))
+                    : (
+                      <SortableContext items={arr.map(w => w.id)} strategy={rectSortingStrategy}>
+                        {arr.map((item, wi) => (
+                          <SortableWord
+                            key={item.id}
+                            item={item}
+                            onRemove={() => moveToBank(q.id, item, wi)}
+                          />
+                        ))}
+                      </SortableContext>
+                    )
                   }
-                </div>
+                </AnswerDropZone>
               </div>
 
               {/* Check Answer button */}
@@ -348,6 +449,15 @@ export default function JumbledPage() {
               </div>
             </div>
 
+            {/* Drag overlay — floats under the pointer/finger */}
+            <DragOverlay>
+              {activeItem && (
+                <div className="px-3 py-1.5 rounded-full border shadow-lg select-none text-sm font-medium cursor-grabbing border-violet-400 bg-violet-100 text-violet-700">
+                  {activeItem.word}
+                </div>
+              )}
+            </DragOverlay>
+
             {/* Tip card */}
             <div className="rounded-xl bg-violet-50 border border-violet-100 p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -363,7 +473,7 @@ export default function JumbledPage() {
                 ))}
               </ol>
             </div>
-          </>
+          </DndContext>
         )}
 
         {/* Navigation */}
