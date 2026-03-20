@@ -1,19 +1,27 @@
 {
   "metadata": {
-    "version": "2.1",
-    "lastUpdated": "2026-03-09",
-    "description": "PAEC RAMP corpus v2.1 — precision rebuild. Noise filtering applied (short ATC fragments, pilot new-calls filtered). Phases: pushback, startup, parking, towing, crossing, ramp. Built from RAMP.docx, RAMP_2.docx, RAMP_3.docx (PAEC10, PAEC16, PAEC30)."
+    "version": "2.3",
+    "lastUpdated": "2026-03-20",
+    "description": "PAEC RAMP corpus v2.3 — Bug fixes: engine plural support (engines?), runway extraction isolation, Sierra phase detection tightened. New error type: runway_designator_omitted. 5 more patterns migrated to CHECKS (enginePattern, runwayPattern, holdShortEquivalentsPattern, chocksConfirmationPattern, runwayDesignatorPattern). ~26 new entries: engine plural, runway designator, hold-short variants. Total 17 dynamic CHECKS keys."
   },
   "checks": {
     "pushbackPattern": "push\\s*back|pushback",
-    "pushbackDirectionPattern": "facing\\s+(north|south|east|west)|face\\s+(north|south|east|west)|facing\\s+(?:golf|sierra|charlie|november|delta|alpha|bravo|lima)",
-    "startupPattern": "start\\s*up\\s+appro|startup\\s+appro|start\\s+appro|idle\\s+power\\s+appro|engine\\s+start\\s+appro",
+    "pushbackDirectionPattern": "(?:facing|face)\\s+(north|south|east|west|golf|sierra|charlie|november|delta|alpha|bravo|lima)",
+    "startupPattern": "start\\s*up\\s+approv|startup\\s+approv|start\\s+approv|idle\\s+power\\s+approv|engine\\s+start\\s+approv",
     "standPattern": "\\bba(?:y|ys?)\\s+([a-z0-9][a-z0-9\\s\\-]*?)|spot\\s+(\\d+[a-z]?)|stand\\s+(\\d+[a-z]?)",
     "towingPattern": "tow(?:ing)?\\s+(?:to|from|bay)|continue\\s+tow",
-    "apronCrossingPattern": "hold\\s+short\\s+(?:of\\s+)?(?!runway)([a-zA-Z][a-zA-Z0-9\\s]*?)(?=\\s*[,.]|\\s+contact|\\s*$)",
+    "apronCrossingPattern": "hold\\s+short\\s+(?:of\\s+)?(?!runway\\b)([a-zA-Z][a-zA-Z0-9\\s]*?)(?=\\s*[,.]|\\s+contact|\\s*$)",
     "frequencyPattern": "(?:contact|monitor)\\s+(?:tower|approach|ground|departure|ramp|delivery)(?:\\s+on)?\\s+([0-9]{3}[\\. ][0-9]{1,3})",
     "sierraPattern": "sierra\\s+([a-z0-9][a-z0-9\\s]*?)(?=\\s*[,.]|\\s+(?:facing|face|runway|contact)|$)",
-    "parkingBrakePattern": "parking\\s+brake(?:\\s+set)?|brakes\\s+set"
+    "parkingBrakePattern": "parking\\s+brake(?:\\s+set)?|brakes\\s+set",
+    "rogerSubstitutionPattern": "^(?:roger|wilco|copy|affirmative|ok|aight)\\.?$",
+    "startupAcknowledgmentPattern": "approv(?:e[ds]?|al)|roger|wilco|standby|will\\s+advise|noted|copy|confirmed",
+    "nonStandardPilotPattern": "\\b(?:aight|yep|yeah|gotcha|no\\s+problem|ok\\s+sir|ok\\s+ma|copy\\s+that\\s+sir|sure\\s+sir|sure\\s+ma)\\b",
+    "enginePattern": "engines?\\s+(one|two|three|four|number\\s+\\d)",
+    "runwayPattern": "runway\\s+([\\w\\s]+?)(?=\\s*[,.]|$)",
+    "holdShortEquivalentsPattern": "hold(?:ing)?\\s+short|holding\\s+(?:at|on)|remain(?:ing)?\\s+(?:at|short|on)|stay(?:ing)?\\s+short|stopped?\\s+short",
+    "chocksConfirmationPattern": "chocks|brakes?|parking\\s+brake|set",
+    "runwayDesignatorPattern": "runway\\s+[\\w\\s]+?\\b(?:left|right|center)\\b"
   },
   "corpus": [
     {
@@ -21615,6 +21623,590 @@
       "pilot": "Pushback Sierra Seven, runway zero six, Philippine One One Two",
       "isCorrect": true,
       "phase": "pushback"
+    },
+    {
+      "atc": "Philippine Airlines two zero one, engine start approved, engine one.",
+      "pilot": "Engine start approved, starting engine one. Philippine Airlines two zero one.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, idle power approved, engine two.",
+      "pilot": "Idle power approved, engine two. Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Royal Brunei two three one, engine start approved, engine one.",
+      "pilot": "Engine start approved, starting engine one. Royal Brunei two three one.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, engine start approved, engine two.",
+      "pilot": "Engine start approved, engine two. Cathay Pacific eight eight nine.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Philippine Airlines one zero five, engine start approved, engine one.",
+      "pilot": "Engine start approved, engine two. Philippine Airlines one zero five.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine one; pilot read back engine two — incorrect engine number."
+    },
+    {
+      "atc": "Cebu Pacific three eight nine, idle power approved, engine two.",
+      "pilot": "Idle power approved, engine one. Cebu Pacific three eight nine.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine two; pilot read back engine one — numbers transposed in readback."
+    },
+    {
+      "atc": "Cathay Pacific seven six zero, engine start approved, engine one.",
+      "pilot": "Engine start approved, engine three. Cathay Pacific seven six zero.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine one; pilot read back engine three — wrong engine number confirmed."
+    },
+    {
+      "atc": "Emirates two four zero, engine start approved, engine two.",
+      "pilot": "Engine start approved, engine three. Emirates two four zero.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine two; pilot read back engine three — incorrect engine number."
+    },
+    {
+      "atc": "Philippine Airlines eight eight eight, engine start approved, engine one.",
+      "pilot": "Engine start approved, engine four. Philippine Airlines eight eight eight.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine one; pilot read back engine four — significant engine number mismatch."
+    },
+    {
+      "atc": "Cebu Pacific six two one, idle power approved, engine four.",
+      "pilot": "Idle power approved, engine three. Cebu Pacific six two one.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine four; pilot read back engine three — wrong engine number."
+    },
+    {
+      "atc": "Royal Brunei one seven eight, engine start approved, engine three.",
+      "pilot": "Engine start approved, engine two. Royal Brunei one seven eight.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine three; pilot read back engine two — engine numbers do not match."
+    },
+    {
+      "atc": "Philippine Airlines two one two, idle power approved, engine two.",
+      "pilot": "Idle power approved, engine four. Philippine Airlines two one two.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine two; pilot read back engine four — readback error on engine number."
+    },
+    {
+      "atc": "Cebu Pacific five four seven, approved to push, Sierra three, facing south, runway zero six left.",
+      "pilot": "Approved to push, Sierra three, facing south, runway zero six left. Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "pushback"
+    },
+    {
+      "atc": "Philippine Airlines one zero five, engine start approved.",
+      "pilot": "Engine start approved. Philippine Airlines one zero five.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, approved to push, Sierra three, facing south, runway zero six left.",
+      "pilot": "Aight, push Sierra three, facing south, runway zero six left. Cebu Pacific five four seven.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Aight' is non-standard aviation phraseology. Standard acknowledgment per ICAO Doc 9432 should be used."
+    },
+    {
+      "atc": "Philippine Airlines one zero five, approved to push, Sierra one, facing east, runway zero six left.",
+      "pilot": "Yep, Sierra one, facing east, runway zero six left. Philippine Airlines one zero five.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Yep' is non-standard pilot phraseology in ATC communications per ICAO Doc 9432."
+    },
+    {
+      "atc": "Cebu Pacific six three eight, taxi november five, hold short golf one four.",
+      "pilot": "Gotcha, november five, hold short golf one four. Cebu Pacific six three eight.",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Gotcha' is casual, non-standard pilot phraseology. Use standard readback phraseology per ICAO Doc 9432."
+    },
+    {
+      "atc": "Cebu Pacific three zero five, continue tow bay one one two.",
+      "pilot": "Sure sir, continue tow bay one one two. Cebu Pacific three zero five.",
+      "isCorrect": false,
+      "phase": "towing",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Sure sir' is informal and non-standard. Honorifics and casual affirmatives should not appear in readbacks per ICAO Doc 9432."
+    },
+    {
+      "atc": "Philippine Airlines two zero one, idle power approved.",
+      "pilot": "Copy that sir, idle power approved. Philippine Airlines two zero one.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Copy that sir' includes informal honorific. Standard phrasing is 'Idle power approved' without sir per ICAO Doc 9432."
+    },
+    {
+      "atc": "Royal Brunei two three one, approved to push, Sierra two, facing north, runway two four.",
+      "pilot": "Ok sir, push Sierra two, facing north, runway two four. Royal Brunei two three one.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Ok sir' is non-standard in aviation communications. ICAO phraseology does not include honorifics per ICAO Doc 9432."
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, hold short golf one four. Contact ground one two one point nine.",
+      "pilot": "Gotcha, hold short golf one four, ground one two one point nine. Cathay Pacific eight eight nine.",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Gotcha' is non-standard pilot phraseology. Standard readback should omit casual acknowledgments per ICAO Doc 9432."
+    },
+    {
+      "atc": "Philippine Airlines one zero five, engine start approved.",
+      "pilot": "No problem, engine start approved. Philippine Airlines one zero five.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'No problem' is non-standard phraseology in ATC communications. Standard acknowledgment is required per ICAO Doc 9432."
+    },
+    {
+      "atc": "Cebu Pacific five zero five, approved to push Sierra five, facing south, runway zero six right.",
+      "pilot": "Yeah, pushback Sierra five, facing south, runway zero six right. Cebu Pacific five zero five.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Yeah' is informal and non-standard in ATC communications. Standard readback per ICAO Doc 9432 should be used."
+    },
+    {
+      "atc": "Philippine Airlines two one two, contact ground one two one decimal nine.",
+      "pilot": "Sure ma, ground one two one decimal nine. Philippine Airlines two one two.",
+      "isCorrect": false,
+      "phase": "ramp",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Sure ma' is informal and contains a non-standard address form. Frequency handoff should use standard phraseology per ICAO Doc 9432."
+    },
+    {
+      "atc": "Cebu Pacific nine two four, approved to push, Sierra four, facing east, runway zero six left.",
+      "pilot": "Ok ma, push Sierra four, facing east, runway zero six left. Cebu Pacific nine two four.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "non_standard_ramp_phraseology",
+      "explanation": "'Ok ma' is informal and non-standard. ICAO phraseology does not include casual honorifics per ICAO Doc 9432."
+    },
+    {
+      "atc": "Philippine Airlines two zero one, set parking brakes.",
+      "pilot": "Parking brakes set. Philippine Airlines two zero one.",
+      "isCorrect": true,
+      "phase": "parking"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, confirm parking brakes set.",
+      "pilot": "Parking brakes set, Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "parking"
+    },
+    {
+      "atc": "Royal Brunei one seven eight, brakes set, advise when chocks in.",
+      "pilot": "Brakes set, will advise when chocks in. Royal Brunei one seven eight.",
+      "isCorrect": true,
+      "phase": "parking"
+    },
+    {
+      "atc": "Philippine Airlines two zero one, set parking brakes.",
+      "pilot": "Roger. Philippine Airlines two zero one.",
+      "isCorrect": false,
+      "phase": "parking",
+      "errorType": "chocks_not_confirmed",
+      "explanation": "ATC instructed to set parking brakes; pilot acknowledged with 'Roger' without explicitly confirming brakes were set."
+    },
+    {
+      "atc": "Cebu Pacific five four seven, confirm parking brakes set.",
+      "pilot": "Confirmed, Cebu Pacific five four seven.",
+      "isCorrect": false,
+      "phase": "parking",
+      "errorType": "chocks_not_confirmed",
+      "explanation": "Pilot said 'Confirmed' without explicitly mentioning brake status. ATC expects confirmation that parking brakes are set."
+    },
+    {
+      "atc": "Philippine Airlines one zero five, parking brake set, advise ready.",
+      "pilot": "Will advise when ready. Philippine Airlines one zero five.",
+      "isCorrect": false,
+      "phase": "parking",
+      "errorType": "chocks_not_confirmed",
+      "explanation": "Pilot responded without confirming parking brakes were set. ATC expects explicit brake confirmation before ground crew proceeds."
+    },
+    {
+      "atc": "Royal Brunei two three one, please set parking brake.",
+      "pilot": "Royal Brunei two three one, ready.",
+      "isCorrect": false,
+      "phase": "parking",
+      "errorType": "chocks_not_confirmed",
+      "explanation": "ATC instructed to set parking brake; pilot responded with status only — no brake confirmation given."
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, confirm parking brakes set.",
+      "pilot": "Cathay Pacific eight eight nine, we are parked.",
+      "isCorrect": false,
+      "phase": "parking",
+      "errorType": "chocks_not_confirmed",
+      "explanation": "Pilot confirmed parked position but did not confirm parking brakes set per ATC instruction."
+    },
+    {
+      "atc": "Cebu Pacific three zero five, confirm brakes set, chocks in.",
+      "pilot": "Roger, Cebu Pacific three zero five.",
+      "isCorrect": false,
+      "phase": "parking",
+      "errorType": "chocks_not_confirmed",
+      "explanation": "ATC requested brake and chocks confirmation; pilot only said 'Roger' — no explicit brake or chocks confirmation."
+    },
+    {
+      "atc": "Philippine Airlines one zero five, approved to push, Sierra one, facing south, runway zero six left.",
+      "pilot": "Approved push, Sierra one, facing south, runway zero six left. Philippine Airlines one zero five.",
+      "isCorrect": true,
+      "phase": "pushback"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, approved to push, Sierra three, facing east, runway zero six.",
+      "pilot": "Approved push Sierra three, facing east, runway zero six. Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "pushback"
+    },
+    {
+      "atc": "Royal Brunei two three one, engine start approved.",
+      "pilot": "Engine start approved. Royal Brunei two three one.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Philippine Airlines one zero five, approved to push, Sierra one, facing south, runway zero six left.",
+      "pilot": "Approved push, Sierra one, facing south, runway zero six left.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "callsign_not_included",
+      "explanation": "Pilot read back pushback clearance without including callsign. ICAO Doc 9432 §4.5 requires callsign in all mandatory readbacks."
+    },
+    {
+      "atc": "Cebu Pacific five four seven, engine start approved, engine one.",
+      "pilot": "Engine start approved, engine one.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "callsign_not_included",
+      "explanation": "Pilot confirmed engine start without callsign. ICAO requires callsign in all readbacks per Doc 4444."
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, contact ground one two one point nine.",
+      "pilot": "Ground one two one point nine.",
+      "isCorrect": false,
+      "phase": "ramp",
+      "errorType": "callsign_not_included",
+      "explanation": "Frequency handoff readback does not include callsign. ICAO Doc 9432 §4.5 requires callsign."
+    },
+    {
+      "atc": "Royal Brunei two three one, continue tow bay one one two.",
+      "pilot": "Continue tow bay one one two.",
+      "isCorrect": false,
+      "phase": "towing",
+      "errorType": "callsign_not_included",
+      "explanation": "Pilot confirmed towing destination without callsign — violates ICAO readback requirements per Doc 9432."
+    },
+    {
+      "atc": "Philippine Airlines two zero one, hold short golf one four, contact ground.",
+      "pilot": "Hold short golf one four, contact ground.",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "callsign_not_included",
+      "explanation": "Pilot read back crossing instruction without callsign. ICAO Doc 4444 requires callsign in all readbacks."
+    },
+    {
+      "atc": "Cebu Pacific six three eight, approved push Sierra four, facing north, runway zero four.",
+      "pilot": "Approved push, Sierra four, facing north, runway zero four.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "callsign_not_included",
+      "explanation": "Pushback readback content is correct but callsign is missing. ICAO Doc 9432 requires callsign in all readbacks."
+    },
+    {
+      "atc": "Emirates two four zero, idle power approved.",
+      "pilot": "Idle power approved.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "callsign_not_included",
+      "explanation": "Pilot confirmed startup without callsign. ICAO Doc 4444 §12.4.4 requires callsign in all readbacks."
+    },
+    {
+      "atc": "Philippine Airlines two zero one, approved to push, Sierra two, facing south, runway zero six left.",
+      "pilot": "Approved push Sierra two, facing south, runway zero six left. Philippine Airlines two zero one.",
+      "isCorrect": true,
+      "phase": "pushback"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, engine start approved, engine one.",
+      "pilot": "Engine start approved, engine one. Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Philippine Airlines two zero one, approved to push, Sierra two, facing south, runway zero six left.",
+      "pilot": "Roger.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "roger_substitution",
+      "explanation": "Pilot acknowledged pushback clearance with 'Roger' alone. Safety-critical clearances require full readback of position, direction, and runway per ICAO Doc 4444 §12.3.1."
+    },
+    {
+      "atc": "Cebu Pacific five four seven, engine start approved, engine one.",
+      "pilot": "Wilco.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "roger_substitution",
+      "explanation": "'Wilco' alone does not confirm which engine is being started. Full readback required for startup clearances per ICAO Doc 4444 §12.3.2."
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, approved to push Sierra three, facing east, runway zero four.",
+      "pilot": "Copy.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "roger_substitution",
+      "explanation": "'Copy' alone does not confirm pushback parameters. ICAO requires full readback for pushback clearances including position, direction and runway."
+    },
+    {
+      "atc": "Royal Brunei two three one, continue tow bay one one two.",
+      "pilot": "Roger.",
+      "isCorrect": false,
+      "phase": "towing",
+      "errorType": "roger_substitution",
+      "explanation": "Towing instructions must be read back in full. 'Roger' means controller cannot verify crew received the correct bay number."
+    },
+    {
+      "atc": "Philippine Airlines one zero five, hold short golf one four.",
+      "pilot": "Affirmative.",
+      "isCorrect": false,
+      "phase": "crossing",
+      "errorType": "roger_substitution",
+      "explanation": "'Affirmative' alone does not confirm the hold-short point. Full readback 'Hold short Golf one four, [callsign]' is required per ICAO Doc 4444."
+    },
+    {
+      "atc": "Cebu Pacific six three eight, approved push Sierra one, facing north, runway zero four right.",
+      "pilot": "Ok.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "roger_substitution",
+      "explanation": "'Ok' is both non-standard and insufficient for a pushback clearance. Full readback required per ICAO Doc 4444 §12.3.1."
+    },
+    {
+      "atc": "Emirates two four zero, engine start approved, engine four.",
+      "pilot": "Roger.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "roger_substitution",
+      "explanation": "Bare 'Roger' for an engine start clearance is insufficient. Pilot must confirm engine number in the readback per ICAO Doc 4444 §12.3.2."
+    },
+    {
+      "atc": "Philippine Airlines two one two, approved push Sierra five, facing south, runway two four.",
+      "pilot": "Aight.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "roger_substitution",
+      "explanation": "'Aight' is both non-standard and insufficient. Full readback of pushback clearance parameters is required by ICAO standards."
+    },
+    {
+      "atc": "Philippine Airlines two zero one, engine start approved, start engines one and two.",
+      "pilot": "Engine start approved, starting engines one and two. Philippine Airlines two zero one.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, idle power approved, engines one and two.",
+      "pilot": "Idle power approved, engines one and two. Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, engine start approved, start engines two and three.",
+      "pilot": "Engine start approved, engines two and three. Cathay Pacific eight eight nine.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Emirates two four zero, idle power approved, engines one and two.",
+      "pilot": "Idle power approved, engines one and two. Emirates two four zero.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Royal Brunei two three one, engine start approved, start engines one, two and three.",
+      "pilot": "Engine start approved, starting engines one, two and three. Royal Brunei two three one.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Philippine Airlines one zero five, engine start approved, start engines one and two.",
+      "pilot": "Engine start approved, engines two and three. Philippine Airlines one zero five.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engines one and two; pilot read back engines two and three — incorrect engine set."
+    },
+    {
+      "atc": "Cebu Pacific three eight nine, idle power approved, engines one and two.",
+      "pilot": "Idle power approved, engines two and four. Cebu Pacific three eight nine.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engines one and two; pilot read back engines two and four — wrong engine numbers."
+    },
+    {
+      "atc": "Cathay Pacific seven six zero, engine start approved, engines two and three.",
+      "pilot": "Engine start approved, engines one and two. Cathay Pacific seven six zero.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engines two and three; pilot read back engines one and two — engine set mismatch."
+    },
+    {
+      "atc": "Emirates two four zero, engine start approved, engines one and two.",
+      "pilot": "Engine start approved, engines three and four. Emirates two four zero.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engines one and two; pilot read back engines three and four — engine numbers do not match."
+    },
+    {
+      "atc": "Royal Brunei one seven eight, engine start approved, start engines one, two and three.",
+      "pilot": "Engine start approved, engines one and two. Royal Brunei one seven eight.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engines one, two and three; pilot only confirmed engines one and two — engine three missing from readback."
+    },
+    {
+      "atc": "Philippine Airlines two zero one, engine number two start approved.",
+      "pilot": "Engine number two start approved. Philippine Airlines two zero one.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, engine number one start approved.",
+      "pilot": "Engine one start approved. Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "startup"
+    },
+    {
+      "atc": "Philippine Airlines one zero five, engine number one start approved.",
+      "pilot": "Engine number two start approved. Philippine Airlines one zero five.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine number one; pilot read back engine number two — engine number mismatch in readback."
+    },
+    {
+      "atc": "Cebu Pacific three zero five, engine number two start approved.",
+      "pilot": "Engine one start approved. Cebu Pacific three zero five.",
+      "isCorrect": false,
+      "phase": "startup",
+      "errorType": "engine_number_wrong",
+      "explanation": "ATC approved engine number two; pilot read back engine one — numbers differ regardless of format difference."
+    },
+    {
+      "atc": "Philippine Airlines one zero five, approved to push, Sierra one, facing south, runway zero six left.",
+      "pilot": "Approved push Sierra one, facing south, runway zero six left. Philippine Airlines one zero five.",
+      "isCorrect": true,
+      "phase": "pushback"
+    },
+    {
+      "atc": "Cebu Pacific five four seven, approved to push, Sierra three, facing east, runway two four right.",
+      "pilot": "Approved push Sierra three, facing east, runway two four right. Cebu Pacific five four seven.",
+      "isCorrect": true,
+      "phase": "pushback"
+    },
+    {
+      "atc": "Royal Brunei two three one, approved to push, Sierra two, facing north, runway zero six right.",
+      "pilot": "Approved push Sierra two, facing north, runway zero six right. Royal Brunei two three one.",
+      "isCorrect": true,
+      "phase": "pushback"
+    },
+    {
+      "atc": "Philippine Airlines two zero one, approved to push, Sierra two, facing south, runway zero six left.",
+      "pilot": "Approved push Sierra two, facing south, runway zero six. Philippine Airlines two zero one.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "runway_designator_omitted",
+      "explanation": "ATC specified runway zero six left; pilot omitted 'left' from readback. ICAO Doc 4444 §3.9.2 requires parallel runway designators in readbacks."
+    },
+    {
+      "atc": "Cebu Pacific five four seven, approved push Sierra three, facing east, runway zero six right.",
+      "pilot": "Approved push Sierra three, facing east, runway zero six. Cebu Pacific five four seven.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "runway_designator_omitted",
+      "explanation": "ATC specified runway zero six right; pilot omitted 'right' from readback — parallel runway designator required per ICAO Doc 4444 §3.9.2."
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, approved to push, Sierra five, facing west, runway two four left.",
+      "pilot": "Approved push Sierra five, facing west, runway two four. Cathay Pacific eight eight nine.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "runway_designator_omitted",
+      "explanation": "ATC specified runway two four left; pilot read back runway two four without the 'left' designator — ICAO Doc 4444 §3.9.2 requires full designation."
+    },
+    {
+      "atc": "Emirates two four zero, approved push Sierra four, facing east, runway zero four right.",
+      "pilot": "Approved push Sierra four, facing east, runway zero four. Emirates two four zero.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "runway_designator_omitted",
+      "explanation": "ATC specified runway zero four right; pilot omitted 'right' from readback — parallel runway designator required per ICAO Doc 4444."
+    },
+    {
+      "atc": "Royal Brunei two three one, pushback approved, Sierra six, facing north, runway two four right.",
+      "pilot": "Pushback Sierra six, facing north, runway two four. Royal Brunei two three one.",
+      "isCorrect": false,
+      "phase": "pushback",
+      "errorType": "runway_designator_omitted",
+      "explanation": "ATC specified runway two four right; pilot omitted 'right' — parallel runway designation is mandatory in pushback readbacks per ICAO Doc 4444 §3.9.2."
+    },
+    {
+      "atc": "Cebu Pacific six three eight, taxi november, hold short golf one four.",
+      "pilot": "Staying short of golf one four, november. Cebu Pacific six three eight.",
+      "isCorrect": true,
+      "phase": "crossing"
+    },
+    {
+      "atc": "Philippine Airlines one zero five, november five, hold short golf one three.",
+      "pilot": "Stopped short of golf one three, november five. Philippine Airlines one zero five.",
+      "isCorrect": true,
+      "phase": "crossing"
+    },
+    {
+      "atc": "Cathay Pacific eight eight nine, hold short golf one two.",
+      "pilot": "Stopped at golf one two, Cathay Pacific eight eight nine.",
+      "isCorrect": true,
+      "phase": "crossing"
+    },
+    {
+      "atc": "Royal Brunei two three one, hold short golf one three.",
+      "pilot": "Staying short, Royal Brunei two three one.",
+      "isCorrect": true,
+      "phase": "crossing"
     }
   ]
 }

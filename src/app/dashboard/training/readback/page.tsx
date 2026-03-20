@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Target, ChevronRight, Trophy, RotateCcw, CheckCircle, XCircle, Loader2, AlertTriangle, Volume2, Lightbulb, RefreshCw, Mic, MicOff } from 'lucide-react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { AVIATION_VOCABULARY } from '@/lib/speechNormalize'
+import SessionHistory, { SessionRow } from '@/components/training/SessionHistory'
 
 type SessionState = 'intro' | 'quiz' | 'results'
 
@@ -21,7 +22,7 @@ interface Question {
   }
 }
 
-interface HistoryData { bestScore: number | null; count: number }
+interface HistoryData { bestScore: number | null; count: number; sessions: SessionRow[] }
 
 function highlightAll(
   text: string,
@@ -68,7 +69,7 @@ const COMMON_ERRORS = [
 export default function ReadbackPage() {
   const router = useRouter()
   const [state, setState] = useState<SessionState>('intro')
-  const [history, setHistory] = useState<HistoryData>({ bestScore: null, count: 0 })
+  const [history, setHistory] = useState<HistoryData>({ bestScore: null, count: 0, sessions: [] })
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [sessionId, setSessionId] = useState('')
   const [questions, setQuestions] = useState<Question[]>([])
@@ -87,7 +88,7 @@ export default function ReadbackPage() {
   useEffect(() => {
     fetch('/api/training/history?category=readback')
       .then(r => r.json())
-      .then(d => setHistory({ bestScore: d.bestScore, count: d.count }))
+      .then(d => setHistory({ bestScore: d.bestScore, count: d.count, sessions: d.sessions ?? [] }))
       .catch(() => {})
       .finally(() => setLoadingHistory(false))
   }, [])
@@ -129,7 +130,7 @@ export default function ReadbackPage() {
 
   const tryAgain = () => {
     setQuestions([]); setAnswers({}); setError(''); setCurrentIdx(0); setState('intro')
-    fetch('/api/training/history?category=readback').then(r => r.json()).then(d => setHistory({ bestScore: d.bestScore, count: d.count })).catch(() => {})
+    fetch('/api/training/history?category=readback').then(r => r.json()).then(d => setHistory({ bestScore: d.bestScore, count: d.count, sessions: d.sessions ?? [] })).catch(() => {})
   }
 
   const scoreColor = score >= 80 ? 'text-green-600' : score >= 60 ? 'text-amber-600' : 'text-red-600'
@@ -180,6 +181,8 @@ export default function ReadbackPage() {
           {starting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading questions...</> : <>Start Session <ChevronRight className="w-4 h-4 ml-1" /></>}
         </button>
       </div>
+
+      <SessionHistory sessions={history.sessions} loading={loadingHistory} />
     </div>
   )
 

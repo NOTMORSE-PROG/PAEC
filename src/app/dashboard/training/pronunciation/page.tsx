@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Headphones, ChevronRight, Trophy, RotateCcw, CheckCircle, XCircle, Loader2, AlertTriangle, Volume2, RefreshCw, Lightbulb } from 'lucide-react'
 import { useTheme } from '@/lib/ThemeContext'
+import SessionHistory, { SessionRow } from '@/components/training/SessionHistory'
 
 type SessionState = 'intro' | 'quiz' | 'results'
 
@@ -20,7 +21,7 @@ interface Question {
   }
 }
 
-interface HistoryData { bestScore: number | null; count: number }
+interface HistoryData { bestScore: number | null; count: number; sessions: SessionRow[] }
 
 function speak(text: string) {
   if (typeof window === 'undefined' || !window.speechSynthesis) return
@@ -61,7 +62,7 @@ export default function PronunciationPage() {
   const router = useRouter()
   const { autoPlayAudio } = useTheme()
   const [state, setState] = useState<SessionState>('intro')
-  const [history, setHistory] = useState<HistoryData>({ bestScore: null, count: 0 })
+  const [history, setHistory] = useState<HistoryData>({ bestScore: null, count: 0, sessions: [] })
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [sessionId, setSessionId] = useState('')
   const [questions, setQuestions] = useState<Question[]>([])
@@ -79,7 +80,7 @@ export default function PronunciationPage() {
   useEffect(() => {
     fetch('/api/training/history?category=pronunciation')
       .then(r => r.json())
-      .then(d => setHistory({ bestScore: d.bestScore, count: d.count }))
+      .then(d => setHistory({ bestScore: d.bestScore, count: d.count, sessions: d.sessions ?? [] }))
       .catch(() => {})
       .finally(() => setLoadingHistory(false))
   }, [])
@@ -124,7 +125,7 @@ export default function PronunciationPage() {
 
   const tryAgain = () => {
     setQuestions([]); setAnswers({}); setError(''); setCurrentIdx(0); setState('intro')
-    fetch('/api/training/history?category=pronunciation').then(r => r.json()).then(d => setHistory({ bestScore: d.bestScore, count: d.count })).catch(() => {})
+    fetch('/api/training/history?category=pronunciation').then(r => r.json()).then(d => setHistory({ bestScore: d.bestScore, count: d.count, sessions: d.sessions ?? [] })).catch(() => {})
   }
 
   const scoreColor = score >= 80 ? 'text-green-600' : score >= 60 ? 'text-amber-600' : 'text-red-600'
@@ -175,6 +176,8 @@ export default function PronunciationPage() {
           {starting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading questions...</> : <>Start Session <ChevronRight className="w-4 h-4 ml-1" /></>}
         </button>
       </div>
+
+      <SessionHistory sessions={history.sessions} loading={loadingHistory} />
     </div>
   )
 

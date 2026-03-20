@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { BookOpen, ChevronRight, Trophy, RotateCcw, CheckCircle, XCircle, Loader2, AlertTriangle, Lightbulb } from 'lucide-react'
+import SessionHistory, { SessionRow } from '@/components/training/SessionHistory'
 import {
   DndContext, DragOverlay, PointerSensor, KeyboardSensor,
   useSensor, useSensors, closestCenter, useDroppable, useDraggable,
@@ -25,7 +26,7 @@ interface Question {
   }
 }
 
-interface HistoryData { bestScore: number | null; count: number }
+interface HistoryData { bestScore: number | null; count: number; sessions: SessionRow[] }
 interface WordItem { id: string; word: string }
 
 type WordStatus = 'correct' | 'present' | 'wrong'
@@ -120,7 +121,7 @@ function SortableWord({ item, onRemove }: { item: WordItem; onRemove: () => void
 export default function JumbledPage() {
   const router = useRouter()
   const [state, setState] = useState<SessionState>('intro')
-  const [history, setHistory] = useState<HistoryData>({ bestScore: null, count: 0 })
+  const [history, setHistory] = useState<HistoryData>({ bestScore: null, count: 0, sessions: [] })
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [sessionId, setSessionId] = useState('')
   const [questions, setQuestions] = useState<Question[]>([])
@@ -150,7 +151,7 @@ export default function JumbledPage() {
   useEffect(() => {
     fetch('/api/training/history?category=jumbled')
       .then(r => r.json())
-      .then(d => setHistory({ bestScore: d.bestScore, count: d.count }))
+      .then(d => setHistory({ bestScore: d.bestScore, count: d.count, sessions: d.sessions ?? [] }))
       .catch(() => {})
       .finally(() => setLoadingHistory(false))
   }, [])
@@ -230,7 +231,7 @@ export default function JumbledPage() {
 
   const tryAgain = () => {
     setQuestions([]); setWordBanks({}); setArranged({}); setAnswers({}); setError(''); setCurrentIdx(0); setState('intro')
-    fetch('/api/training/history?category=jumbled').then(r => r.json()).then(d => setHistory({ bestScore: d.bestScore, count: d.count })).catch(() => {})
+    fetch('/api/training/history?category=jumbled').then(r => r.json()).then(d => setHistory({ bestScore: d.bestScore, count: d.count, sessions: d.sessions ?? [] })).catch(() => {})
   }
 
   const scoreColor = score >= 80 ? 'text-green-600' : score >= 60 ? 'text-amber-600' : 'text-red-600'
@@ -281,6 +282,8 @@ export default function JumbledPage() {
           {starting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Loading clearances...</> : <>Start Session <ChevronRight className="w-4 h-4 ml-1" /></>}
         </button>
       </div>
+
+      <SessionHistory sessions={history.sessions} loading={loadingHistory} />
     </div>
   )
 

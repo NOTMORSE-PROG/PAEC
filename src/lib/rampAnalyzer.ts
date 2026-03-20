@@ -62,9 +62,15 @@ function normDigits(s: string): string {
  */
 function extractSpokenFreq(text: string): string | null {
   const t = text.toLowerCase()
-  // Digit form: "121.8" or "121 8"
-  const digitMatch = t.match(/\b(1[0-9]{2})[\s.]+(\d{1,2})\b/)
-  if (digitMatch) return digitMatch[1] + digitMatch[2]
+  // Digit form: use corpus-defined frequency pattern (group 1 captures "121.8" etc.)
+  // CHECKS may not be initialized yet when this function is defined, but it IS ready
+  // by the time the function is called (module initialization order is deterministic).
+  const freqRe = new RegExp(CHECKS.frequencyPattern, 'i')
+  const digitMatch = t.match(freqRe)
+  if (digitMatch?.[1]) return digitMatch[1].replace(/\D/g, '')
+  // Fallback: bare digit-form frequency without "contact/monitor" prefix
+  const bareMatch = t.match(/\b(1[0-9]{2})[\s.]+(\d{1,2})\b/)
+  if (bareMatch) return bareMatch[1] + bareMatch[2]
   // Spoken form: after "contact/monitor ground/tower/..." extract digit run
   const spokenSect = t.match(/(?:contact|monitor)\s+(?:ground|tower|approach|departure|ramp|delivery)[^,\n]{0,30}?((?:one|two|three|four|five|six|seven|eight|nine|niner|zero)\s+(?:one|two|three|four|five|six|seven|eight|nine|niner|zero)\s+(?:one|two|three|four|five|six|seven|eight|nine|niner|zero)[^,\n]{0,20})/)
   if (spokenSect) {
@@ -99,6 +105,14 @@ const CHECKS = (rampCorpus as unknown as {
     frequencyPattern: string
     sierraPattern: string
     parkingBrakePattern: string
+    rogerSubstitutionPattern: string
+    startupAcknowledgmentPattern: string
+    nonStandardPilotPattern: string
+    enginePattern: string
+    runwayPattern: string
+    holdShortEquivalentsPattern: string
+    chocksConfirmationPattern: string
+    runwayDesignatorPattern: string
   }
 }).checks
 
@@ -163,6 +177,7 @@ export type RampErrorType =
   | 'roger_substitution'
   | 'non_standard_ramp_phraseology'
   | 'chocks_not_confirmed'
+  | 'runway_designator_omitted'
 
 export interface RampConfidenceScores {
   phaseDetection: number
@@ -186,7 +201,9 @@ interface RampPhasePattern {
 const RAMP_PHASE_PATTERNS: RampPhasePattern[] = [
   {
     phase: 'pushback',
-    patterns: [/push\s*back/i, /pushback\s+appro/i, /sierra\s+\w/i],
+    // FIX A3: Require a digit or number-word after "sierra" — ramp positions are always
+    // numbered (Sierra 1, Sierra 18). Prevents "Sierra Leone" from scoring as pushback.
+    patterns: [/push\s*back/i, /pushback\s+appro/i, /sierra\s+(?:\d|one|two|three|four|five|six|seven|eight|nine|zero)/i],
     weight: 12,
     contextClues: ['pushback', 'push', 'sierra', 'facing'],
   },
@@ -281,11 +298,12 @@ export function detectRampErrors(
   // Safety-critical ramp instructions must not be acknowledged with Roger alone
   const isSafetyCritical =
     pushbackRe.test(atcL) ||
-    startupRe.test(atcL) ||
-    crossRe.test(atcL) ||
+    startupRe.test(atcL)  ||
+    towingRe.test(atcL)   ||
+    crossRe.test(atcL)    ||
     /hold\s+short/i.test(atcL)
 
-  if (isSafetyCritical && /^(?:roger|wilco|copy|affirmative|ok|aight)\.?$/i.test(pilotL.trim())) {
+  if (isSafetyCritical && new RegExp(CHECKS.rogerSubstitutionPattern, 'i').test(pilotL.trim())) {
     errors.push({
       type: 'roger_substitution',
       description: 'Pilot acknowledged safety-critical ramp instruction with Roger/Wilco alone',
@@ -299,19 +317,20 @@ export function detectRampErrors(
 
   // ── 2. pushback_direction_missing ─────────────────────────────────────────
   // ATC gave facing direction but pilot omitted it.
-  // FIX: use word-boundary regex instead of plain .includes() to avoid false
-  // matches where the direction word is part of a longer token (e.g. "south"
-  // inside "south-southeast" or a callsign fragment).
+  // Dynamic: direction vocabulary sourced from CHECKS.pushbackDirectionPattern
+  // so adding a new direction word in the JSON automatically updates detection.
   if (pushbackRe.test(atcL)) {
-    const dirMatch = atcL.match(/(?:facing|face)\s+(north|south|east|west|golf|sierra|charlie|november|delta|alpha|bravo|lima)/i)
-    if (dirMatch) {
-      const dir = dirMatch[1].toLowerCase()
+    const dirRe = new RegExp(CHECKS.pushbackDirectionPattern, 'i')
+    const dirMatch = atcL.match(dirRe)
+    // Group 1 captures the direction word (cardinal or phonetic taxiway name)
+    const dir = (dirMatch?.[1] ?? '').toLowerCase()
+    if (dir) {
       if (!new RegExp(`\\b${dir}\\b`, 'i').test(pilotL)) {
         errors.push({
           type: 'pushback_direction_missing',
-          description: `Pushback facing direction "${dirMatch[1]}" not confirmed in readback`,
+          description: `Pushback facing direction "${dir}" not confirmed in readback`,
           weight: 'high',
-          correction: `Include direction in readback: "pushback [position], facing ${dirMatch[1]}, [callsign]"`,
+          correction: `Include direction in readback: "pushback [position], facing ${dir}, [callsign]"`,
           icaoReference: 'ICAO Doc 4444 §12.3.1',
           safetyImpact: 'Tug crew and controller may misalign on pushback direction — ramp conflict risk',
         })
@@ -322,12 +341,13 @@ export function detectRampErrors(
   // ── 3. pushback_clearance_not_confirmed ───────────────────────────────────
   // ATC issued pushback — pilot must confirm Sierra position AND runway.
   // FIX: normalise both sides to digit strings so "one niner" == "19" etc.
-  // This catches both missing Sierra and wrong-position readbacks precisely.
+  // Dynamic: sierra position pattern sourced from CHECKS.sierraPattern.
   if (pushbackRe.test(atcL)) {
-    const sierraMatch = atcL.match(/sierra\s+([\w\s]+?)(?=\s*[,.]|\s+(?:facing|face|runway|contact)|$)/i)
+    const sierraRe = new RegExp(CHECKS.sierraPattern, 'i')
+    const sierraMatch = atcL.match(sierraRe)
     if (sierraMatch) {
       const atcPosNorm = normDigits(sierraMatch[1].trim())
-      const pilotSierraRaw = pilotL.match(/sierra\s+([\w\s]+?)(?=\s*[,.]|\s+(?:facing|face|runway|contact)|$)/i)
+      const pilotSierraRaw = pilotL.match(sierraRe)
       const pilotPosNorm   = pilotSierraRaw ? normDigits(pilotSierraRaw[1].trim()) : ''
 
       if (!pilotSierraRaw) {
@@ -354,11 +374,16 @@ export function detectRampErrors(
     }
 
     // Runway given but not confirmed (only flag if no Sierra error already)
-    const rwyMatch = atcL.match(/runway\s+([\w\s]+?)(?=\s*[,.]|$)/i)
+    // FIX A4: Extract runway from pilot text specifically (same pattern as ATC side)
+    // instead of normalising the entire pilot readback, which caused false negatives
+    // when unrelated numbers in the pilot text accidentally matched the runway digits.
+    const runwayRe = new RegExp(CHECKS.runwayPattern, 'i')
+    const rwyMatch = atcL.match(runwayRe)
     if (rwyMatch && errors.length === 0) {
-      const atcRwyNorm = normDigits(rwyMatch[1].trim())
-      const pilotRwyNorm = normDigits(pilotL)
-      if (atcRwyNorm && !pilotRwyNorm.includes(atcRwyNorm)) {
+      const atcRwyNorm  = normDigits(rwyMatch[1].trim())
+      const pilotRwyRaw = pilotL.match(runwayRe)
+      const pilotRwyNorm = pilotRwyRaw ? normDigits(pilotRwyRaw[1].trim()) : ''
+      if (atcRwyNorm && (!pilotRwyNorm || !pilotRwyNorm.includes(atcRwyNorm))) {
         errors.push({
           type: 'pushback_clearance_not_confirmed',
           description: `Departure runway "${rwyMatch[1].trim()}" not confirmed in pushback readback`,
@@ -367,6 +392,21 @@ export function detectRampErrors(
           icaoReference: 'ICAO Doc 4444 §12.3.1',
           safetyImpact: 'Wrong runway confirmation can lead to conflict with active runway operations',
         })
+      } else if (atcRwyNorm && pilotRwyNorm) {
+        // Runway number matched — check for missing designator (left/right/center)
+        // ICAO Doc 4444 §3.9.2: parallel runway designators must be included in readbacks.
+        const desigRe  = /\b(left|right|center)\b/i
+        const atcDesig = rwyMatch[1].match(desigRe)?.[1]?.toLowerCase()
+        if (atcDesig && !desigRe.test(pilotL)) {
+          errors.push({
+            type: 'runway_designator_omitted',
+            description: `Runway designator "${atcDesig}" omitted from pushback readback`,
+            weight: 'medium',
+            correction: `Include designator in readback: "runway [number] ${atcDesig}, [callsign]"`,
+            icaoReference: 'ICAO Doc 4444 §3.9.2',
+            safetyImpact: 'Parallel runway confusion (e.g. 06L vs 06R) is a critical safety hazard at RPLL',
+          })
+        }
       }
     }
   }
@@ -375,7 +415,7 @@ export function detectRampErrors(
   // FIX: was matching "appro" which incorrectly passes "approach" in the pilot
   // text. Changed to "approv" so only "approved/approval" matches.
   if (startupRe.test(atcL)) {
-    const hasAcknowledge = /approv(?:e[ds]?|al)|roger|wilco|standby|will\s+advise|noted|copy|confirmed/i.test(pilotL)
+    const hasAcknowledge = new RegExp(CHECKS.startupAcknowledgmentPattern, 'i').test(pilotL)
     if (!hasAcknowledge) {
       errors.push({
         type: 'startup_not_confirmed',
@@ -389,9 +429,15 @@ export function detectRampErrors(
   }
 
   // ── 5. engine_number_wrong ────────────────────────────────────────────────
-  const atcEngineMatch   = atcL.match(/engine\s+(one|two|three|four|number\s+\d)/i)
-  const pilotEngineMatch = pilotL.match(/engine\s+(one|two|three|four|number\s+\d)/i)
-  if (atcEngineMatch && pilotEngineMatch && atcEngineMatch[1].trim() !== pilotEngineMatch[1].trim()) {
+  // FIX A1: Use CHECKS.enginePattern (engines? → also matches plural "engines one and two")
+  // FIX A2: Normalise "number X" → "X" before comparison to avoid false positives when
+  //         ATC says "engine number 1" and pilot says "engine one".
+  const engineRe = new RegExp(CHECKS.enginePattern, 'i')
+  const atcEngineMatch   = atcL.match(engineRe)
+  const pilotEngineMatch = pilotL.match(engineRe)
+  const normalizeEngNum  = (s: string) => s.replace(/^number\s+/i, '').trim()
+  if (atcEngineMatch && pilotEngineMatch &&
+      normalizeEngNum(atcEngineMatch[1]) !== normalizeEngNum(pilotEngineMatch[1])) {
     errors.push({
       type: 'engine_number_wrong',
       description: `Engine number mismatch: ATC said engine ${atcEngineMatch[1]}, pilot read back engine ${pilotEngineMatch[1]}`,
@@ -460,13 +506,14 @@ export function detectRampErrors(
   // ATC instructed hold short on apron — pilot must confirm.
   // FIX (34 FP): pilots also say "holding [taxiway]" or "remain [taxiway]" as
   // valid equivalents of "hold short".  Expand the acceptance pattern.
-  const hsApronMatch = atcL.match(/hold\s+short\s+(?:of\s+)?(?!runway)([a-z][a-z0-9\s]{1,20}?)(?=\s*[,.]|\s+contact|\s*$)/i)
+  // Dynamic: uses crossRe (compiled from CHECKS.apronCrossingPattern) to capture
+  // the taxiway name — tunable from JSON without code changes.
+  const hsApronMatch = atcL.match(crossRe)
   if (hsApronMatch) {
     const hs = hsApronMatch[1].trim()
-    const pilotHasHs =
-      /hold\s+short|holding\s+short/i.test(pilotL) ||
-      /holding\s+(?:at|on|\w)/i.test(pilotL) ||
-      /remain(?:ing)?\s+(?:at|short|on)/i.test(pilotL)
+    // FIX A5: Consolidated + expanded into CHECKS.holdShortEquivalentsPattern.
+    // Adds "stay(ing) short" and "stopped short" as valid hold-short equivalents.
+    const pilotHasHs = new RegExp(CHECKS.holdShortEquivalentsPattern, 'i').test(pilotL)
     if (!pilotHasHs) {
       errors.push({
         type: 'apron_crossing_incomplete',
@@ -501,13 +548,13 @@ export function detectRampErrors(
   }
 
   // ── 10. frequency_not_confirmed ───────────────────────────────────────────
-  // FIX: the original pattern required digit-form frequencies ("121.8") which
-  // never appeared in spoken-form transcripts.  We now normalise both ATC and
-  // pilot text to digit strings first, then compare extracted frequency runs.
-  const atcFreqNorm = extractSpokenFreq(atcL)
+  // FIX: use extractSpokenFreq() on BOTH sides so the comparison is between
+  // two isolated frequency strings, not pilot's entire normalised text.
+  // Strict equality (not .includes) prevents incidental digit matches.
+  const atcFreqNorm  = extractSpokenFreq(atcL)
   if (atcFreqNorm) {
-    const pilotFreqNorm = normDigits(pilotL)
-    if (!pilotFreqNorm.includes(atcFreqNorm)) {
+    const pilotFreqNorm = extractSpokenFreq(pilotL)
+    if (!pilotFreqNorm || pilotFreqNorm !== atcFreqNorm) {
       errors.push({
         type: 'frequency_not_confirmed',
         description: `Frequency (${atcFreqNorm}) not confirmed in handoff readback`,
@@ -520,8 +567,9 @@ export function detectRampErrors(
   }
 
   // ── 11. chocks_not_confirmed ──────────────────────────────────────────────
+  // FIX A6: Use CHECKS.chocksConfirmationPattern instead of hardcoded inline regex.
   if (brakeRe.test(atcL)) {
-    if (!/chocks|brake|set/i.test(pilotL)) {
+    if (!new RegExp(CHECKS.chocksConfirmationPattern, 'i').test(pilotL)) {
       errors.push({
         type: 'chocks_not_confirmed',
         description: 'Parking brake/chocks instruction not confirmed in readback',
@@ -534,16 +582,19 @@ export function detectRampErrors(
   }
 
   // ── 12. non_standard_ramp_phraseology ────────────────────────────────────
-  // ATC used non-ICAO ramp phraseology (informational, low weight)
+  // Pilot used non-ICAO readback phraseology (informational, low weight).
+  // FIX: was incorrectly checking atcL (ATC filler words like "uh" are
+  // transcription noise, not pilot errors). Now checks pilotL for genuinely
+  // non-standard pilot phrases that should not appear in formal readbacks.
   if (
-    /\b(?:go ahead|what's?\s+your|what\s+is\s+your|uh|uhm|aight)\b/i.test(atcL) &&
+    new RegExp(CHECKS.nonStandardPilotPattern, 'i').test(pilotL) &&
     errors.length === 0
   ) {
     errors.push({
       type: 'non_standard_ramp_phraseology',
-      description: 'Non-standard phraseology detected in ramp instruction',
+      description: 'Non-standard pilot phraseology detected in ramp readback',
       weight: 'low',
-      correction: 'Use ICAO standard ramp phraseology per Doc 9432 and local AOM',
+      correction: 'Use ICAO standard readback phraseology per Doc 9432 and local AOM',
       icaoReference: 'ICAO Doc 9432 §4.2',
       safetyImpact: 'Non-standard phrases may cause readback confusion or misinterpretation',
     })

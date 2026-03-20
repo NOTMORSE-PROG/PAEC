@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getUserTrainingSessions, getUserBestScore, getUserSessionCount, countActiveQuestions } from '@/lib/database'
-
-const CATEGORIES = ['scenario', 'readback', 'jumbled', 'pronunciation'] as const
+const CATEGORIES = ['scenario', 'readback', 'jumbled', 'pronunciation', 'ground'] as const
 
 export async function GET(req: NextRequest) {
   const session = await auth()

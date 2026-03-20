@@ -15,6 +15,7 @@ import {
   Users,
   Globe,
   ArrowRight,
+  ArrowUp,
   CheckCircle,
   Sparkles,
   Menu,
@@ -23,12 +24,14 @@ import {
 
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false)
+  const [showScrollTop, setShowScrollTop] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { data: session } = useSession()
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20)
+      setShowScrollTop(window.scrollY > 300)
     }
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
@@ -601,6 +604,17 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Scroll to top */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-50 p-2.5 bg-gray-900 text-white rounded-full shadow-lg hover:bg-gray-700 transition-colors"
+          title="Scroll to top"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
+      )}
 
       {/* Footer */}
       <footer className="bg-gray-900 text-gray-400 py-12">

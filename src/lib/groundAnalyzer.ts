@@ -53,6 +53,7 @@ const CHECKS = (gndCorpus as unknown as {
   checks: {
     holdShortEquivalents: string[]
     holdShortTaxiwayPattern: string
+    crossRunwayPattern: string
     lineUpAndWaitPattern: string
     takeoffClearancePattern: string
     runwayPattern: string
@@ -63,8 +64,46 @@ const CHECKS = (gndCorpus as unknown as {
     intersectionPattern: string
     atisPattern: string
     frequencyPattern: string
+    // v3.4 additions — optional so existing corpora without them degrade gracefully
+    qnhPattern?: string
+    conditionalPattern?: string
+    windPattern?: string
   }
 }).checks
+
+/**
+ * Validates that all required CHECKS patterns are present and compile as valid regexes.
+ * Logs warnings (not throws) so one bad pattern does not break the entire analyzer.
+ */
+function validateChecks(): void {
+  const required: (keyof typeof CHECKS)[] = [
+    'holdShortEquivalents', 'holdShortTaxiwayPattern', 'crossRunwayPattern',
+    'lineUpAndWaitPattern', 'takeoffClearancePattern', 'runwayPattern',
+    'taxiwayViaPattern', 'pushbackPattern', 'backtrackPattern',
+    'intersectionPattern', 'atisPattern', 'frequencyPattern',
+  ]
+  for (const key of required) {
+    const val = CHECKS[key]
+    if (!val) {
+      console.warn(`[GND] CHECKS.${key} is missing from gndCorpus.json`)
+      continue
+    }
+    if (typeof val === 'string') {
+      try { new RegExp(val) }
+      catch { console.warn(`[GND] CHECKS.${key} is not a valid regex: ${val}`) }
+    }
+  }
+  // Also validate optional patterns when present
+  const optional = ['qnhPattern', 'conditionalPattern', 'windPattern'] as const
+  for (const key of optional) {
+    const val = CHECKS[key]
+    if (val) {
+      try { new RegExp(val) }
+      catch { console.warn(`[GND] CHECKS.${key} (optional) is not a valid regex: ${val}`) }
+    }
+  }
+}
+validateChecks()
 
 // ============================================================================
 // PHONETIC TAXIWAY UTILITIES
@@ -121,6 +160,16 @@ function extractTaxiwayDesignators(text: string): string[] {
         seen.add(letter); result.push(letter)
       }
     }
+  }
+
+  // 3. Compound written designators: E1, F3, G11, R2 (letter directly followed by digit)
+  // Guard: require preceding whitespace/comma to avoid matching aircraft types (B737, A320)
+  // (?!\d) prevents matching "B7" inside "B737" — aircraft types have 3+ digit suffixes
+  const compoundRe = /(?:^|[\s,])([a-z])(\d{1,2})(?!\d)(?:\b|$)/gi
+  let compoundM: RegExpExecArray | null
+  while ((compoundM = compoundRe.exec(lower)) !== null) {
+    const designator = compoundM[1].toUpperCase() + compoundM[2]
+    if (!seen.has(designator)) { seen.add(designator); result.push(designator) }
   }
 
   return result
@@ -193,6 +242,9 @@ export type GndErrorType =
   | 'backtrack_not_confirmed'
   | 'frequency_not_confirmed'
   | 'atis_not_confirmed'
+  | 'qnh_not_confirmed'
+  | 'conditional_clearance_not_confirmed'
+  | 'wind_not_confirmed'
   | 'incorrect_holding_point'
   | 'unauthorized_takeoff_authority'
   | 'intersection_departure_missing'
@@ -269,18 +321,20 @@ export function detectGroundPhase(
   pilotReadback?: string
 ): { phase: GroundPhase; confidence: number } {
   const text = (atcInstruction + ' ' + (pilotReadback || '')).toLowerCase()
-  let bestMatch: { phase: GroundPhase; score: number } = { phase: 'taxi', score: 0 }
+  let bestMatch: { phase: GroundPhase; score: number; matchCount: number } = { phase: 'ground', score: 0, matchCount: 0 }
 
   for (const pp of GROUND_PHASE_PATTERNS) {
     let score = 0
+    let matchCount = 0
     for (const pat of pp.patterns) {
-      if (pat.test(text)) score += pp.weight
+      if (pat.test(text)) { score += pp.weight; matchCount++ }
     }
     for (const clue of pp.contextClues) {
-      if (text.includes(clue)) score += 2
+      if (text.includes(clue)) { score += 2; matchCount++ }
     }
-    if (score > bestMatch.score) {
-      bestMatch = { phase: pp.phase, score }
+    // Prefer higher score; use matchCount as tiebreaker when scores are equal
+    if (score > bestMatch.score || (score === bestMatch.score && matchCount > bestMatch.matchCount)) {
+      bestMatch = { phase: pp.phase, score, matchCount }
     }
   }
 
@@ -369,11 +423,14 @@ export function detectGndErrors(
   const atisRe          = new RegExp(CHECKS.atisPattern, 'i')
   const frequencyRe     = new RegExp(CHECKS.frequencyPattern, 'i')
 
-  // 3. runway_crossing_incomplete (high) — uses CHECKS.runwayPattern
-  const crossMatch = atcLower.match(/cross\s+runway\s+(\w+)/i)
+  // 3. runway_crossing_incomplete (high) — uses CHECKS.crossRunwayPattern (dynamic)
+  const crossRe    = new RegExp(CHECKS.crossRunwayPattern, 'i')
+  const crossMatch = atcLower.match(crossRe)
   if (crossMatch) {
     const rwNum = normalizeToDigits(crossMatch[1])
-    if (rwNum && !normalizeToDigits(pilotLower).includes(rwNum)) {
+    const pilotCrossRunwayMatch = pilotLower.match(runwayRe)
+    const pilotCrossRw = pilotCrossRunwayMatch ? normalizeToDigits(pilotCrossRunwayMatch[1]) : null
+    if (rwNum && pilotCrossRw !== rwNum) {
       errors.push({
         type: 'runway_crossing_incomplete',
         description: `Runway ${crossMatch[1].toUpperCase()} crossing clearance not confirmed`,
@@ -472,7 +529,7 @@ export function detectGndErrors(
   const isDirectPushback =
     pushbackRe.test(atcLower) &&
     !/for\s+push(?:back)?/i.test(atcLower)      // skip "startup approved, for pushback contact X"
-  if (isDirectPushback && !/\b(north|south|east|west|tail|nose|facing)\b/i.test(atcLower)) {
+  if (isDirectPushback && !/\b(north|south|east|west|left|right|tail|nose|facing)\b/i.test(atcLower)) {
     errors.push({
       type: 'pushback_direction_missing',
       description: 'Pushback direction not specified',
@@ -515,26 +572,30 @@ export function detectGndErrors(
   }
 
   // 10. frequency_not_confirmed (low)
-  // Normalize spoken numbers to digits first so "one one eight decimal one" → "118.1"
-  // before running the frequencyPattern match, which expects digit-format frequencies.
+  // extractFullFreq: normalize phonetic words to digits, collapse space-separated digits
+  // ("1 1 8" → "118"), then extract "NNN.N" pattern including spoken "decimal".
   const extractFullFreq = (text: string): string | null => {
     const norm = normalizeToDigits(text)
-    const m = norm.match(/(\d{3})\s*(?:decimal|point|\.)\s*(\d{1,3})/i)
+    // Collapse adjacent space-separated single digits: "1 1 8" → "118"
+    const collapsed = norm.replace(/\b(\d)\b( \b\d\b)+/g, m => m.replace(/ /g, ''))
+    const m = collapsed.match(/(\d{3})\s*(?:decimal|point|\.)\s*(\d{1,3})/i)
     if (m) return `${m[1]}.${m[2]}`
-    const bare = norm.match(/\b(1[123]\d)\b/)
+    const bare = collapsed.match(/\b(1[123]\d)\b/)
     return bare ? bare[1] : null
   }
-  const atcNormalized    = normalizeToDigits(atcLower)
-  const freqAtcMatch     = atcNormalized.match(frequencyRe)
-  if (freqAtcMatch) {
-    const atcFreq   = extractFullFreq(atcNormalized)
+  // Use extractFullFreq for ATC frequency presence check (handles phonetic form)
+  const atcFreq = extractFullFreq(atcLower)
+  const isFreqHandoff = /\b(?:contact|monitor)\b/i.test(atcLower) && atcFreq !== null
+  if (isFreqHandoff) {
     const pilotFreq = extractFullFreq(pilotLower)
-    if (atcFreq && atcFreq !== pilotFreq) {
+    // Normalise to 3 decimal places before comparing — "118.5" and "118.50" are the same freq
+    const normFreq = (f: string | null) => f ? parseFloat(f).toFixed(3) : null
+    if (normFreq(atcFreq) !== normFreq(pilotFreq)) {
       errors.push({
         type: 'frequency_not_confirmed',
         description: `Frequency ${atcFreq} not confirmed in readback`,
         weight: 'low',
-        correction: `Read back the frequency: "${atcFreq}"`,
+        correction: `Read back the frequency using ICAO standard: "${atcFreq}" (use "decimal", not "point")`,
         icaoReference: 'ICAO Doc 4444 §7.5',
         safetyImpact: 'Missed frequency change may cause loss of communication',
       })
@@ -553,6 +614,65 @@ export function detectGndErrors(
         correction: `Include ATIS code in initial call: "information ${atisLetter.toUpperCase()}"`,
         icaoReference: 'ICAO Doc 4444 §4.3.2',
         safetyImpact: 'Unchecked ATIS may mean outdated altimeter or runway information',
+      })
+    }
+  }
+
+  // 11b. qnh_not_confirmed (medium)
+  // ATC provided a QNH/altimeter setting that the pilot did not echo back.
+  if (CHECKS.qnhPattern) {
+    const qnhRe = new RegExp(CHECKS.qnhPattern, 'i')
+    const qnhAtcMatch = atcLower.match(qnhRe)
+    if (qnhAtcMatch) {
+      const qnhValue = qnhAtcMatch[1]
+      // Also check phonetic form: normalise pilot text to digits and strip spaces
+      const pilotNorm = normalizeToDigits(pilotLower).replace(/\s+/g, '')
+      if (qnhValue && !pilotLower.includes(qnhValue) && !pilotNorm.includes(qnhValue)) {
+        errors.push({
+          type: 'qnh_not_confirmed',
+          description: `QNH ${qnhValue} not confirmed in readback`,
+          weight: 'medium',
+          correction: `Include QNH in readback: "QNH ${qnhValue}, [callsign]"`,
+          icaoReference: 'ICAO Doc 4444 §8.6.5.2',
+          safetyImpact: 'Unconfirmed QNH risks wrong altimeter setting — altitude deviation hazard',
+        })
+      }
+    }
+  }
+
+  // 11c. conditional_clearance_not_confirmed (high)
+  // ATC issued a conditional instruction ("after the landing aircraft, cross runway...")
+  // but pilot did not acknowledge the condition in their readback.
+  if (CHECKS.conditionalPattern) {
+    const condRe = new RegExp(CHECKS.conditionalPattern, 'i')
+    if (condRe.test(atcLower)) {
+      const hasConditionAck = /\b(after|behind|following|traffic|landing|departing)\b/i.test(pilotLower)
+      if (!hasConditionAck) {
+        errors.push({
+          type: 'conditional_clearance_not_confirmed',
+          description: 'Conditional clearance condition not acknowledged in readback',
+          weight: 'high',
+          correction: 'Read back the condition phrase (e.g. "after the landing aircraft") before the clearance',
+          icaoReference: 'ICAO Doc 4444 §7.11.2',
+          safetyImpact: 'Unconditional readback of a conditional clearance risks premature runway entry',
+        })
+      }
+    }
+  }
+
+  // 11d. wind_not_confirmed (low) — uses CHECKS.windPattern (dynamic)
+  // Wind is NOT a mandatory readback (ICAO Doc 4444), but during startup clearances
+  // including wind in the readback is good practice and worth noting for training.
+  if (CHECKS.windPattern) {
+    const windRe = new RegExp(CHECKS.windPattern, 'i')
+    if (windRe.test(atcLower) && !windRe.test(pilotLower) && startupRe.test(atcLower)) {
+      errors.push({
+        type: 'wind_not_confirmed',
+        description: 'Wind information not acknowledged in startup readback',
+        weight: 'low',
+        correction: 'Include wind in startup readback for full situational awareness',
+        icaoReference: 'ICAO Doc 9432 §7.4',
+        safetyImpact: 'Non-mandatory but recommended — omitting wind is non-standard during startup',
       })
     }
   }
@@ -578,8 +698,10 @@ export function detectGndErrors(
   }
 
   // 13. unauthorized_takeoff_authority (critical, ATC only)
-  // Ground control cannot issue takeoff clearances — that is TWR-only
-  if (takeoffRe.test(atcLower) && !luawRe.test(atcLower)) {
+  // Ground control cannot issue takeoff clearances — that is TWR-only.
+  // Guard: exclude frequency-transfer context ("contact Tower for takeoff" is not a clearance).
+  const isFrequencyTransferCtx = /\b(?:contact|monitor)\b/i.test(atcLower)
+  if (!isFrequencyTransferCtx && takeoffRe.test(atcLower) && !luawRe.test(atcLower)) {
     // Only flag when the exchange context suggests this is a ground (non-lineup) phase
     const phaseHint = detectGroundPhase(atcInstruction, pilotReadback).phase
     if (['taxi', 'ground', 'pushback', 'holding'].includes(phaseHint)) {
@@ -625,9 +747,16 @@ export function detectGndErrors(
   // Exchange-level: ATC gave a safety-critical instruction but pilot only acknowledged
   const isSafetyCritical = [luawRe, takeoffRe, /hold\s+short/i, /cross\s+runway/i, taxiwayViaRe]
     .some(re => re.test(atcLower))
-  const isAcknowledgementOnly =
-    /\b(roger|wilco|copy|affirm|affirmative)\b/i.test(pilotLower) &&
-    pilotLower.trim().split(/\s+/).length <= 4
+  const hasAckWord = /\b(roger|wilco|copy|affirm|affirmative)\b/i.test(pilotLower)
+  const hasMandatoryElement =
+    runwayRe.test(pilotLower) ||
+    taxiwayViaRe.test(pilotLower) ||
+    new RegExp(CHECKS.holdShortEquivalents.join('|'), 'i').test(pilotLower) ||
+    /\b(one|two|three|four|five|six|seven|eight|nine|decimal|zero)\b/i.test(pilotLower)
+  // Only flag when the entire pilot response is just an acknowledgement (≤5 words)
+  // — prevents false positives on full readbacks that include "roger" as a prefix.
+  const isAcknowledgementOnly = hasAckWord && !hasMandatoryElement &&
+    pilotLower.trim().split(/\s+/).length <= 5
   if (isSafetyCritical && isAcknowledgementOnly) {
     errors.push({
       type: 'roger_substitution',
@@ -690,12 +819,17 @@ export function calculateGroundSafetyVectors(
     mitigationRequired: criticalGndErrors.length > 0,
   })
 
-  // 2. Hold short compliance — weight elevated when phase is holding
-  const holdShortErrors = gndErrors.filter(e => e.type === 'hold_short_not_confirmed')
+  // 2. Hold short compliance — weight elevated when phase is holding; graduated penalty
+  const holdShortErrors = gndErrors.filter(e =>
+    e.type === 'hold_short_not_confirmed' || e.type === 'incorrect_holding_point'
+  )
+  const holdShortCritical = holdShortErrors.filter(e => e.weight === 'critical').length
+  const holdShortHigh     = holdShortErrors.filter(e => e.weight === 'high').length
+  const holdScore = Math.max(0, 100 - holdShortCritical * 40 - holdShortHigh * 20)
   const holdWeight = phase === 'holding' ? 0.30 : 0.20
   vectors.push({
     factor: 'Hold Short Compliance',
-    score: holdShortErrors.length === 0 ? 100 : 20,
+    score: holdScore,
     weight: holdWeight,
     description: 'Full readback of hold-short instructions to prevent runway incursions',
     mitigationRequired: holdShortErrors.length > 0,
@@ -822,6 +956,12 @@ function generateGroundRecommendations(
       recs.push('Never use "Roger/Wilco" alone for mandatory readbacks — read back all values explicitly')
     if (e.type === 'missing_designator')
       recs.push('Always include Left/Right/Center qualifier when runway has parallel designators')
+    if (e.type === 'qnh_not_confirmed')
+      recs.push('QNH is a mandatory readback element — echo the altimeter value to confirm correct setting')
+    if (e.type === 'conditional_clearance_not_confirmed')
+      recs.push('Conditional clearances must include the condition phrase in readback (e.g. "after the landing aircraft")')
+    if (e.type === 'wind_not_confirmed')
+      recs.push('Include wind information in startup readbacks for complete situational awareness')
   }
 
   return Array.from(new Set(recs)).slice(0, 5)
@@ -906,13 +1046,16 @@ export function analyzeGround(
   // 4. Detect GND-specific errors
   const gndErrors = detectGndErrors(atcInstruction, pilotReadback, callsign)
 
-  // 5. Contextual weight
-  const contextualWeight: UnifiedSeverity = mapWeight(
-    calculateEnhancedSeverity(
-      { phase: mapGroundPhase(phaseResult.phase) },
-      baseAnalysis.errors.length > 0 ? baseAnalysis.errors[0].type : 'unknown'
-    )
-  )
+  // 5. Contextual weight — pick the WORST weight across all errors (base + GND-specific)
+  // Previously used only baseAnalysis.errors[0], missing critical GND errors that appeared later.
+  const weightOrder: Record<UnifiedSeverity, number> = { critical: 4, high: 3, medium: 2, low: 1 }
+  const allWeights: UnifiedSeverity[] = [
+    ...baseAnalysis.errors.map(e => mapWeight(e.weight)),
+    ...gndErrors.map(e => mapWeight(e.weight)),
+  ]
+  const contextualWeight: UnifiedSeverity = allWeights.length > 0
+    ? allWeights.reduce((worst, w) => weightOrder[w] > weightOrder[worst] ? w : worst, 'low' as UnifiedSeverity)
+    : mapWeight(calculateEnhancedSeverity({ phase: mapGroundPhase(phaseResult.phase) }, 'unknown'))
 
   // 6. Safety vectors
   const safetyVectors = calculateGroundSafetyVectors(baseAnalysis, phaseResult.phase, gndErrors)

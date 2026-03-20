@@ -13,6 +13,7 @@ import {
   Lock,
   Loader2,
   Lightbulb,
+  ChevronDown,
 } from 'lucide-react'
 
 const MODULES = [
@@ -62,16 +63,43 @@ const MODULES = [
   },
 ]
 
+interface RecentSession {
+  id: string
+  score: number | null
+  question_ids: string[] | null
+  completed_at: string | null
+  category: string
+}
+
 interface CategorySummary {
   category: string
   bestScore: number | null
   count: number
   activeQuestions: number
+  recentSessions?: RecentSession[]
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return '—'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function scoreBadgeClass(score: number | null): string {
+  if (score === null) return 'bg-gray-100 text-gray-500'
+  if (score >= 80) return 'bg-green-100 text-green-700'
+  if (score >= 60) return 'bg-amber-100 text-amber-700'
+  return 'bg-red-100 text-red-700'
 }
 
 export default function TrainingPage() {
   const [summary, setSummary] = useState<CategorySummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [openHistory, setOpenHistory] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/training/history')
@@ -212,6 +240,53 @@ export default function TrainingPage() {
                     <p className="text-sm text-gray-500">No sessions yet</p>
                   </div>
                 )}
+
+                {/* Recent sessions per module — collapsible */}
+                {!loading && stats && (stats.recentSessions ?? []).length > 0 && (() => {
+                  const sessions = stats.recentSessions ?? []
+                  const latest = sessions[0]
+                  const rest = sessions.slice(1, 3)
+                  const isOpen = openHistory === module.id
+                  return (
+                    <div className="mb-6 rounded-xl border border-gray-200 overflow-hidden">
+                      {/* Latest session — always visible, acts as toggle */}
+                      <button
+                        onClick={() => setOpenHistory(isOpen ? null : module.id)}
+                        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${module.color}`} />
+                          <div className="text-left">
+                            <p className="text-xs font-semibold text-gray-700">Last Session</p>
+                            <p className="text-xs text-gray-400">{formatDate(latest.completed_at)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${scoreBadgeClass(latest.score)}`}>
+                            {latest.score !== null ? `${latest.score}%` : '—'}
+                          </span>
+                          {rest.length > 0 && (
+                            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Older sessions — shown on expand */}
+                      {isOpen && rest.length > 0 && (
+                        <ul className="divide-y divide-gray-100 border-t border-gray-200 bg-white">
+                          {rest.map(s => (
+                            <li key={s.id} className="flex items-center justify-between px-4 py-2.5">
+                              <span className="text-xs text-gray-500">{formatDate(s.completed_at)}</span>
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${scoreBadgeClass(s.score)}`}>
+                                {s.score !== null ? `${s.score}%` : '—'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {/* Features */}
                 <div className="mb-6">

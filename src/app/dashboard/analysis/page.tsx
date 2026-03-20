@@ -106,6 +106,7 @@ interface FileQueueItem {
       taxiCount: number
       holdingCount: number
       crossingCount: number
+      qnhCount: number
       averageCompleteness: number
       criticalErrors: number
       phaseBreakdown: Record<GroundPhase, number>
@@ -304,8 +305,17 @@ export default function AnalysisPage() {
     setIsDragging(false)
   }, [])
 
+  // Normalize inline speaker labels to separate lines before parsing.
+  // Handles format: Ground: "text." Pilot: "text." (both on one physical line)
+  // Inserts \n before any known speaker label that appears mid-line after a closing quote or period.
+  const normalizeSpeakerLines = (raw: string): string =>
+    raw.replace(
+      /(["""'''\u201C\u201D\u2018\u2019.])\s*(?=(Ground|Pilot|ATC|ATCO|Tower|Ramp|Approach|Departure|Controller|Delivery|Clearance|TWR|GND|APP|DEP)\s*:)/gi,
+      '$1\n'
+    )
+
   const analyzeOneItem = async (item: FileQueueItem, corpus: NonNullable<CorpusType>) => {
-    const text = item.extractedText!
+    const text = normalizeSpeakerLines(item.extractedText!)
     const result = analyzeDialogue({ text, corpusType: corpus })
 
     let mlResults: FileQueueItem['mlAnalysisResults'] = null
@@ -337,7 +347,7 @@ export default function AnalysisPage() {
       const lines = parseLines(text)
       const exchanges: GroundMLResult[] = []
       const phaseBreakdown: Record<GroundPhase, number> = {} as Record<GroundPhase, number>
-      let totalCompleteness = 0; let criticalErrors = 0; let taxiCount = 0; let holdingCount = 0; let crossingCount = 0
+      let totalCompleteness = 0; let criticalErrors = 0; let taxiCount = 0; let holdingCount = 0; let crossingCount = 0; let qnhCount = 0
       for (let i = 0; i < lines.length - 1; i++) {
         const cur = lines[i]; const nxt = lines[i + 1]
         if (cur.speaker === 'ATC' && nxt.speaker === 'PILOT') {
@@ -350,10 +360,11 @@ export default function AnalysisPage() {
           if (['taxi', 'ground', 'pushback'].includes(ex.phase)) taxiCount++
           if (ex.phase === 'holding') holdingCount++
           if (ex.phase === 'crossing') crossingCount++
+          if (ex.groundSpecificErrors.some(e => e.type === 'qnh_not_confirmed' || e.type === 'wind_not_confirmed')) qnhCount++
           i++
         }
       }
-      gndResults = { exchanges, summary: { totalExchanges: exchanges.length, taxiCount, holdingCount, crossingCount,
+      gndResults = { exchanges, summary: { totalExchanges: exchanges.length, taxiCount, holdingCount, crossingCount, qnhCount,
         averageCompleteness: exchanges.length > 0 ? Math.round(totalCompleteness / exchanges.length) : 100, criticalErrors, phaseBreakdown } }
     } else if (corpus === 'RAMP') {
       const lines = parseLines(text)
@@ -1379,12 +1390,14 @@ Pilot: Left heading 180, PAL456."
               </div>
 
               {/* Stat row */}
-              <div className="grid grid-cols-4 divide-x divide-emerald-100 border-b border-emerald-100 bg-white/50">
+              <div className="grid grid-cols-6 divide-x divide-emerald-100 border-b border-emerald-100 bg-white/50">
                 {[
-                  { value: groundAnalysisResults.summary.totalExchanges, label: 'Total',      color: 'text-emerald-600' },
-                  { value: groundAnalysisResults.summary.taxiCount,      label: 'Taxi',       color: 'text-teal-600'    },
-                  { value: groundAnalysisResults.summary.holdingCount,   label: 'Hold Short', color: 'text-amber-600'   },
-                  { value: groundAnalysisResults.summary.criticalErrors, label: 'High-Weight', color: 'text-amber-600'    },
+                  { value: groundAnalysisResults.summary.totalExchanges,  label: 'Total',       color: 'text-emerald-600' },
+                  { value: groundAnalysisResults.summary.taxiCount,       label: 'Taxi',        color: 'text-teal-600'    },
+                  { value: groundAnalysisResults.summary.holdingCount,    label: 'Hold Short',  color: 'text-amber-600'   },
+                  { value: groundAnalysisResults.summary.crossingCount,   label: 'Crossing',    color: 'text-orange-600'  },
+                  { value: groundAnalysisResults.summary.qnhCount,        label: 'Info Errors', color: 'text-purple-600'  },
+                  { value: groundAnalysisResults.summary.criticalErrors,  label: 'High-Weight', color: 'text-red-600'     },
                 ].map((s) => (
                   <div key={s.label} className="text-center py-3">
                     <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
@@ -1457,8 +1470,19 @@ Pilot: Left heading 180, PAL456."
                       {/* GND-specific errors */}
                       {exchange.groundSpecificErrors.map((err, eIdx) => (
                         <div key={eIdx} className="text-[11px] text-gray-600 flex items-start gap-1.5 mb-1">
-                          <ArrowRight className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <span><strong className="text-gray-800">{err.description}</strong> — {err.correction}</span>
+                          <span className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            err.weight === 'critical' ? 'bg-red-500' :
+                            err.weight === 'high'     ? 'bg-orange-400' :
+                            err.weight === 'medium'   ? 'bg-amber-400' : 'bg-gray-300'
+                          }`} />
+                          <span>
+                            <span className="text-[9px] font-mono text-gray-400 mr-1">[{err.type.replace(/_/g, '-')}]</span>
+                            <strong className="text-gray-800">{err.description}</strong>
+                            {' — '}{err.correction}
+                            {err.icaoReference && (
+                              <span className="ml-1.5 text-[9px] text-gray-400 font-mono">{err.icaoReference}</span>
+                            )}
+                          </span>
                         </div>
                       ))}
 
@@ -1486,7 +1510,9 @@ Pilot: Left heading 180, PAL456."
               <div className="px-5 py-4 border-t border-emerald-100 bg-white/30">
                 <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-3">Readback Vectors</p>
                 <div className="space-y-2.5">
-                  {['Parameter Readback Accuracy', 'Hold Short Compliance', 'Readback Completeness', 'Callsign Compliance'].map(name => {
+                  {(groundAnalysisResults.exchanges[0]?.safetyVectors.map(sv => sv.factor) ??
+                    ['Parameter Readback Accuracy', 'Hold Short Compliance', 'Readback Completeness', 'Callsign Compliance']
+                  ).map(name => {
                     const avg = Math.round(
                       groundAnalysisResults.exchanges.reduce((sum, ex) => {
                         const v = ex.safetyVectors.find(sv => sv.factor === name)
@@ -1576,12 +1602,14 @@ Pilot: Left heading 180, PAL456."
               </div>
 
               {/* Stat row */}
-              <div className="grid grid-cols-4 divide-x divide-amber-100 border-b border-amber-100 bg-white/50">
+              <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-amber-100 border-b border-amber-100 bg-white/50">
                 {[
-                  { value: rampAnalysisResults.summary.totalExchanges, label: 'Total',      color: 'text-amber-600'  },
-                  { value: rampAnalysisResults.summary.pushbackCount,  label: 'Pushback',   color: 'text-orange-600' },
-                  { value: rampAnalysisResults.summary.parkingCount,   label: 'Parking',    color: 'text-amber-600'  },
-                  { value: rampAnalysisResults.summary.criticalErrors, label: 'High-Weight', color: 'text-amber-600' },
+                  { value: rampAnalysisResults.summary.totalExchanges, label: 'Total',    color: 'text-amber-600'  },
+                  { value: rampAnalysisResults.summary.pushbackCount,  label: 'Pushback', color: 'text-orange-600' },
+                  { value: rampAnalysisResults.summary.startupCount,   label: 'Startup',  color: 'text-amber-700'  },
+                  { value: rampAnalysisResults.summary.parkingCount,   label: 'Parking',  color: 'text-yellow-600' },
+                  { value: rampAnalysisResults.summary.crossingCount,  label: 'Crossing', color: 'text-orange-600' },
+                  { value: rampAnalysisResults.summary.criticalErrors, label: 'High-Wt',  color: 'text-red-600'    },
                 ].map((s) => (
                   <div key={s.label} className="text-center py-3">
                     <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
@@ -1601,8 +1629,8 @@ Pilot: Left heading 180, PAL456."
                         phase === 'pushback' ? 'bg-orange-100 text-orange-700' :
                         phase === 'startup'  ? 'bg-amber-100 text-amber-700' :
                         phase === 'parking'  ? 'bg-yellow-100 text-yellow-700' :
-                        phase === 'towing'   ? 'bg-amber-100 text-amber-700' :
-                        phase === 'crossing' ? 'bg-orange-100 text-orange-700' :
+                        phase === 'towing'   ? 'bg-orange-200 text-orange-800' :
+                        phase === 'crossing' ? 'bg-red-100 text-red-700' :
                         'bg-gray-100 text-gray-700'
                       }`}>{phase.replace(/_/g, ' ')} ({count})</span>
                     ))}
@@ -1622,11 +1650,13 @@ Pilot: Left heading 180, PAL456."
                           <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500">{idx + 1}</span>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
                             exchange.phase === 'pushback' ? 'bg-orange-100 text-orange-700' :
-                            exchange.phase === 'startup'  ? 'bg-amber-100 text-amber-700' :
+                            exchange.phase === 'startup'  ? 'bg-amber-100 text-amber-700'  :
                             exchange.phase === 'parking'  ? 'bg-yellow-100 text-yellow-700' :
-                            exchange.phase === 'crossing' ? 'bg-orange-100 text-orange-700' :
+                            exchange.phase === 'towing'   ? 'bg-orange-200 text-orange-800' :
+                            exchange.phase === 'crossing' ? 'bg-red-100 text-red-700'       :
                             'bg-gray-100 text-gray-700'
                           }`}>{exchange.phase.replace(/_/g, ' ')}</span>
+                          <span className="text-[9px] text-gray-400">{Math.round(exchange.phaseConfidence * 100)}%</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sevClasses}`}>
@@ -1658,9 +1688,17 @@ Pilot: Left heading 180, PAL456."
 
                       {/* RAMP-specific errors */}
                       {exchange.rampSpecificErrors.map((err, eIdx) => (
-                        <div key={eIdx} className="text-[11px] text-gray-600 flex items-start gap-1.5 mb-1">
-                          <ArrowRight className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                          <span><strong className="text-gray-800">{err.description}</strong> — {err.correction}</span>
+                        <div key={eIdx} className="text-[11px] text-gray-600 flex items-start gap-1.5 mb-2">
+                          <ArrowRight className="w-3 h-3 text-amber-500 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span><strong className="text-gray-800">{err.description}</strong> — {err.correction}</span>
+                            <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-100 text-amber-700 font-medium">{err.icaoReference}</span>
+                              {(err.weight === 'critical' || err.weight === 'high') && (
+                                <span className="text-[9px] text-gray-400 italic">{err.safetyImpact}</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
 
