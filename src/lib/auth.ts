@@ -3,6 +3,7 @@ import Credentials from 'next-auth/providers/credentials'
 import Google from 'next-auth/providers/google'
 import {
   getUserByEmail,
+  getUserById,
   createGoogleUser,
   verifyPassword,
   linkGoogleAccount,
@@ -39,6 +40,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await verifyPassword(password, user.password_hash)
         if (!valid) return null
 
+        if (!user.email_verified) {
+          throw new Error('EmailNotVerified')
+        }
+
         return {
           id: user.id,
           email: user.email,
@@ -62,18 +67,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       const googleSub = account.providerAccountId
 
-      // Check if this Google account is already linked
-      const existing = await getGoogleAccount(googleSub)
-      if (existing) return true // already linked → allow
+      // ── Linking flow: user is already authenticated ──────────────────────
+      const currentSession = await auth()
+      if (currentSession?.user?.id) {
+        const currentUserId = currentSession.user.id
+        const existing = await getGoogleAccount(googleSub)
 
-      // Check if an email-registered user exists with this email
+        if (existing && existing.user_id !== currentUserId) {
+          // Google account belongs to a different user — block without signing out
+          return '/dashboard/settings?error=google-taken'
+        }
+
+        if (!existing) {
+          await linkGoogleAccount(
+            currentUserId, googleSub,
+            account.access_token ?? undefined,
+            account.refresh_token ?? undefined,
+            account.expires_at ?? undefined
+          )
+        }
+        return true
+      }
+
+      // ── Normal sign-in flow: user is NOT authenticated ───────────────────
       const emailUser = await getUserByEmail(email)
+      if (emailUser?.password_hash) {
+        return '/auth/login?error=OAuthAccountNotLinked'
+      }
+
+      const existing = await getGoogleAccount(googleSub)
+      if (existing) return true
 
       if (emailUser) {
-        // Auto-link Google to existing email account
         await linkGoogleAccount(
-          emailUser.id,
-          googleSub,
+          emailUser.id, googleSub,
           account.access_token ?? undefined,
           account.refresh_token ?? undefined,
           account.expires_at ?? undefined
@@ -88,8 +115,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (profile?.picture as string | undefined) ?? undefined
       )
       await linkGoogleAccount(
-        newUser.id,
-        googleSub,
+        newUser.id, googleSub,
         account.access_token ?? undefined,
         account.refresh_token ?? undefined,
         account.expires_at ?? undefined
@@ -113,17 +139,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.onboardingCompleted = u.onboardingCompleted
           token.googleLinked = await hasGoogleLinked(u.id)
         } else if (account.provider === 'google') {
-          // Look up the DB user by email (created/linked in signIn callback)
-          const email = token.email?.toLowerCase()
-          if (email) {
-            const dbUser = await getUserByEmail(email)
-            if (dbUser) {
-              token.id = dbUser.id
-              token.role = dbUser.role
-              token.hasPassword = !!dbUser.password_hash
-              token.googleLinked = true
-              token.onboardingCompleted = dbUser.onboarding_completed
-            }
+          // Look up by Google sub first (handles cross-email linking correctly),
+          // fall back to email for brand-new users before the link is recorded
+          const googleAcct = await getGoogleAccount(account.providerAccountId)
+          const dbUser = googleAcct
+            ? await getUserById(googleAcct.user_id)
+            : await getUserByEmail(token.email?.toLowerCase() ?? '')
+          if (dbUser) {
+            token.id = dbUser.id
+            token.role = dbUser.role
+            token.hasPassword = !!dbUser.password_hash
+            token.googleLinked = true
+            token.onboardingCompleted = dbUser.onboarding_completed
           }
         }
       }

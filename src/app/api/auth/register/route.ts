@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserByEmail, createUserWithPassword } from '@/lib/authHelpers'
+import { getUserByEmail, createUserWithPassword, createVerificationToken } from '@/lib/authHelpers'
+import { sendVerificationEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,9 +26,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 })
     }
 
-    await createUserWithPassword(email, name, password)
+    const user = await createUserWithPassword(email, name, password)
+    const token = await createVerificationToken(user.id)
+    await sendVerificationEmail(user.email, user.name ?? name, token)
 
-    return NextResponse.json({ success: true }, { status: 201 })
+    return NextResponse.json({ success: true, requiresVerification: true }, { status: 201 })
   } catch (err) {
     console.error('Registration error:', err)
     return NextResponse.json({ error: 'Registration failed. Please try again.' }, { status: 500 })

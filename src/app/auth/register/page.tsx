@@ -76,21 +76,8 @@ export default function RegisterPage() {
       return
     }
 
-    // Auto sign-in after successful registration
-    const result = await signIn('credentials', {
-      email: formData.email,
-      password: formData.password,
-      redirect: false,
-    })
-
-    if (result?.error) {
-      setIsLoading(false)
-      router.push('/auth/login')
-      return
-    }
-
-    router.push('/onboarding')
-    router.refresh()
+    // Redirect to verify-email page — user must verify before logging in
+    router.push('/auth/verify-email?sent=true')
   }
 
   const handleGoogleSignUp = async () => {

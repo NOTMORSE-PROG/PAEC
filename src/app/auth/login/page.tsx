@@ -17,7 +17,9 @@ import {
 
 const ERROR_MESSAGES: Record<string, string> = {
   CredentialsSignin: 'Invalid email or password.',
-  OAuthAccountNotLinked: 'This email is already registered. Sign in with your email and connect Google from Settings.',
+  EmailNotVerified: 'Please verify your email before signing in.',
+  OAuthAccountNotLinked: 'An account with this email already exists. Please sign in with your email and password instead.',
+  GoogleAccountTaken: 'That Google account already belongs to another user. Please use a different Google account.',
   Default: 'Something went wrong. Please try again.',
 }
 
@@ -28,6 +30,7 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -37,6 +40,9 @@ function LoginForm() {
     const errorParam = searchParams.get('error')
     if (errorParam) {
       setError(ERROR_MESSAGES[errorParam] ?? ERROR_MESSAGES.Default)
+    }
+    if (searchParams.get('reset') === 'success') {
+      setSuccess('Password reset successfully. You can now sign in with your new password.')
     }
   }, [searchParams])
 
@@ -122,10 +128,24 @@ function LoginForm() {
             <p className="text-gray-600">Enter your credentials to access your account</p>
           </div>
 
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+              <p className="text-sm text-green-700">{success}</p>
+            </div>
+          )}
+
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-red-600">{error}</p>
+                {error === ERROR_MESSAGES.EmailNotVerified && (
+                  <Link href="/auth/verify-email?sent=true" className="text-sm text-red-700 underline font-medium">
+                    Resend verification email →
+                  </Link>
+                )}
+              </div>
             </div>
           )}
 
@@ -180,7 +200,12 @@ function LoginForm() {
             </div>
 
             <div>
-              <label htmlFor="password" className="input-label">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="password" className="input-label">Password</label>
+                <Link href="/auth/forgot-password" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <Lock className="w-5 h-5 text-gray-400" />

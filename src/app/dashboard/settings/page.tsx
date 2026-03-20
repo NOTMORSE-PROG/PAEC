@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { useTheme } from '@/lib/ThemeContext'
 import {
@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const { data: session } = useSession()
+  const { data: session, update } = useSession()
   const hasPassword = session?.user?.hasPassword ?? true
   const googleLinked = session?.user?.googleLinked ?? false
   const userEmail = session?.user?.email ?? ''
@@ -35,22 +35,38 @@ export default function SettingsPage() {
     newPassword: '',
     confirmPassword: '',
   })
+  const [verificationCode, setVerificationCode] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [isSendingCode, setIsSendingCode] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   // Connect Google
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false)
+  const [googleMsg, setGoogleMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('linked') && !params.has('error')) return
+    window.history.replaceState({}, '', '/dashboard/settings')
+
+    if (params.get('linked') === '1') {
+      update()
+      setGoogleMsg({ type: 'success', text: 'Google account connected successfully.' })
+    } else if (params.get('error') === 'google-taken') {
+      setGoogleMsg({ type: 'error', text: 'That Google account already belongs to another user. Please use a different Google account.' })
+    }
+  }, [update])
 
   // Delete account
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('')
   const [isDeletingAccount, setIsDeletingAccount] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
-  const handleChangePassword = async () => {
+  const handleSendCode = async () => {
     setPasswordError('')
-    setPasswordSuccess(false)
-
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setPasswordError('New passwords do not match.')
       return
@@ -59,9 +75,8 @@ export default function SettingsPage() {
       setPasswordError('New password must be at least 8 characters.')
       return
     }
-
-    setIsChangingPassword(true)
-    const res = await fetch('/api/user/change-password', {
+    setIsSendingCode(true)
+    const res = await fetch('/api/user/send-password-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -70,19 +85,42 @@ export default function SettingsPage() {
       }),
     })
     const data = await res.json()
-    setIsChangingPassword(false)
+    setIsSendingCode(false)
+    if (!res.ok) {
+      setPasswordError(data.error ?? 'Failed to send verification code.')
+    } else {
+      setCodeSent(true)
+    }
+  }
 
+  const handleChangePassword = async () => {
+    setPasswordError('')
+    setPasswordSuccess(false)
+    setIsChangingPassword(true)
+    const res = await fetch('/api/user/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        code: verificationCode,
+      }),
+    })
+    const data = await res.json()
+    setIsChangingPassword(false)
     if (!res.ok) {
       setPasswordError(data.error ?? 'Failed to update password.')
     } else {
       setPasswordSuccess(true)
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      setVerificationCode('')
+      setCodeSent(false)
     }
   }
 
   const handleConnectGoogle = async () => {
     setIsConnectingGoogle(true)
-    await signIn('google', { callbackUrl: '/dashboard/settings' })
+    await signIn('google', { callbackUrl: '/dashboard/settings?linked=1' })
   }
 
   const handleDeleteAccount = async () => {
@@ -179,6 +217,18 @@ export default function SettingsPage() {
           {/* Connected Accounts */}
           <div>
             <h3 className="font-medium text-gray-900 mb-4">Connected Accounts</h3>
+            {googleMsg && (
+              <div className={`mb-3 p-3 rounded-lg flex items-center gap-2 text-sm ${
+                googleMsg.type === 'success'
+                  ? 'bg-green-50 border border-green-200 text-green-700'
+                  : 'bg-amber-50 border border-amber-200 text-amber-700'
+              }`}>
+                {googleMsg.type === 'success'
+                  ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                  : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+                {googleMsg.text}
+              </div>
+            )}
             <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -241,6 +291,7 @@ export default function SettingsPage() {
                       onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                       className="input-field pr-12"
                       placeholder="Enter current password"
+                      disabled={codeSent}
                     />
                     <button
                       type="button"
@@ -264,6 +315,7 @@ export default function SettingsPage() {
                       onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                       className="input-field pr-12"
                       placeholder="Enter new password"
+                      disabled={codeSent}
                     />
                     <button
                       type="button"
@@ -286,20 +338,63 @@ export default function SettingsPage() {
                     onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                     className="input-field"
                     placeholder="Confirm new password"
+                    disabled={codeSent}
                   />
                 </div>
-                <button
-                  onClick={handleChangePassword}
-                  disabled={isChangingPassword}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isChangingPassword ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Key className="w-4 h-4 mr-2" />
-                  )}
-                  Update Password
-                </button>
+
+                {!codeSent ? (
+                  <button
+                    onClick={handleSendCode}
+                    disabled={isSendingCode || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSendingCode ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Key className="w-4 h-4 mr-2" />
+                    )}
+                    Send Verification Code
+                  </button>
+                ) : (
+                  <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-sm text-blue-800">
+                      A 6-digit verification code was sent to <strong>{userEmail}</strong>. Enter it below to confirm your password change.
+                    </p>
+                    <div>
+                      <label className="input-label">Verification Code</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                        className="input-field tracking-widest text-center text-xl font-mono"
+                        placeholder="000000"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleChangePassword}
+                        disabled={isChangingPassword || verificationCode.length !== 6}
+                        className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isChangingPassword ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Key className="w-4 h-4 mr-2" />
+                        )}
+                        Update Password
+                      </button>
+                      <button
+                        onClick={() => { setCodeSent(false); setVerificationCode(''); setPasswordError('') }}
+                        className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
