@@ -27,15 +27,19 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-3">1. About This Service</h2>
             <p>
               The Corpus-Based System is an educational web application developed as part of the
-              Aeronautical English Language Proficiency (AELP) program under the Institute of
-              Liberal Arts and Sciences (ILAS) at the Philippine State College of Aeronautics
-              (PhilSCA). It is powered by the Philippine Aeronautical English Corpus (PAEC) —
-              a collection of authentic, manually transcribed pilot–ATC communications recorded
-              at Ninoy Aquino International Airport (RPLL) in Manila.
+              undergraduate thesis &ldquo;Acceptability Evaluation of a Corpus-Based System for
+              Detecting (Non) Standard Phraseology in Philippine Aviation English Training&rdquo;
+              at the Institute of Liberal Arts and Sciences (ILAS), National Aviation Academy of
+              the Philippines (formerly Philippine State College of Aeronautics). It is powered by
+              the Philippine Aeronautical English Corpus (PAEC) — a specialized collection of
+              authentic, manually transcribed pilot–ATC communications recorded at Ninoy Aquino
+              International Airport (RPLL) in Manila.
             </p>
             <p className="mt-3">
-              The system provides interactive training modules and corpus analysis tools designed
-              to support the development of ICAO-standard aviation English proficiency.
+              The system provides four interactive training modules and in-depth corpus analysis
+              tools designed to support aviation English training by helping users practice
+              ICAO-standard phraseology with real Philippine data, receive instant feedback, and
+              explore authentic communication patterns from RPLL.
             </p>
           </section>
 

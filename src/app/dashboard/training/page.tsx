@@ -174,14 +174,16 @@ export default function TrainingPage() {
           : null
         if (!msg) return null
         return (
-          <div className="flex items-center gap-4 p-4 rounded-xl bg-teal-50 border border-teal-200">
-            <div className="w-9 h-9 bg-teal-100 rounded-xl flex items-center justify-center shrink-0">
-              <Lightbulb className="w-5 h-5 text-teal-600" />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-teal-50 border border-teal-200">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-9 h-9 bg-teal-100 rounded-xl flex items-center justify-center shrink-0">
+                <Lightbulb className="w-5 h-5 text-teal-600" />
+              </div>
+              <p className="text-sm text-teal-800">{msg}</p>
             </div>
-            <p className="text-sm text-teal-800 flex-1">{msg}</p>
             {mod && (
-              <Link href={`/dashboard/training/${mod.id}`} className="shrink-0 text-xs font-semibold text-teal-700 hover:text-teal-900 border border-teal-300 rounded-lg px-3 py-1.5 hover:bg-teal-100 transition-colors">
-                Start {mod.title.split(' ')[0]}
+              <Link href={`/dashboard/training/${mod.id}`} className="shrink-0 self-start sm:self-auto text-xs font-semibold text-teal-700 hover:text-teal-900 border border-teal-300 rounded-lg px-3 py-1.5 hover:bg-teal-100 transition-colors">
+                Start {mod.title}
               </Link>
             )}
           </div>
