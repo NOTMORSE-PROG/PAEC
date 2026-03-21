@@ -43,24 +43,28 @@ export default function LandingPage() {
       title: 'Scenario-Based Simulation',
       description: 'Practice real ATC clearances and pilot responses in realistic flight scenarios',
       color: 'from-blue-500 to-cyan-500',
+      href: '/dashboard/training/scenario',
     },
     {
       icon: Target,
       title: 'Readback/Hearback Correction',
       description: 'Identify and correct errors in pilot readbacks to ATC instructions',
       color: 'from-indigo-500 to-purple-500',
+      href: '/dashboard/training/readback',
     },
     {
       icon: BookOpen,
       title: 'Jumbled Clearance',
       description: 'Arrange mixed-order clearance words into correct ICAO phraseology',
       color: 'from-violet-500 to-pink-500',
+      href: '/dashboard/training/jumbled',
     },
     {
       icon: Headphones,
       title: 'Pronunciation Drill',
       description: 'Master ICAO standard pronunciation for numbers and aviation terms',
       color: 'from-emerald-500 to-teal-500',
+      href: '/dashboard/training/pronunciation',
     },
   ]
 
@@ -102,7 +106,7 @@ export default function LandingPage() {
                   <Link href="/auth/login" className="btn-ghost">
                     Sign In
                   </Link>
-                  <Link href="/auth/register" className="btn-primary">
+                  <Link href="/auth/login" className="btn-primary">
                     Get Started
                     <ChevronRight className="w-4 h-4 ml-1" />
                   </Link>
@@ -134,7 +138,7 @@ export default function LandingPage() {
               ) : (
                 <>
                   <Link href="/auth/login" className="block px-4 py-2 text-center text-gray-600 hover:text-primary-600 hover:bg-primary-50 rounded-lg">Sign In</Link>
-                  <Link href="/auth/register" className="block btn-primary w-full text-center">Get Started</Link>
+                  <Link href="/auth/login" className="block btn-primary w-full text-center">Get Started</Link>
                 </>
               )}
             </div>
@@ -152,12 +156,6 @@ export default function LandingPage() {
         <div className="absolute top-1/4 left-10 w-72 h-72 bg-primary-200/30 rounded-full blur-3xl animate-pulse-slow"></div>
         <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-aviation-sky/20 rounded-full blur-3xl animate-pulse-slow delay-1000"></div>
 
-        {/* Floating Aircraft Icon */}
-        <div className="absolute top-1/3 right-1/4 hidden lg:block animate-float">
-          <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-2xl shadow-elevated flex items-center justify-center">
-            <Plane className="w-10 h-10 text-primary-500" />
-          </div>
-        </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 lg:pt-32">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
@@ -186,7 +184,7 @@ export default function LandingPage() {
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Link>
                 ) : (
-                  <Link href="/auth/register" className="btn-primary text-lg px-8 py-4">
+                  <Link href="/auth/login" className="btn-primary text-lg px-8 py-4">
                     Start Training
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Link>
@@ -252,7 +250,7 @@ export default function LandingPage() {
                   </div>
 
                   <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
-                    <Link href={session ? '/dashboard' : '/auth/register'} className="w-full btn-primary flex items-center justify-center">
+                    <Link href={session ? '/dashboard' : '/auth/login'} className="w-full btn-primary flex items-center justify-center">
                       {session ? 'Go to Dashboard' : 'Start Training'}
                       <ArrowRight className="w-4 h-4 ml-2" />
                     </Link>
@@ -283,7 +281,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-2 gap-6 lg:gap-8">
             {features.map((feature, index) => (
-              <div key={index} className="card-interactive group p-6 lg:p-8">
+              <Link key={index} href={session ? feature.href : '/auth/login'} className="card-interactive group p-6 lg:p-8">
                 <div className={`w-14 h-14 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
                   <feature.icon className="w-7 h-7 text-white" />
                 </div>
@@ -293,7 +291,7 @@ export default function LandingPage() {
                   Start Training
                   <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -330,7 +328,7 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <Link href="/dashboard/training" className="btn-primary mt-8 inline-flex">
+              <Link href={session ? '/dashboard/training' : '/auth/login'} className="btn-primary mt-8 inline-flex">
                 Enter Training Mode
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Link>
@@ -424,7 +422,7 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <Link href="/dashboard/analysis" className="btn-primary inline-flex">
+              <Link href={session ? '/dashboard/analysis' : '/auth/login'} className="btn-primary inline-flex">
                 Explore Analysis
                 <BarChart3 className="w-5 h-5 ml-2" />
               </Link>
