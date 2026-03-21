@@ -596,7 +596,7 @@ export default function LandingPage() {
               {
                 icon: Award,
                 title: 'Quality Training',
-                description: 'Designed to enhance aviation English proficiency and communication safety.',
+                description: 'Designed to support aviation English proficiency and communication safety.',
               },
             ].map((item, index) => (
               <div key={index} className="text-center p-8 bg-white rounded-2xl border border-gray-100">
