@@ -450,40 +450,76 @@ export default function LandingPage() {
             </p>
           </div>
 
+          {/* What is a Corpus? definitions */}
+          <div className="grid md:grid-cols-2 gap-6 mb-10">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-2">What is a Corpus?</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                A corpus is a collection of machine-readable authentic texts (including transcripts
+                of spoken data) that is sampled to be representative of a particular language or
+                language variety.
+              </p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-2">What is a Specialized Corpus?</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Specialized corpora are designed for the analysis of specific domains, genres, or
+                speaker groups. Unlike general corpora, their goal is not broad coverage but depth
+                and contextual specificity.
+              </p>
+            </div>
+          </div>
+
+          {/* Related corpora — compact chips */}
+          <div className="mb-16">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 text-center">Related aviation English corpora</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {[
+                { name: 'ATCOSIM', year: '2007', author: 'Stefan Petrik' },
+                { name: 'RTPEC', year: '2019', author: 'Malila Prado' },
+                { name: 'CORPAC', year: '2021', author: 'Aline Pacheco' },
+                { name: 'Aerocorpus', year: '2024', author: 'Tosqui-Lucks et al.' },
+                { name: 'ACE-PHI', year: '2025', author: 'Ramsey Ferrer' },
+              ].map((corpus) => (
+                <span key={corpus.name} className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1.5 text-xs text-gray-700">
+                  <span className="font-semibold text-gray-900">{corpus.name}</span>
+                  <span className="text-gray-400">{corpus.year}</span>
+                  <span className="text-gray-400">·</span>
+                  <span>{corpus.author}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
           {/* Two-column: history + key facts */}
           <div className="grid lg:grid-cols-2 gap-12 items-start mb-16">
 
             {/* Left: History */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <span className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                    <BookOpen className="w-4 h-4 text-primary-600" />
-                  </span>
-                  History
-                </h3>
-                <p className="text-gray-600 leading-relaxed">
-                  The corpus was developed as part of the Aeronautical English Language
-                  Proficiency (AELP) course under the Institute of Liberal Arts and Sciences
-                  (ILAS) at the Philippine State College of Aeronautics (PhilSCA). The project
-                  launched in the 2nd semester of Academic Year 2024–2025 as a supervised
-                  corpus-building initiative led by <span className="font-medium text-gray-800">Dr. Ramsey S. Ferrer</span>.
-                </p>
+            <div className="space-y-5">
+              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <span className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-primary-600" />
+                </span>
+                History
+              </h3>
+              <p className="text-gray-600 leading-relaxed text-justify">
+                PAEC was built during the 2nd semester of AY 2024–2025 under{' '}
+                <span className="font-medium text-gray-800">Dr. Ramsey S. Ferrer</span> as part of
+                the AELP course at PhilSCA. Batch Lima — 31 pairs of 2nd-year BSAVCOMM students
+                (PAEC01–PAEC31) — collected full 24-hour recordings from LiveATC.net at RPLL between
+                February 1 and March 3, 2025, then transcribed and annotated them with structured metadata.
+              </p>
+              <p className="text-sm font-medium text-gray-700">Guest workshops by Dr. Malila Prado</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-primary-50 rounded-xl p-4 border border-primary-100">
+                  <p className="text-xs font-semibold text-primary-700 mb-1">Online</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">Corpus building, transcription guidelines, and RTPEC review.</p>
+                </div>
+                <div className="bg-primary-50 rounded-xl p-4 border border-primary-100">
+                  <p className="text-xs font-semibold text-primary-700 mb-1">In-person · Feb 7, 2025</p>
+                  <p className="text-xs text-gray-600 leading-relaxed">Students&apos; experiences, transcription, and professional markup guidelines.</p>
+                </div>
               </div>
-              <p className="text-gray-600 leading-relaxed">
-                Students received specialized training in transcription and annotation
-                guidelines, including speaker identification, metadata tagging, and XML markup.
-                A key milestone was the guest workshop conducted by{' '}
-                <span className="font-medium text-gray-800">Dr. Malila Prado</span> on
-                February 7, 2025 — <span className="italic">&quot;From Technical English to English as a
-                Lingua Franca: Reviewing a 15-Year-Old Aviation English Corpus&quot;</span> — during
-                which students reviewed her Radiotelephony Plain English Corpus (RTPEC, 2019)
-                to ensure standardization and consistency.
-              </p>
-              <p className="text-gray-600 leading-relaxed">
-                Today, the corpus serves as the core authentic dataset for this system and
-                directly supports the ongoing AELP program at PhilSCA.
-              </p>
             </div>
 
             {/* Right: Key facts card */}
@@ -492,7 +528,8 @@ export default function LandingPage() {
               {[
                 { label: 'Airport', value: 'Ninoy Aquino International Airport (RPLL), Manila' },
                 { label: 'Institution', value: 'Philippine State College of Aeronautics (PhilSCA)' },
-                { label: 'Program', value: 'Aeronautical English Language Proficiency (AELP)' },
+                { label: 'Program', value: 'BS Aviation Communication Major in Flight Operations' },
+                { label: 'Course', value: 'Aeronautical English Language Proficiency (AELP)' },
                 { label: 'Led by', value: 'Dr. Ramsey S. Ferrer' },
                 { label: 'Academic Year', value: '2nd Semester, AY 2024–2025' },
                 { label: 'Source', value: 'LiveATC.net — full 0000–2400 Zulu time coverage' },
@@ -570,6 +607,23 @@ export default function LandingPage() {
                 <p className="text-gray-600">{item.description}</p>
               </div>
             ))}
+          </div>
+
+          {/* Development Status */}
+          <div className="mt-12 bg-amber-50 border border-amber-200 rounded-2xl p-6 flex gap-4 items-start">
+            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+              <BookOpen className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-amber-900 mb-1">Development Status</h3>
+              <p className="text-sm text-amber-800 leading-relaxed">
+                PAEC is a work in progress. Refining, polishing, and further reviewing of the corpus
+                are still ongoing. However, it is already usable for analysis and training purposes.
+                As a specialized corpus, PAEC is intentionally focused on a specific context (RPLL
+                frequencies) and is not meant to generalize the overall or entire picture of
+                pilot–controller interaction across the Philippines.
+              </p>
+            </div>
           </div>
 
         </div>
