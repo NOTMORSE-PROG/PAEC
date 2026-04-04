@@ -2137,6 +2137,26 @@ export function analyzeReadback(
     }
   }
 
+  // Extended check: short responses (< 5 meaningful words) with ack words but missing
+  // critical elements — catches "roger, climbing" (missing altitude value),
+  // "copy, runway two four" (missing "cleared"), etc.
+  if (hasImproperAck && wordCount >= 3 && wordCount < 5 && instructionType !== 'information_only' && instructionType !== 'unknown') {
+    const hasCriticalElement = checkForCriticalElements(pilotNorm, instructionType)
+    if (!hasCriticalElement) {
+      const ackWord = pilotNorm.match(improperAckWords)?.[0] || 'Roger'
+      errors.push({
+        type: 'incomplete_readback',
+        parameter: 'full readback',
+        expectedValue: generateExpectedReadback(atcNorm, instructionType, callsign),
+        actualValue: ackWord,
+        weight: 'medium',
+        explanation: `Readback appears incomplete for ${instructionType}. Critical elements are missing despite partial acknowledgment.`,
+        icaoReference: 'ICAO Doc 4444 Section 12.3.1.2'
+      })
+      quality = 'partial'
+    }
+  }
+
   // ==========================================================================
   // CHECK 2: Parameter confusion detection
   // ==========================================================================
@@ -2299,11 +2319,20 @@ function checkForCriticalElements(pilotText: string, instructionType: Instructio
       return hasFreqNumbers
 
     case 'takeoff_clearance':
+      // Must have "cleared" AND "takeoff/take off" AND a runway number
+      return /\bcleared\b/i.test(withoutAck) &&
+        /\b(takeoff|take\s*off)\b/i.test(withoutAck) &&
+        (/runway/i.test(withoutAck) || /\d{1,2}/.test(normalized))
+
     case 'landing_clearance':
-      return /\b(cleared|takeoff|take\s*off|land|landing)\b/i.test(withoutAck)
+      // Must have "cleared" AND "land" AND a runway number
+      return /\bcleared\b/i.test(withoutAck) &&
+        /\b(land|landing)\b/i.test(withoutAck) &&
+        (/runway/i.test(withoutAck) || /\d{1,2}/.test(normalized))
 
     case 'lineup_wait':
-      return /\b(line\s*up|wait)\b/i.test(withoutAck)
+      // Must have "line up" AND "wait"
+      return /\bline\s*up\b/i.test(withoutAck) && /\bwait\b/i.test(withoutAck)
 
     default:
       return false
@@ -2903,6 +2932,38 @@ function checkValueMatch(
       }
       break
     }
+
+    case 'takeoff_clearance':
+    case 'landing_clearance':
+    case 'lineup_wait':
+    case 'taxi_instruction': {
+      // Runway comparison for takeoff/landing/lineup/taxi instructions
+      const normalizeRunway = (s: string): string =>
+        s.toUpperCase()
+          .replace(/\bLEFT\b/g, 'L').replace(/\bRIGHT\b/g, 'R')
+          .replace(/\bCENTER\b|\bCENTRE\b/g, 'C')
+          .replace(/\s+/g, '')
+
+      const atcRwy = atcText.match(/runway\s*(\d{1,2}(?:\s*(?:left|right|center|centre|[LRC]))?)/i)
+      const pilotRwy = pilotText.match(/runway\s*(\d{1,2}(?:\s*(?:left|right|center|centre|[LRC]))?)/i)
+
+      if (atcRwy && pilotRwy) {
+        const atcRwyNorm = normalizeRunway(atcRwy[1])
+        const pilotRwyNorm = normalizeRunway(pilotRwy[1])
+        if (atcRwyNorm !== pilotRwyNorm) {
+          return {
+            type: 'wrong_runway',
+            parameter: 'runway',
+            expectedValue: atcRwyNorm,
+            actualValue: pilotRwyNorm,
+            weight: 'critical',
+            explanation: `Wrong runway readback. ATC instructed runway ${atcRwyNorm}, pilot read back runway ${pilotRwyNorm}. Runway confusion is a critical safety threat.`,
+            icaoReference: 'ICAO Doc 4444 12.3.1.3 - Runway mandatory readback'
+          }
+        }
+      }
+      break
+    }
   }
 
   return null
@@ -3071,10 +3132,28 @@ function checkRequiredElements(
     }
   }
 
-  // Frequency check
-  if (/\d{3}\s*(decimal|point)\s*\d/i.test(atcText)) {
-    if (!/\d{3}\s*(decimal|point|\.)\s*\d/i.test(pilotText)) {
-      const freq = atcText.match(/(\d{3}\s*(decimal|point)\s*\d+)/i)?.[1]
+  // Frequency check — handles both digit format (118 decimal 5) and spoken numbers
+  // (one one nine decimal one)
+  const spokenNumberWord = '(?:one|two|three|four|five|six|seven|eight|nine|niner|zero)'
+  const hasDigitFreq = /\d{3}\s*(decimal|point)\s*\d/i.test(atcText)
+  const hasSpokenFreq = new RegExp(
+    `${spokenNumberWord}\\s+${spokenNumberWord}\\s+${spokenNumberWord}\\s+(decimal|point)\\s+${spokenNumberWord}`,
+    'i'
+  ).test(atcText)
+
+  if (hasDigitFreq || hasSpokenFreq) {
+    const pilotHasDigitFreq = /\d{3}\s*(decimal|point|\.)\s*\d/i.test(pilotText)
+    const pilotHasSpokenFreq = new RegExp(
+      `${spokenNumberWord}\\s+${spokenNumberWord}\\s+${spokenNumberWord}\\s+(decimal|point)\\s+${spokenNumberWord}`,
+      'i'
+    ).test(pilotText)
+
+    if (!pilotHasDigitFreq && !pilotHasSpokenFreq) {
+      const freq = atcText.match(/(\d{3}\s*(decimal|point)\s*\d+)/i)?.[1] ||
+        atcText.match(new RegExp(
+          `(${spokenNumberWord}\\s+${spokenNumberWord}\\s+${spokenNumberWord}\\s+(decimal|point)\\s+${spokenNumberWord}(?:\\s+${spokenNumberWord})*)`,
+          'i'
+        ))?.[1]
       errors.push({
         type: 'missing_element',
         parameter: 'frequency',
@@ -3110,6 +3189,21 @@ function checkRequiredElements(
         actualValue: null,
         weight: 'critical',
         explanation: 'Takeoff clearance must be explicitly read back.',
+        icaoReference: 'ICAO Doc 4444 12.3.1.3'
+      })
+    }
+  }
+
+  // Cleared to land check
+  if (/cleared\s+to\s+land/i.test(atcText)) {
+    if (!/cleared\s+to\s+land/i.test(pilotText)) {
+      errors.push({
+        type: 'missing_element',
+        parameter: 'landing clearance',
+        expectedValue: 'cleared to land',
+        actualValue: null,
+        weight: 'critical',
+        explanation: 'Landing clearance must be explicitly read back.',
         icaoReference: 'ICAO Doc 4444 12.3.1.3'
       })
     }

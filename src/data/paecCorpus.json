@@ -219,18 +219,6 @@
         "safetyImpact": "safety"
       },
       {
-        "incorrect": "good morning / good afternoon / good evening",
-        "correct": "(omit social pleasantries)",
-        "explanation": "Social greetings are non-standard in operational ATC phraseology. On initial contact, state callsign and altitude.",
-        "pattern": "\\bgood\\s+(morning|afternoon|evening)\\b",
-        "flags": "i",
-        "standard": "[callsign], [altitude/flight level]",
-        "weight": "low",
-        "category": "acknowledgment",
-        "safetyImpact": "efficiency",
-        "icaoRef": "ICAO Doc 9432 §5.1.1"
-      },
-      {
         "incorrect": "direct contact",
         "correct": "radar contact",
         "explanation": "'Direct contact' is non-standard. Use 'radar contact' to confirm surveillance identification per ICAO Doc 4444.",
@@ -255,17 +243,6 @@
         "icaoRef": "ICAO Doc 4444 §12.3.1"
       },
       {
-        "incorrect": "sir / ma'am",
-        "correct": "(omit — use callsign only)",
-        "explanation": "Honorifics 'sir' and 'ma'am' are not ICAO standard. They add unnecessary words not used in international operations.",
-        "pattern": "\\b(sir|ma[''']?am|maam)\\b",
-        "flags": "i",
-        "standard": "[callsign]",
-        "weight": "low",
-        "category": "acknowledgment",
-        "safetyImpact": "efficiency"
-      },
-      {
         "incorrect": "goodbye",
         "correct": "good day",
         "explanation": "'Goodbye' is informal. The ICAO standard farewell is 'good day'.",
@@ -276,28 +253,6 @@
         "category": "acknowledgment",
         "safetyImpact": "efficiency",
         "icaoRef": "ICAO Doc 9432 §5.4"
-      },
-      {
-        "incorrect": "goodmorning / goodafternoon / goodevening / goodnight",
-        "correct": "(omit social pleasantries)",
-        "explanation": "Fused greeting words are non-standard. ICAO phraseology requires no social pleasantries on initial contact.",
-        "pattern": "\\bgood(morning|afternoon|evening|night)\\b",
-        "flags": "i",
-        "standard": "[callsign], [altitude/flight level]",
-        "weight": "low",
-        "category": "acknowledgment",
-        "safetyImpact": "efficiency"
-      },
-      {
-        "incorrect": "thank you",
-        "correct": "(omit — use no social pleasantry)",
-        "explanation": "'Thank you' is not part of ICAO standard phraseology. It adds unnecessary transmissions that can block other traffic.",
-        "pattern": "\\bthank\\s+you\\b",
-        "flags": "i",
-        "standard": "(omit)",
-        "weight": "low",
-        "category": "acknowledgment",
-        "safetyImpact": "efficiency"
       },
       {
         "incorrect": "bye / bye bye",
@@ -441,22 +396,10 @@
         "icaoRef": "ICAO Doc 4444 Amendment 7; Doc 9432 §8.5"
       },
       {
-        "incorrect": "po (Tagalog/Filipino honorific)",
-        "correct": "(omit — use English phraseology only)",
-        "explanation": "'Po' is a Tagalog/Filipino respect honorific with no place in ICAO standard phraseology. All communications must be in English, free from non-ICAO words.",
-        "pattern": "\\bpo\\b",
-        "flags": "i",
-        "standard": "(omit)",
-        "weight": "low",
-        "category": "acknowledgment",
-        "safetyImpact": "efficiency",
-        "icaoRef": "ICAO Annex 10 Vol. II §5.2.1.3"
-      },
-      {
         "incorrect": "yes",
         "correct": "affirm",
         "explanation": "ICAO uses 'AFFIRM' (positive) and 'NEGATIVE' — never 'yes' or 'no', which may be misheard over radio noise.",
-        "pattern": "\\byes\\b(?!\\s*sir|\\s*ma)",
+        "pattern": "\\byes\\b",
         "flags": "i",
         "standard": "affirm",
         "weight": "low",

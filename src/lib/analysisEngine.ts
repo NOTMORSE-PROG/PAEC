@@ -2361,7 +2361,8 @@ function detectAllErrorsWithContext(
   const errors: PhraseologyError[] = []
   let issueAccumulator = context.issueAccumulator
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]
     const lineErrors: PhraseologyError[] = []
 
     // Check non-standard phrases
@@ -2375,6 +2376,12 @@ function detectAllErrorsWithContext(
 
     // Check safety-critical patterns
     lineErrors.push(...detectSafetyCriticalIssues(line))
+
+    // Check for correction exchanges (runway swaps, frequency corrections)
+    lineErrors.push(...detectCorrectionExchanges(line))
+
+    // Check for hearback failures (ATC explicitly requesting readback)
+    lineErrors.push(...detectHearbackFailures(lines, lineIndex))
 
     // Corpus-specific checks
     if (corpusType === 'APP/DEP') {
@@ -2573,9 +2580,85 @@ function generateExchangePairErrors(context: ConversationContext, corpusType: st
         whyItMatters: `Partial readbacks can lead to misunderstandings. Required elements: ${getRequiredElements(pair.instructionType)}`,
       })
     }
+
+    // ======================================================================
+    // Callsign mix-up detection
+    // Compare the numeric portion of the callsign in pilot readback against
+    // ATC instruction to detect flight number confusion (e.g. 655 vs 665)
+    // ======================================================================
+    if (pair.pilotLine && context.primaryCallsign) {
+      const callsignMixup = detectCallsignMixup(
+        pair.atcLine.text,
+        pair.pilotLine.text,
+        context.primaryCallsign
+      )
+      if (callsignMixup) {
+        errors.push({
+          line: pair.pilotLine.lineNumber,
+          original: pair.pilotLine.rawText,
+          issue: callsignMixup.issue,
+          suggestion: callsignMixup.suggestion,
+          weight: 'high',
+          category: 'safety',
+          safetyImpact: 'safety',
+          icaoReference: 'ICAO Doc 4444 Section 12.3.1.2 — Callsign readback',
+          explanation: 'Callsign confusion can lead to instructions being executed by the wrong aircraft, a serious safety hazard.',
+          whyItMatters: 'Callsign mix-ups are a leading cause of level busts and airspace violations. Similar-sounding callsigns on the same frequency require extra vigilance.',
+        })
+      }
+    }
   }
 
   return errors
+}
+
+// Detect callsign mix-ups by comparing numeric portions of callsigns
+function detectCallsignMixup(
+  atcText: string,
+  pilotText: string,
+  primaryCallsign: string
+): { issue: string; suggestion: string } | null {
+  // Extract flight number digits from the primary callsign
+  const callsignDigits = primaryCallsign.match(/\d+/)
+  if (!callsignDigits) return null
+
+  const expectedNum = callsignDigits[0]
+  // Extract the airline prefix (non-numeric part)
+  const callsignPrefix = primaryCallsign.replace(/\d+.*/, '').trim().toLowerCase()
+
+  // Check if ATC addressed this callsign (contains the expected number)
+  if (!atcText.includes(expectedNum) && !new RegExp(expectedNum.split('').join('\\s*'), 'i').test(atcText)) {
+    return null // ATC wasn't addressing this callsign
+  }
+
+  // Look for a different flight number in the pilot's response
+  // Match patterns like "Philippine 665", "PAL665", "six six five" etc.
+  const pilotNumMatch = pilotText.match(/(\d{3,4})/g)
+  if (pilotNumMatch) {
+    for (const num of pilotNumMatch) {
+      // Skip if it matches known operational numbers (altitudes, headings, frequencies, squawk)
+      if (/\b(thousand|hundred|knots|degrees|decimal|point)\b/i.test(
+        pilotText.substring(Math.max(0, pilotText.indexOf(num) - 20), pilotText.indexOf(num) + num.length + 20)
+      )) continue
+
+      // Check if this looks like a callsign number that differs from expected
+      if (num !== expectedNum && num.length === expectedNum.length) {
+        // Only flag if the numbers are close (differ by 1-2 digits) — likely a mix-up
+        let diffCount = 0
+        for (let i = 0; i < num.length; i++) {
+          if (num[i] !== expectedNum[i]) diffCount++
+        }
+        if (diffCount === 1 || diffCount === 2) {
+          return {
+            issue: `Possible callsign mix-up: pilot responded with "${num}" but ATC addressed "${expectedNum}". Flight number digits differ.`,
+            suggestion: `Verify correct callsign. Expected flight number: ${expectedNum}.`,
+          }
+        }
+      }
+    }
+  }
+
+  return null
 }
 
 // Helper: Find matching training example for better error explanations
@@ -2951,6 +3034,115 @@ function detectSafetyCriticalIssues(line: ParsedLine): PhraseologyError[] {
         category: 'safety',
         safetyImpact: 'safety',
       })
+    }
+  }
+
+  return errors
+}
+
+// ---------------------------------------------------------------------------
+// Correction Exchange Detection
+// Detects "correction" keyword indicating a prior readback/hearback failure
+// ---------------------------------------------------------------------------
+function detectCorrectionExchanges(line: ParsedLine): PhraseologyError[] {
+  const errors: PhraseologyError[] = []
+  const text = line.text
+
+  // Try specific patterns first (runway, numeric), fall back to general "correction"
+  const correctionPatterns: {
+    pattern: RegExp
+    type: string
+    weight: 'high' | 'medium'
+    description: string
+  }[] = [
+    {
+      pattern: /runway\s+[\w\s]+?\s*,?\s*correction\s*,?\s*runway\s+[\w\s]+?(?:\s*[,.]|$)/i,
+      type: 'runway',
+      weight: 'high',
+      description: 'Runway correction detected — a runway designator was changed mid-transmission',
+    },
+    {
+      pattern: /(?:one|two|three|four|five|six|seven|eight|nine|niner|zero|decimal|point|\d[\d.]*)\s+(?:(?:one|two|three|four|five|six|seven|eight|nine|niner|zero|decimal|point|\d[\d.]*)\s*)*,?\s*correction\s*,?\s*(?:one|two|three|four|five|six|seven|eight|nine|niner|zero|decimal|point|\d[\d.]*)/i,
+      type: 'frequency/numeric',
+      weight: 'high',
+      description: 'Numeric correction detected (possible frequency, heading, or altitude correction)',
+    },
+    {
+      pattern: /\bcorrection\b/i,
+      type: 'general',
+      weight: 'medium',
+      description: 'Correction keyword detected in transmission',
+    },
+  ]
+
+  for (const cp of correctionPatterns) {
+    if (cp.pattern.test(text)) {
+      const failureType = line.speaker === 'ATC' ? 'hearback' : 'readback'
+      errors.push({
+        line: line.lineNumber,
+        original: line.rawText,
+        issue: `${cp.description}. This indicates a prior communication error that required on-frequency correction — a ${failureType} failure event.`,
+        suggestion:
+          'Verify the corrected value matches the intended clearance. Corrections indicate communication breakdown.',
+        weight: cp.weight,
+        category: 'safety',
+        safetyImpact: 'safety',
+        icaoReference: 'ICAO Doc 9432 Section 5.3 — Correction Procedures',
+        explanation:
+          'The word "correction" indicates a prior error was detected and corrected on-frequency. This is a safety-significant event that should be reviewed.',
+        whyItMatters:
+          'On-frequency corrections indicate communication breakdown. Runway and frequency corrections are especially critical as they directly affect flight safety.',
+        incorrectPhrase: 'correction',
+      })
+      break // Only flag once per line, using the most specific match
+    }
+  }
+
+  return errors
+}
+
+// ---------------------------------------------------------------------------
+// Hearback Failure Detection
+// Detects when ATC explicitly requests readback — indicates prior readback was
+// missing, incomplete, or inaudible
+// ---------------------------------------------------------------------------
+function detectHearbackFailures(
+  lines: ParsedLine[],
+  index: number
+): PhraseologyError[] {
+  const errors: PhraseologyError[] = []
+  const line = lines[index]
+
+  // Only check ATC lines for readback requests
+  if (line.speaker !== 'ATC') return errors
+
+  const text = line.text
+
+  const readbackRequestPatterns = [
+    /\bi[-\s]*read\s*back\b/i, // "i-readback" / "ireadback" (Filipino)
+    /\bread\s*back\s+mo\b/i, // "readback mo" (Filipino)
+    /\bread\s*back\b/i, // "read back" / "readback"
+  ]
+
+  for (const pattern of readbackRequestPatterns) {
+    if (pattern.test(text)) {
+      errors.push({
+        line: line.lineNumber,
+        original: line.rawText,
+        issue: 'ATC explicitly requested readback from pilot. This is a hearback failure indicator — ATC did not receive a satisfactory readback.',
+        suggestion:
+          'Pilot should provide complete readback of all critical elements (runway, altitude, heading, frequency, callsign).',
+        weight: 'high',
+        category: 'safety',
+        safetyImpact: 'safety',
+        icaoReference:
+          'ICAO Doc 4444 Section 12.3.1.2 — Readback Requirements',
+        explanation:
+          'When ATC explicitly asks for a readback, it means the prior pilot response was missing, incomplete, or inaudible. This is a hearback failure.',
+        whyItMatters:
+          'Hearback failures are a key factor in runway incursions and altitude deviations. ATC requesting readback is a safety net that indicates the normal communication loop has broken down.',
+      })
+      break
     }
   }
 

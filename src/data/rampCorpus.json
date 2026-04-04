@@ -16,7 +16,7 @@
     "parkingBrakePattern": "parking\\s+brake(?:\\s+set)?|brakes\\s+set",
     "rogerSubstitutionPattern": "^(?:roger|wilco|copy|affirmative|ok|aight)\\.?$",
     "startupAcknowledgmentPattern": "approv(?:e[ds]?|al)|roger|wilco|standby|will\\s+advise|noted|copy|confirmed",
-    "nonStandardPilotPattern": "\\b(?:aight|yep|yeah|gotcha|no\\s+problem|ok\\s+sir|ok\\s+ma|copy\\s+that\\s+sir|sure\\s+sir|sure\\s+ma)\\b",
+    "nonStandardPilotPattern": "\\b(?:aight|yep|yeah|gotcha|no\\s+problem)\\b",
     "enginePattern": "engines?\\s+(one|two|three|four|number\\s+\\d)",
     "runwayPattern": "runway\\s+([\\w\\s]+?)(?=\\s*[,.]|$)",
     "holdShortEquivalentsPattern": "hold(?:ing)?\\s+short|holding\\s+(?:at|on)|remain(?:ing)?\\s+(?:at|short|on)|stay(?:ing)?\\s+short|stopped?\\s+short",
