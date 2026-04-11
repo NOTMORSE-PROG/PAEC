@@ -1213,9 +1213,12 @@ function removeCallsign(text: string): string {
  * Now properly excludes callsign numbers
  */
 export function extractNumericValue(text: string, type: 'altitude' | 'heading' | 'speed' | 'altimeter' | 'squawk' | 'frequency'): string | null {
-  // Remove callsign to avoid picking up flight numbers as values
+  // Remove callsign in two passes:
+  // 1. Remove spoken-form callsigns before digit normalization ("CEBU one one eight six")
+  // 2. Remove digit-form callsigns after normalization ("CEBU 1186") — prevents callsign
+  //    numbers from being grabbed as altitude/frequency values via the bigNumMatch fallback.
   const cleanedText = removeCallsign(text)
-  const normalized = normalizeToDigits(cleanedText)
+  const normalized = removeCallsign(normalizeToDigits(cleanedText))
 
   switch (type) {
     case 'altitude': {
@@ -1224,19 +1227,33 @@ export function extractNumericValue(text: string, type: 'altitude' | 'heading' |
                       normalized.match(/fl\s*(\d{2,3})/i)
       if (flMatch) return 'FL' + flMatch[1]
 
-      // Check for "X thousand" pattern
-      const thousandMatch = cleanedText.toLowerCase().match(/(\w+)\s+thousand/i)
+      // Check for "X thousand" pattern (e.g. "eleven thousand" → 11000)
+      // Also handles ICAO digit-by-digit form: "one one thousand" → 11000, "one zero thousand" → 10000
+      const singleDigitMap: Record<string, number> = {
+        zero:0, one:1, two:2, three:3, four:4, five:5,
+        six:6, seven:7, eight:8, nine:9, niner:9,
+      }
+      const wordToNum: Record<string, string> = {
+        'one': '1000', 'two': '2000', 'three': '3000', 'four': '4000', 'five': '5000',
+        'six': '6000', 'seven': '7000', 'eight': '8000', 'nine': '9000', 'niner': '9000',
+        'ten': '10000', 'eleven': '11000', 'twelve': '12000',
+        'thirteen': '13000', 'fourteen': '14000', 'fifteen': '15000',
+        'sixteen': '16000', 'seventeen': '17000', 'eighteen': '18000', 'nineteen': '19000',
+        'twenty': '20000', 'thirty': '30000', 'forty': '40000', 'fifty': '50000',
+        'sixty': '60000', 'seventy': '70000', 'eighty': '80000', 'ninety': '90000',
+      }
+      // Two-word digit form: "one one thousand", "one zero thousand"
+      const twoWordThousandMatch = cleanedText.toLowerCase().match(/\b(\w+)\s+(\w+)\s+thousand\b/i)
+      if (twoWordThousandMatch) {
+        const d1 = singleDigitMap[twoWordThousandMatch[1]]
+        const d2 = singleDigitMap[twoWordThousandMatch[2]]
+        if (d1 !== undefined && d2 !== undefined) {
+          return String((d1 * 10 + d2) * 1000)
+        }
+      }
+      const thousandMatch = cleanedText.toLowerCase().match(/\b(\w+)\s+thousand\b/i)
       if (thousandMatch) {
         const numWord = thousandMatch[1].toLowerCase()
-        const wordToNum: Record<string, string> = {
-          'one': '1000', 'two': '2000', 'three': '3000', 'four': '4000', 'five': '5000',
-          'six': '6000', 'seven': '7000', 'eight': '8000', 'nine': '9000', 'niner': '9000',
-          'ten': '10000', 'eleven': '11000', 'twelve': '12000',
-          'thirteen': '13000', 'fourteen': '14000', 'fifteen': '15000',
-          'sixteen': '16000', 'seventeen': '17000', 'eighteen': '18000', 'nineteen': '19000',
-          'twenty': '20000', 'thirty': '30000', 'forty': '40000', 'fifty': '50000',
-          'sixty': '60000', 'seventy': '70000', 'eighty': '80000', 'ninety': '90000',
-        }
         if (wordToNum[numWord]) return wordToNum[numWord]
       }
 
@@ -1315,10 +1332,15 @@ export function extractNumericValue(text: string, type: 'altitude' | 'heading' |
       // Frequency is XXX.XX format — also handle phonetic/regional "decimal" variants:
       //   standard: "decimal", "point"
       //   Filipino phonetic: "day-see-mal", "day see mal", "desimal"
+      // Cap decimal part at 3 digits; a 4th digit is almost certainly a callsign number
+      // that was spoken directly after the frequency (e.g. "124.4" + "411" → "124.4411").
       const freqMatch = normalized.match(
         /(\d{3})\s*(?:decimal|point|day[\-\s]?see[\-\s]?mal|desimal|\.)\s*(\d{1,3})/i
       )
-      return freqMatch ? `${freqMatch[1]}.${freqMatch[2]}` : null
+      if (!freqMatch) return null
+      // Trim trailing zeros from decimal part for canonical comparison
+      const decPart = freqMatch[2].replace(/0+$/, '') || '0'
+      return `${freqMatch[1]}.${decPart}`
     }
   }
 
@@ -2837,7 +2859,16 @@ function checkValueMatch(
       const atcFreq = extractNumericValue(atcText, 'frequency')
       const pilotFreq = extractNumericValue(pilotText, 'frequency')
 
-      if (atcFreq && pilotFreq && atcFreq !== pilotFreq) {
+      // Truncate pilot frequency to ATC's decimal precision before comparing.
+      // Handles case where callsign digits follow the frequency without a pause:
+      // ATC "124.4", pilot "124.4 four one one" → extracted as "124.441" → truncate to "124.4".
+      const freqMatch = (f: string) => {
+        if (!atcFreq || !pilotFreq || atcFreq === pilotFreq) return true
+        const atcDec = atcFreq.split('.')[1] ?? ''
+        const pilotTruncated = `${pilotFreq.split('.')[0]}.${(pilotFreq.split('.')[1] ?? '').slice(0, atcDec.length)}`
+        return atcFreq === pilotTruncated
+      }
+      if (atcFreq && pilotFreq && atcFreq !== pilotFreq && !freqMatch(pilotFreq)) {
         return {
           type: 'wrong_value',
           parameter: 'frequency',

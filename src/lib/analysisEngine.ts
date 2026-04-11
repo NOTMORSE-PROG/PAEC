@@ -1330,7 +1330,14 @@ export function analyzeDialogue(input: AnalysisInput): AnalysisOutput {
   let context = createInitialContext()
 
   // Detect flight phase dynamically
-  context.flightPhase = detectFlightPhase(parsedLines)
+  // GND and RAMP corpora cover taxiway/apron operations only — never approach/landing.
+  // Override the keyword-based detector to prevent transcript words like "contact approach"
+  // from incorrectly labelling these exchanges as [APPROACH/LANDING PHASE].
+  if (corpusType === 'GND' || corpusType === 'RAMP') {
+    context.flightPhase = 'ground'
+  } else {
+    context.flightPhase = detectFlightPhase(parsedLines)
+  }
 
   // Extract callsigns
   const { callsigns, primary } = extractCallsigns(parsedLines)
@@ -1362,7 +1369,7 @@ export function analyzeDialogue(input: AnalysisInput): AnalysisOutput {
 
   // Categorize errors
   const languageErrors = categorizeLanguageErrors(phraseologyErrors)
-  const numberErrors = categorizeNumberErrors(phraseologyErrors, text)
+  const numberErrors = categorizeNumberErrors(phraseologyErrors, text, corpusType)
 
   // Readback analysis
   const readbackAnalysis = analyzeReadbacks(parsedLines)
@@ -3702,35 +3709,39 @@ function calculateRiskLevel(
 // ============================================================================
 
 function categorizeLanguageErrors(errors: PhraseologyError[]): ErrorDetail[] {
+  // Categories aligned with the PAEC thesis terminology for readback/hearback errors
   const categories: Record<string, { count: number; examples: string[] }> = {
-    'Incomplete phraseology': { count: 0, examples: [] },
-    'Wrong terminology': { count: 0, examples: [] },
-    'Missing elements': { count: 0, examples: [] },
-    'Syntax errors': { count: 0, examples: [] },
+    'Incorrect Readback':  { count: 0, examples: [] },
+    'Incorrect Hearback':  { count: 0, examples: [] },
+    'Incomplete Readback': { count: 0, examples: [] },
+    'Incomplete Hearback': { count: 0, examples: [] },
   }
 
   for (const error of errors) {
     if (error.category === 'language' || error.category === 'procedure') {
-      if (error.issue.includes('Incomplete') || error.issue.includes('Missing')) {
-        categories['Incomplete phraseology'].count++
-        if (categories['Incomplete phraseology'].examples.length < 3) {
-          categories['Incomplete phraseology'].examples.push(error.original.substring(0, 40))
+      // Hearback errors: pilot misheard (wrong value read back) vs readback errors (missing/incomplete)
+      if (error.issue.toLowerCase().includes('hearback') || error.issue.toLowerCase().includes('misheard') || error.issue.toLowerCase().includes('wrong value')) {
+        categories['Incorrect Hearback'].count++
+        if (categories['Incorrect Hearback'].examples.length < 3) {
+          categories['Incorrect Hearback'].examples.push(error.original.substring(0, 40))
         }
-      } else if (error.issue.includes('Non-standard') || error.issue.includes('Incorrect')) {
-        categories['Wrong terminology'].count++
-        if (categories['Wrong terminology'].examples.length < 3) {
-          categories['Wrong terminology'].examples.push(error.original.substring(0, 40))
+      } else if (error.issue.toLowerCase().includes('incorrect') || error.issue.toLowerCase().includes('non-standard') || error.issue.toLowerCase().includes('wrong')) {
+        categories['Incorrect Readback'].count++
+        if (categories['Incorrect Readback'].examples.length < 3) {
+          categories['Incorrect Readback'].examples.push(error.original.substring(0, 40))
         }
       } else {
-        categories['Syntax errors'].count++
-        if (categories['Syntax errors'].examples.length < 3) {
-          categories['Syntax errors'].examples.push(error.original.substring(0, 40))
+        // Incomplete readback: roger/wilco substitution, missing elements in pilot transmission
+        categories['Incomplete Readback'].count++
+        if (categories['Incomplete Readback'].examples.length < 3) {
+          categories['Incomplete Readback'].examples.push(error.original.substring(0, 40))
         }
       }
     } else if (error.category === 'structure') {
-      categories['Missing elements'].count++
-      if (categories['Missing elements'].examples.length < 3) {
-        categories['Missing elements'].examples.push(error.original.substring(0, 40))
+      // Structure errors: missing callsign, missing readback elements — hearback omissions
+      categories['Incomplete Hearback'].count++
+      if (categories['Incomplete Hearback'].examples.length < 3) {
+        categories['Incomplete Hearback'].examples.push(error.original.substring(0, 40))
       }
     }
   }
@@ -3745,7 +3756,42 @@ function categorizeLanguageErrors(errors: PhraseologyError[]): ErrorDetail[] {
   }))
 }
 
-function categorizeNumberErrors(errors: PhraseologyError[], _text: string): ErrorDetail[] {
+function categorizeNumberErrors(errors: PhraseologyError[], _text: string, corpusType = 'APP/DEP'): ErrorDetail[] {
+  const isPronunciation = (issue: string) =>
+    issue.includes('pronunciation') || issue.includes('pronounced') ||
+    issue.includes('niner') || issue.includes('tree') ||
+    issue.includes('fife') || issue.includes('fow-er')
+
+  // GND and RAMP don't involve altitude/heading/speed/squawk — use ground-relevant categories
+  if (corpusType === 'GND' || corpusType === 'RAMP') {
+    const categories: Record<string, number> = {
+      'Runway designations': 0,
+      'Frequencies': 0,
+      'Call signs': 0,
+      'Pronunciation notes': 0,
+    }
+    for (const error of errors) {
+      if (error.category !== 'number') continue
+      const issue = error.issue.toLowerCase()
+      if (isPronunciation(issue)) {
+        categories['Pronunciation notes']++
+      } else if (issue.includes('runway') || issue.includes('designat')) {
+        categories['Runway designations']++
+      } else if (issue.includes('frequen') || issue.includes('contact')) {
+        categories['Frequencies']++
+      } else if (issue.includes('callsign') || issue.includes('call sign')) {
+        categories['Call signs']++
+      } else {
+        categories['Pronunciation notes']++
+      }
+    }
+    const total = Object.values(categories).reduce((a, b) => a + b, 0) || 1
+    return Object.entries(categories).map(([type, count]) => ({
+      type, count, percentage: Math.round((count / total) * 100),
+    }))
+  }
+
+  // APP/DEP: altitude, heading, speed, squawk, pronunciation
   const categories: Record<string, number> = {
     'Altitude mismatch': 0,
     'Heading errors': 0,
@@ -3753,36 +3799,24 @@ function categorizeNumberErrors(errors: PhraseologyError[], _text: string): Erro
     'Pronunciation notes': 0,
     'Squawk errors': 0,
   }
-
   for (const error of errors) {
-    if (error.category === 'number') {
-      if (error.issue.toLowerCase().includes('altitude') || error.issue.toLowerCase().includes('flight level')) {
-        categories['Altitude mismatch']++
-      } else if (error.issue.toLowerCase().includes('heading')) {
-        categories['Heading errors']++
-      } else if (error.issue.toLowerCase().includes('speed')) {
-        categories['Speed discrepancy']++
-      } else if (error.issue.toLowerCase().includes('squawk')) {
-        categories['Squawk errors']++
-      } else if (
-        error.issue.toLowerCase().includes('pronunciation') ||
-        error.issue.toLowerCase().includes('pronounced') ||
-        error.issue.toLowerCase().includes('niner') ||
-        error.issue.toLowerCase().includes('tree') ||
-        error.issue.toLowerCase().includes('fife') ||
-        error.issue.toLowerCase().includes('fow-er')
-      ) {
-        categories['Pronunciation notes']++
-      }
+    if (error.category !== 'number') continue
+    const issue = error.issue.toLowerCase()
+    if (issue.includes('altitude') || issue.includes('flight level')) {
+      categories['Altitude mismatch']++
+    } else if (issue.includes('heading')) {
+      categories['Heading errors']++
+    } else if (issue.includes('speed')) {
+      categories['Speed discrepancy']++
+    } else if (issue.includes('squawk')) {
+      categories['Squawk errors']++
+    } else if (isPronunciation(issue)) {
+      categories['Pronunciation notes']++
     }
   }
-
   const total = Object.values(categories).reduce((a, b) => a + b, 0) || 1
-
   return Object.entries(categories).map(([type, count]) => ({
-    type,
-    count,
-    percentage: Math.round((count / total) * 100),
+    type, count, percentage: Math.round((count / total) * 100),
   }))
 }
 

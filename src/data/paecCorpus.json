@@ -255,10 +255,10 @@
         "icaoRef": "ICAO Doc 9432 §5.4"
       },
       {
-        "incorrect": "bye / bye bye",
+        "incorrect": "bye / bye bye / buh-bye",
         "correct": "good day",
         "explanation": "Informal farewell. The ICAO standard farewell is 'good day'.",
-        "pattern": "\\bbye\\s*-?\\s*bye\\b|\\bbye\\b(?!\\s*-?\\s*bye)",
+        "pattern": "\\bbye\\s*-?\\s*bye\\b|\\bbuh\\s*-?\\s*bye\\b|\\bbye\\b(?!\\s*-?\\s*bye)",
         "flags": "i",
         "standard": "good day",
         "weight": "low",

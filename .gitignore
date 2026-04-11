@@ -52,3 +52,9 @@ references.json
 # PAEC source corpus PDFs — large binary files, kept local only
 GROUND.pdf
 *.corpus.pdf
+
+# Analysis/feedback PDFs — local review documents, not for version control
+CBS analysis.pdf
+
+# Extracted PDF images (temporary, generated locally)
+pdf_images/

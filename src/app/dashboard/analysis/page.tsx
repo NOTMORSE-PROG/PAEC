@@ -1810,8 +1810,8 @@ Pilot: Left heading 180, PAL456."
           {/* Error distribution — horizontal bars */}
           <div className="grid lg:grid-cols-2 gap-4">
             {[
-              { title: 'Language-Based Errors', data: analysisResult.languageErrors, gradient: 'from-blue-500 to-indigo-500' },
               { title: 'Number-Related Errors', data: analysisResult.numberErrors, gradient: 'from-amber-500 to-orange-500' },
+              { title: 'Language-Based Errors', data: analysisResult.languageErrors, gradient: 'from-blue-500 to-indigo-500' },
             ].map(({ title, data, gradient }) => (
               <div key={title} className="rounded-xl border border-gray-200 bg-white p-5">
                 <div className="flex items-center justify-between mb-4">
