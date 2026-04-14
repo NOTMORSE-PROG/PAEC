@@ -177,11 +177,19 @@ function scoreQuestion(question: TrainingQuestion, answer: unknown): number {
 
     case 'readback': {
       const correctReadback = String(data.correctReadback ?? '')
-      const base = hybridScore(String(answer ?? ''), correctReadback)
+      const incorrectReadback = String(data.incorrectReadback ?? '')
+      const userAnswer = String(answer ?? '')
+
+      // If the user submitted the pre-filled incorrect readback unchanged, score is 0
+      if (incorrectReadback.trim() && normalize(userAnswer) === normalize(incorrectReadback)) {
+        return 0
+      }
+
+      const base = hybridScore(userAnswer, correctReadback)
       // Penalty: if the known error phrases are still present, student didn't fix them
       const errors = (data.errors as Array<{ wrong: string }> | undefined) ?? []
       if (errors.length > 0) {
-        const userNorm = normalize(String(answer ?? ''))
+        const userNorm = normalize(userAnswer)
         const unfixed = errors.filter(e => {
           const wrongNorm = normalize(e.wrong ?? '')
           return wrongNorm.length > 1 && userNorm.includes(wrongNorm)
