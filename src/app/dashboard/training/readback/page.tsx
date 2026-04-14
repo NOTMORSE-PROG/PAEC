@@ -228,7 +228,10 @@ export default function ReadbackPage() {
                 </button>
               </div>
               <div className="px-5 pb-5">
-                <p className="text-white font-medium text-base leading-relaxed">{q.question_data.atcInstruction}</p>
+                <p className="text-white/30 font-medium text-base leading-relaxed select-none blur-sm pointer-events-none" aria-hidden="true">
+                  {q.question_data.atcInstruction}
+                </p>
+                <p className="text-indigo-200 text-xs mt-1">Listen carefully — tap 🔊 to replay</p>
               </div>
             </div>
 
