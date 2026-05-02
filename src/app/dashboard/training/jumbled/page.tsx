@@ -22,6 +22,7 @@ interface Question {
   question_data: {
     instruction: string
     correctOrder: string[]
+    distractors?: string[]
     category?: string
   }
 }
@@ -170,7 +171,9 @@ export default function JumbledPage() {
       const arrs: Record<string, WordItem[]> = {}
       const ans: Record<string, string> = {}
       for (const q of data.questions) {
-        banks[q.id] = shuffleArr(q.question_data.correctOrder as string[]).map(word => ({ id: `w${idRef.current++}`, word }))
+        const correct = q.question_data.correctOrder as string[]
+        const distractors = (q.question_data.distractors as string[] | undefined) ?? []
+        banks[q.id] = shuffleArr([...correct, ...distractors]).map(word => ({ id: `w${idRef.current++}`, word }))
         arrs[q.id] = []
         ans[q.id] = ''
       }
@@ -207,8 +210,8 @@ export default function JumbledPage() {
     })
   }
 
-  const resetQuestion = (qId: string, correctOrder: string[]) => {
-    setWordBanks(prev => ({ ...prev, [qId]: shuffleArr(correctOrder).map(word => ({ id: `w${idRef.current++}`, word })) }))
+  const resetQuestion = (qId: string, correctOrder: string[], distractors: string[] = []) => {
+    setWordBanks(prev => ({ ...prev, [qId]: shuffleArr([...correctOrder, ...distractors]).map(word => ({ id: `w${idRef.current++}`, word })) }))
     setArranged(prev => ({ ...prev, [qId]: [] }))
     setAnswers(prev => ({ ...prev, [qId]: '' }))
   }
@@ -274,7 +277,7 @@ export default function JumbledPage() {
       <div className="card p-6 space-y-4">
         <h3 className="font-semibold text-gray-900">How it works</h3>
         <ul className="space-y-2 text-sm text-gray-600">
-          {['Up to 10 clearances — arrange all before submitting', 'Click or drag words to move them to your answer area', 'Drag words within your answer to reorder them', 'Scored by how many words are in the correct position', 'New random clearances each session'].map((t, i) => (
+          {['Up to 10 clearances — arrange all before submitting', 'Click or drag words to move them to your answer area', 'Drag words within your answer to reorder them', 'Some words in the bank are distractors — only use the ones that belong', 'Scored by how many words are in the correct position', 'New random clearances each session'].map((t, i) => (
             <li key={i} className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-primary-500 mt-0.5 shrink-0" />{t}</li>
           ))}
         </ul>
@@ -397,7 +400,7 @@ export default function JumbledPage() {
                 </div>
                 <BankDropZone highlight={overZone === 'bank'}>
                   {bank.length === 0
-                    ? <p className="text-xs text-gray-400 w-full text-center py-2">All words placed ✓</p>
+                    ? <p className="text-xs text-gray-400 w-full text-center py-2">{arr.length === totalWords ? 'All words placed ✓' : 'Bank empty — remove extras from your answer'}</p>
                     : bank.map(item => (
                       <DraggableWord
                         key={item.id}
@@ -443,7 +446,7 @@ export default function JumbledPage() {
                   }
                 </button>
                 <button
-                  onClick={() => resetQuestion(q.id, q.question_data.correctOrder)}
+                  onClick={() => resetQuestion(q.id, q.question_data.correctOrder, q.question_data.distractors ?? [])}
                   className="p-2.5 rounded-xl border-2 border-gray-200 hover:border-gray-300 text-gray-500 hover:text-gray-700 transition-colors"
                   title="Reset"
                 >

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getRandomActiveQuestions, countActiveQuestions, createTrainingSession } from '@/lib/database'
+import {
+  buildJumbledDistractorPool,
+  pickDistractorsForQuestion,
+  distractorCount,
+} from '@/lib/jumbledDistractors'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -25,13 +30,29 @@ export async function POST(req: NextRequest) {
 
   const sessionId = await createTrainingSession(session.user.id, category, questionIds)
 
-  return NextResponse.json({
-    sessionId,
-    questions: questions.map(q => ({
-      id: q.id,
-      category: q.category,
-      question_data: q.question_data,
-      difficulty: q.difficulty,
-    })),
-  })
+  let payload = questions.map(q => ({
+    id: q.id,
+    category: q.category,
+    question_data: q.question_data,
+    difficulty: q.difficulty,
+  }))
+
+  if (category === 'jumbled') {
+    const pool = await buildJumbledDistractorPool()
+    payload = payload.map(q => {
+      const data = q.question_data as Record<string, unknown>
+      const correctOrder = (data.correctOrder as string[] | undefined) ?? []
+      const distractors = pickDistractorsForQuestion(
+        correctOrder,
+        pool,
+        distractorCount(correctOrder.length),
+      )
+      return {
+        ...q,
+        question_data: { ...data, distractors },
+      }
+    })
+  }
+
+  return NextResponse.json({ sessionId, questions: payload })
 }
