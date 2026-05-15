@@ -191,8 +191,8 @@ export default function OnboardingPage() {
           )}
         </button>
 
-        {/* Return button — only on final step */}
-        {isLast && (
+        {/* Return button — hidden on first step only */}
+        {step > 0 && (
           <button
             onClick={handleBack}
             disabled={loading}
