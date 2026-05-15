@@ -11,6 +11,7 @@ import {
   BookOpen,
   Headphones,
   ChevronRight,
+  ChevronLeft,
 } from 'lucide-react'
 
 const STEPS = [
@@ -53,6 +54,10 @@ export default function OnboardingPage() {
   const { update } = useSession()
 
   const isLast = step === STEPS.length - 1
+
+  function handleBack() {
+    setStep((s) => s - 1)
+  }
 
   async function handleNext() {
     if (isLast) {
@@ -185,6 +190,18 @@ export default function OnboardingPage() {
             <>Next <ChevronRight className="w-5 h-5 ml-1" /></>
           )}
         </button>
+
+        {/* Return button — only on final step */}
+        {isLast && (
+          <button
+            onClick={handleBack}
+            disabled={loading}
+            className="w-full mt-3 flex items-center justify-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors py-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Return
+          </button>
+        )}
 
         {/* Step counter */}
         <p className="text-center text-xs text-gray-400 mt-4">
