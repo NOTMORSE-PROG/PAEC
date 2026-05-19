@@ -405,8 +405,6 @@ export default function LandingPage() {
               <p className="text-lg text-gray-600 mb-8">
                 Analyze authentic aviation communication patterns from the Philippine
                 Aeronautical English Corpus (PAEC) across three specialized domains.
-                Explore phraseology patterns, deviations from ICAO standards, and
-                standardization insights specific to Philippine operations.
               </p>
 
               <div className="grid grid-cols-3 gap-4 mb-8">
@@ -579,13 +577,8 @@ export default function LandingPage() {
           </div>
 
           {/* Feature cards */}
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 gap-8">
             {[
-              {
-                icon: Globe,
-                title: 'ICAO Standards',
-                description: 'Built on international aviation communication standards to ensure global compliance.',
-              },
               {
                 icon: Users,
                 title: 'Research-Driven',
