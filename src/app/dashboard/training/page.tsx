@@ -9,7 +9,6 @@ import {
   Headphones,
   ArrowRight,
   TrendingUp,
-  Star,
   Lock,
   Loader2,
   Lightbulb,
@@ -289,19 +288,6 @@ export default function TrainingPage() {
                     </div>
                   )
                 })()}
-
-                {/* Features */}
-                <div className="mb-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">What you&apos;ll practise:</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {module.features.map((feature, index) => (
-                      <div key={index} className="flex items-center gap-2 text-sm text-gray-600">
-                        <Star className="w-3 h-3 text-amber-500" />
-                        {feature}
-                      </div>
-                    ))}
-                  </div>
-                </div>
 
                 {/* Action Button */}
                 {comingSoon ? (

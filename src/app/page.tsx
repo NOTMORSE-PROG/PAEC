@@ -173,8 +173,7 @@ export default function LandingPage() {
 
               <p className="text-lg sm:text-xl text-gray-600 max-w-xl mx-auto lg:mx-0 mb-8 animate-slide-up delay-100">
                 Train with authentic pilot–ATC communications drawn directly from the Philippine
-                Aeronautical English Corpus (PAEC). Improve your ICAO-standard phraseology and
-                enhance aviation communication safety in Philippine operations.
+                Aeronautical English Corpus (PAEC).
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-slide-up delay-200">
@@ -239,10 +238,6 @@ export default function LandingPage() {
 
                   {/* Error tags */}
                   <div className="space-y-2">
-                    <div className="flex items-start gap-2 text-xs">
-                      <span className="shrink-0 mt-0.5 w-2 h-2 rounded-full bg-amber-400"></span>
-                      <span className="text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-800 dark:text-slate-200">&quot;Roger&quot;</span> — non-standard acknowledgement</span>
-                    </div>
                     <div className="flex items-start gap-2 text-xs">
                       <span className="shrink-0 mt-0.5 w-2 h-2 rounded-full bg-amber-400"></span>
                       <span className="text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-800 dark:text-slate-200">&quot;maintain&quot;</span> — omitted from readback</span>
