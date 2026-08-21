@@ -1,0 +1,44 @@
+name: Admin Code Quality
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'corpus-admin/**'
+      - '.github/workflows/admin-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'corpus-admin/**'
+      - '.github/workflows/admin-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    name: Admin code quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: corpus-admin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: corpus-admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
