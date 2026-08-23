@@ -2,6 +2,15 @@
 
 A corpus-based training system for aviation English proficiency, built around authentic ATC communications from RPLL (Ninoy Aquino International Airport). The platform helps pilots and air traffic controllers practice and improve their English communication skills in compliance with ICAO standards.
 
+## Repository Layout
+
+| Path | Component | Local URL |
+|---|---|---|
+| `/` | Learner training application | `http://localhost:3000` |
+| `corpus-admin/` | Corpus administration application | `http://localhost:3001` |
+
+Both applications are maintained in the canonical `https://github.com/NOTMORSE-PROG/PAEC` repository and keep separate dependency trees and environment files.
+
 ## Features
 
 ### Training Modules
@@ -163,6 +172,29 @@ npm run build     # Build for production
 npm start         # Start production server
 npm run lint      # Run ESLint
 ```
+
+### Admin Application
+
+From the repository root:
+
+```bash
+cd corpus-admin
+npm install
+cp .env.local.example .env.local
+# Edit .env.local with the admin application's configuration
+npm run dev
+```
+
+The admin application runs at [http://localhost:3001](http://localhost:3001). See [`corpus-admin/README.md`](corpus-admin/README.md) for its detailed configuration.
+
+## Deployment
+
+| Component | Vercel root directory | Production URL |
+|---|---|---|
+| Learner application | `/` | `https://corpusbasedsystem.vercel.app` |
+| Admin application | `corpus-admin/` | `https://corpus-admin.vercel.app` |
+
+Both existing Vercel projects use this canonical repository. Keep their current root directories, environment variables, and public aliases unchanged during routine deployments.
 
 ## Database Schema
 
