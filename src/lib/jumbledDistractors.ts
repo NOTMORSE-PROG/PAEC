@@ -19,7 +19,11 @@ export async function buildJumbledDistractorPool(): Promise<string[]> {
     const words = (data.correctOrder as string[] | undefined) ?? []
     for (const w of words) {
       const n = normalize(String(w))
-      if (n) seen.add(n)
+      // Single-character tokens (e.g. "C" from a taxiway/runway designator like
+      // "Taxiway C") only make sense inside their original clearance. Detached
+      // into another question's word bank they show up as a bare, unexplained
+      // letter with no plausible role in the sentence.
+      if (n && n.length > 1) seen.add(n)
     }
   }
   return [...seen]
