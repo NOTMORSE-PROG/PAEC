@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Shield, User, Loader2, RefreshCw } from 'lucide-react'
+import { Shield, User, Loader2, RefreshCw, Search } from 'lucide-react'
 import Link from 'next/link'
 
 interface UserRow {
@@ -14,10 +14,21 @@ interface UserRow {
   session_count: number
 }
 
+// Query string for the list view; carried onto the detail page so "Back to Users" returns here
+function listQuery(page: number, q: string) {
+  const params = new URLSearchParams()
+  if (page > 1) params.set('page', String(page))
+  if (q) params.set('q', q)
+  const qs = params.toString()
+  return qs ? `?${qs}` : ''
+}
+
 function UsersPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  const query = searchParams.get('q')?.trim() ?? ''
+  const [searchInput, setSearchInput] = useState(query)
   const [users, setUsers] = useState<UserRow[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -25,28 +36,50 @@ function UsersPageInner() {
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`/api/users?page=${page}`)
+    const res = await fetch(`/api/users${listQuery(page, query)}`)
     const data = await res.json()
     setUsers(data.users ?? [])
     setTotal(data.total ?? 0)
     setTotalPages(data.totalPages ?? 1)
     setLoading(false)
-  }, [page])
+  }, [page, query])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
-  const goToPage = (p: number) => {
-    router.push(p === 1 ? '/dashboard/users' : `/dashboard/users?page=${p}`)
-  }
+  // Debounced search; a new search starts again from page 1
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = searchInput.trim()
+      if (next !== query) router.replace(`/dashboard/users${listQuery(1, next)}`)
+    }, 350)
+    return () => clearTimeout(t)
+  }, [searchInput]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the input in sync when the URL changes from browser back/forward
+  useEffect(() => {
+    if (query !== searchInput.trim()) setSearchInput(query)
+  }, [query]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const goToPage = (p: number) => router.push(`/dashboard/users${listQuery(p, query)}`)
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Users</h1>
-          <p className="text-sm text-gray-500">{total} registered users</p>
+          <p className="text-sm text-gray-500">{total} {query ? 'matching' : 'registered'} users</p>
         </div>
         <button onClick={fetchUsers} className="btn-secondary px-3 py-2"><RefreshCw className="w-4 h-4" /></button>
+      </div>
+
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+          placeholder="Search by name or email…"
+          className="input-field pl-9 w-full sm:w-80"
+        />
       </div>
 
       <div className="card overflow-hidden">
@@ -57,7 +90,7 @@ function UsersPageInner() {
         ) : users.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <User className="w-10 h-10 mb-3" />
-            <p>No users found</p>
+            <p>{query ? `No users match “${query}”` : 'No users found'}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -95,7 +128,7 @@ function UsersPageInner() {
                     {new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </td>
                   <td className="px-5 py-4">
-                    <Link href={`/dashboard/users/${user.id}`} className="text-xs font-medium text-primary-600 hover:text-primary-800 hover:underline">
+                    <Link href={`/dashboard/users/${user.id}${listQuery(page, query)}`} className="text-xs font-medium text-primary-600 hover:text-primary-800 hover:underline">
                       View
                     </Link>
                   </td>

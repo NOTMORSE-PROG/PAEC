@@ -128,19 +128,22 @@ export async function toggleQuestionActive(id: string, isActive: boolean) {
 
 // ── Users ────────────────────────────────────────────────────────────────────
 
-export async function getUsers(limit = 50, offset = 0) {
+export async function getUsers(limit = 50, offset = 0, search?: string) {
+  const where = search ? 'WHERE u.name ILIKE $3 OR u.email ILIKE $3' : ''
   return query<User & { session_count: number }>(
     `SELECT u.id, u.name, u.email, u.role, u.created_at,
        (SELECT COUNT(*) FROM training_sessions ts WHERE ts.user_id = u.id AND ts.completed = true)::int AS session_count
      FROM users u
+     ${where}
      ORDER BY u.created_at DESC
      LIMIT $1 OFFSET $2`,
-    [limit, offset]
+    search ? [limit, offset, `%${search}%`] : [limit, offset]
   )
 }
 
-export async function countUsers() {
-  const rows = await query<{ count: string }>('SELECT COUNT(*) as count FROM users', [])
+export async function countUsers(search?: string) {
+  const where = search ? 'WHERE name ILIKE $1 OR email ILIKE $1' : ''
+  const rows = await query<{ count: string }>(`SELECT COUNT(*) as count FROM users ${where}`, search ? [`%${search}%`] : [])
   return parseInt(rows[0]?.count ?? '0', 10)
 }
 

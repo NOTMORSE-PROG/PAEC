@@ -12,10 +12,11 @@ export async function GET(req: NextRequest) {
   if (!await requireAdmin()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { searchParams } = new URL(req.url)
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  const search = searchParams.get('q')?.trim() || undefined
   const limit = 30
   const [users, total] = await Promise.all([
-    getUsers(limit, (page - 1) * limit),
-    countUsers(),
+    getUsers(limit, (page - 1) * limit, search),
+    countUsers(search),
   ])
   return NextResponse.json({ users, total, page, totalPages: Math.ceil(total / limit) })
 }

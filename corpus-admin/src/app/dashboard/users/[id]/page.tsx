@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, User, Shield, ChevronDown, ChevronRight, Loader2, BookOpen } from 'lucide-react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 
 interface UserData {
   id: string
@@ -33,6 +33,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>()
+  // The list passes its page/search through, so going back lands on the same page
+  const listQs = useSearchParams().toString()
+  const backHref = `/dashboard/users${listQs ? `?${listQs}` : ''}`
   const [user, setUser] = useState<UserData | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,7 +68,7 @@ export default function UserDetailPage() {
   if (!user) {
     return (
       <div className="space-y-4">
-        <Link href="/dashboard/users" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+        <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ArrowLeft className="w-4 h-4" />Back to Users
         </Link>
         <p className="text-gray-500">User not found.</p>
@@ -76,7 +79,7 @@ export default function UserDetailPage() {
   return (
     <div className="space-y-6">
       {/* Back link */}
-      <Link href="/dashboard/users" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+      <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
         <ArrowLeft className="w-4 h-4" />Back to Users
       </Link>
 
