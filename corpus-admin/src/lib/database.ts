@@ -139,6 +139,11 @@ export async function getUsers(limit = 50, offset = 0) {
   )
 }
 
+export async function countUsers() {
+  const rows = await query<{ count: string }>('SELECT COUNT(*) as count FROM users', [])
+  return parseInt(rows[0]?.count ?? '0', 10)
+}
+
 export async function getUserById(userId: string): Promise<User | null> {
   const rows = await query<User>('SELECT * FROM users WHERE id = $1', [userId])
   return rows[0] ?? null

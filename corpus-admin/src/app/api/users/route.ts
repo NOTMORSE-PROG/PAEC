@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getUsers } from '@/lib/database'
+import { getUsers, countUsers } from '@/lib/database'
 
 async function requireAdmin() {
   const session = await auth()
@@ -11,8 +11,11 @@ async function requireAdmin() {
 export async function GET(req: NextRequest) {
   if (!await requireAdmin()) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { searchParams } = new URL(req.url)
-  const page = parseInt(searchParams.get('page') ?? '1', 10)
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
   const limit = 30
-  const users = await getUsers(limit, (page - 1) * limit)
-  return NextResponse.json({ users })
+  const [users, total] = await Promise.all([
+    getUsers(limit, (page - 1) * limit),
+    countUsers(),
+  ])
+  return NextResponse.json({ users, total, page, totalPages: Math.ceil(total / limit) })
 }

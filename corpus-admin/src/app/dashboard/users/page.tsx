@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Shield, User, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
@@ -13,26 +14,37 @@ interface UserRow {
   session_count: number
 }
 
-export default function UsersPage() {
+function UsersPageInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
   const [users, setUsers] = useState<UserRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
-    const res = await fetch('/api/users')
+    const res = await fetch(`/api/users?page=${page}`)
     const data = await res.json()
     setUsers(data.users ?? [])
+    setTotal(data.total ?? 0)
+    setTotalPages(data.totalPages ?? 1)
     setLoading(false)
-  }, [])
+  }, [page])
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
+
+  const goToPage = (p: number) => {
+    router.push(p === 1 ? '/dashboard/users' : `/dashboard/users?page=${p}`)
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Users</h1>
-          <p className="text-sm text-gray-500">{users.length} registered users</p>
+          <p className="text-sm text-gray-500">{total} registered users</p>
         </div>
         <button onClick={fetchUsers} className="btn-secondary px-3 py-2"><RefreshCw className="w-4 h-4" /></button>
       </div>
@@ -93,7 +105,36 @@ export default function UsersPage() {
           </table>
           </div>
         )}
+
+        {/* Pagination — always visible */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50">
+          <span className="text-xs text-gray-400">Page {page} of {totalPages || 1}</span>
+          <div className="flex gap-1">
+            <button
+              disabled={page === 1 || loading}
+              onClick={() => goToPage(page - 1)}
+              className="btn-secondary text-xs px-2 py-1 disabled:opacity-40"
+            >‹</button>
+            <button
+              disabled={page >= totalPages || loading}
+              onClick={() => goToPage(page + 1)}
+              className="btn-secondary text-xs px-2 py-1 disabled:opacity-40"
+            >›</button>
+          </div>
+        </div>
       </div>
     </div>
+  )
+}
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-16 text-gray-400">
+        <Loader2 className="w-6 h-6 animate-spin mr-2" />Loading…
+      </div>
+    }>
+      <UsersPageInner />
+    </Suspense>
   )
 }
