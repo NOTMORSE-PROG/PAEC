@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Target, ChevronRight, Trophy, RotateCcw, CheckCircle, XCircle, Loader2, AlertTriangle, Volume2, Lightbulb, RefreshCw, Mic, MicOff } from 'lucide-react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
@@ -52,13 +52,18 @@ function highlightAll(
   return <>{before ? highlightAll(before, rest, mode) : null}<mark className={className}>{matched}</mark>{after ? highlightAll(after, rest, mode) : null}</>
 }
 
-function speak(text: string) {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return
+function speak(text: string, onDone?: () => void) {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return null
   window.speechSynthesis.cancel()
   const u = new SpeechSynthesisUtterance(text)
   u.rate = 0.8
+  if (onDone) { u.onend = onDone; u.onerror = onDone }
   window.speechSynthesis.speak(u)
+  return u
 }
+
+// How many times the (hidden) ATC instruction can be played per question
+const MAX_INSTRUCTION_PLAYS = 3
 
 const COMMON_ERRORS = [
   'Number transposition (e.g., 250 → 150)',
@@ -83,6 +88,10 @@ export default function ReadbackPage() {
   const [openAccordion, setOpenAccordion] = useState<string | null>(null)
   const [currentIdx, setCurrentIdx] = useState(0)
   const [showHints, setShowHints] = useState(false)
+  const [instructionPlays, setInstructionPlays] = useState<Record<string, number>>({})
+  const [instructionPlaying, setInstructionPlaying] = useState(false)
+  // Holding the utterance keeps Chrome from garbage-collecting it before onend fires
+  const instructionUtterance = useRef<SpeechSynthesisUtterance | null>(null)
   const { isSupported, isListening, interimText, error: speechError, toggleListening, stopListening } = useSpeechRecognition({ vocabulary: AVIATION_VOCABULARY })
 
   useEffect(() => {
@@ -93,7 +102,22 @@ export default function ReadbackPage() {
       .finally(() => setLoadingHistory(false))
   }, [])
 
-  useEffect(() => { setShowHints(false); stopListening() }, [currentIdx, stopListening])
+  useEffect(() => {
+    setShowHints(false); stopListening(); setInstructionPlaying(false)
+    return () => { if (typeof window !== 'undefined') window.speechSynthesis?.cancel() }
+  }, [currentIdx, stopListening])
+
+  const playInstruction = (q: Question) => {
+    const used = instructionPlays[q.id] ?? 0
+    if (instructionPlaying || used >= MAX_INSTRUCTION_PLAYS) return
+    const u = speak(q.question_data.atcInstruction, () => {
+      if (instructionUtterance.current === u) setInstructionPlaying(false)
+    })
+    if (!u) return
+    instructionUtterance.current = u
+    setInstructionPlaying(true)
+    setInstructionPlays(prev => ({ ...prev, [q.id]: used + 1 }))
+  }
 
   const startSession = async () => {
     setStarting(true); setError('')
@@ -104,7 +128,7 @@ export default function ReadbackPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to start session.'); return }
-      setSessionId(data.sessionId); setQuestions(data.questions)
+      setSessionId(data.sessionId); setQuestions(data.questions); setInstructionPlays({})
       // Pre-fill textarea with the incorrect readback so user edits it
       setAnswers(Object.fromEntries(data.questions.map((q: Question) => [q.id, q.question_data.incorrectReadback ?? ''])))
       setState('quiz')
@@ -150,7 +174,7 @@ export default function ReadbackPage() {
             <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Advanced</span>
           </div>
         </div>
-        <p className="text-gray-600 mt-2">You will be shown an ATC instruction and a pilot&apos;s incorrect readback. Correct the readback so it accurately reflects the instruction using ICAO standard phraseology.</p>
+        <p className="text-gray-600 mt-2">You will hear an ATC instruction and see a pilot&apos;s incorrect readback. Correct the readback so it accurately reflects the instruction using ICAO standard phraseology.</p>
       </div>
 
       {!loadingHistory && history.count > 0 && (
@@ -173,7 +197,7 @@ export default function ReadbackPage() {
       <div className="card p-6 space-y-4">
         <h3 className="font-semibold text-gray-900">How it works</h3>
         <ul className="space-y-2 text-sm text-gray-600">
-          {['Up to 10 questions — answer all before submitting', 'Each question shows an incorrect pilot readback — correct it', 'Scored by accuracy against the correct readback', 'Questions are randomly drawn from the pool each session'].map((t, i) => (
+          {['Up to 10 questions — answer all before submitting', `The ATC instruction is audio only and can be played ${MAX_INSTRUCTION_PLAYS} times per question — listen carefully`, 'Each question shows an incorrect pilot readback — correct it', 'Scored by accuracy against the correct readback', 'Questions are randomly drawn from the pool each session'].map((t, i) => (
             <li key={i} className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-primary-500 mt-0.5 shrink-0" />{t}</li>
           ))}
         </ul>
@@ -192,6 +216,7 @@ export default function ReadbackPage() {
     const isLast = currentIdx === questions.length - 1
     const currentAnswered = (answers[q?.id] ?? '').trim().length > 0
     const errorCount = q?.question_data.errors?.length ?? 1
+    const playsLeft = q ? MAX_INSTRUCTION_PLAYS - (instructionPlays[q.id] ?? 0) : 0
     const diffColor = q?.difficulty === 'easy' ? 'bg-green-100 text-green-700' : q?.difficulty === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
     const handleSpeechResult = (text: string) =>
       setAnswers(prev => ({ ...prev, [q.id]: text }))
@@ -223,15 +248,26 @@ export default function ReadbackPage() {
             <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
               <div className="px-5 pt-4 pb-1 flex items-center justify-between">
                 <p className="text-sm font-semibold text-indigo-100">Original ATC Instruction</p>
-                <button onClick={() => speak(q.question_data.atcInstruction)} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
-                  <Volume2 className="w-4 h-4 text-white" />
+                <button
+                  onClick={() => playInstruction(q)}
+                  disabled={instructionPlaying || playsLeft <= 0}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/10"
+                >
+                  <Volume2 className="w-4 h-4" />
+                  {instructionPlaying ? 'Playing…' : playsLeft > 0 ? `Play (${playsLeft} left)` : 'No plays left'}
                 </button>
               </div>
               <div className="px-5 pb-5">
                 <p className="text-white/30 font-medium text-base leading-relaxed select-none blur-sm pointer-events-none" aria-hidden="true">
                   {q.question_data.atcInstruction}
                 </p>
-                <p className="text-indigo-200 text-xs mt-1">Listen carefully — tap 🔊 to replay</p>
+                <p className="text-indigo-200 text-xs mt-1">
+                  {playsLeft === MAX_INSTRUCTION_PLAYS
+                    ? `Listen carefully — you can only play this instruction ${MAX_INSTRUCTION_PLAYS} times`
+                    : playsLeft > 0
+                      ? `${playsLeft} play${playsLeft !== 1 ? 's' : ''} left — listen carefully`
+                      : 'You have used all plays for this instruction'}
+                </p>
               </div>
             </div>
 
